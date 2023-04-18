@@ -24,6 +24,8 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/core/vm/concrete"
+	"github.com/ethereum/go-ethereum/core/vm/concrete/api"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
 )
@@ -55,6 +57,11 @@ func (evm *EVM) precompile(addr common.Address) (PrecompiledContract, bool) {
 		precompiles = PrecompiledContractsHomestead
 	}
 	p, ok := precompiles[addr]
+	return p, ok
+}
+
+func (evm *EVM) concretePrecompile(addr common.Address) (concrete.Precompile, bool) {
+	p, ok := ConcretePrecompiles[addr]
 	return p, ok
 }
 
@@ -186,10 +193,11 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 	}
 	snapshot := evm.StateDB.Snapshot()
 	p, isPrecompile := evm.precompile(addr)
+	ccp, isConcretePrecompile := evm.concretePrecompile(addr)
 	debug := evm.Config.Tracer != nil
 
 	if !evm.StateDB.Exist(addr) {
-		if !isPrecompile && evm.chainRules.IsEIP158 && value.Sign() == 0 {
+		if !isPrecompile && !isConcretePrecompile && evm.chainRules.IsEIP158 && value.Sign() == 0 {
 			// Calling a non existing account, don't do anything, but ping the tracer
 			if debug {
 				if evm.depth == 0 {
@@ -224,6 +232,8 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 
 	if isPrecompile {
 		ret, gas, err = RunPrecompiledContract(p, input, gas)
+	} else if isConcretePrecompile {
+		ret, gas, err = RunConcretePrecompile(evm.NewConcreteEVM(), addr, ccp, input, gas, evm.Interpreter().readOnly)
 	} else {
 		// Initialise a new contract and set the code that is to be used by the EVM.
 		// The contract is a scoped environment for this execution context only.
@@ -287,6 +297,8 @@ func (evm *EVM) CallCode(caller ContractRef, addr common.Address, input []byte, 
 	// It is allowed to call precompiles, even via delegatecall
 	if p, isPrecompile := evm.precompile(addr); isPrecompile {
 		ret, gas, err = RunPrecompiledContract(p, input, gas)
+	} else if ccp, isConcretePrecompile := evm.concretePrecompile(addr); isConcretePrecompile {
+		ret, gas, err = RunConcretePrecompile(evm.NewConcreteEVM(), addr, ccp, input, gas, evm.Interpreter().readOnly)
 	} else {
 		addrCopy := addr
 		// Initialise a new contract and set the code that is to be used by the EVM.
@@ -332,6 +344,8 @@ func (evm *EVM) DelegateCall(caller ContractRef, addr common.Address, input []by
 	// It is allowed to call precompiles, even via delegatecall
 	if p, isPrecompile := evm.precompile(addr); isPrecompile {
 		ret, gas, err = RunPrecompiledContract(p, input, gas)
+	} else if ccp, isConcretePrecompile := evm.concretePrecompile(addr); isConcretePrecompile {
+		ret, gas, err = RunConcretePrecompile(evm.NewConcreteEVM(), addr, ccp, input, gas, evm.Interpreter().readOnly)
 	} else {
 		addrCopy := addr
 		// Initialise a new contract and make initialise the delegate values
@@ -381,6 +395,8 @@ func (evm *EVM) StaticCall(caller ContractRef, addr common.Address, input []byte
 
 	if p, isPrecompile := evm.precompile(addr); isPrecompile {
 		ret, gas, err = RunPrecompiledContract(p, input, gas)
+	} else if ccp, isConcretePrecompile := evm.concretePrecompile(addr); isConcretePrecompile {
+		ret, gas, err = RunConcretePrecompile(evm.NewConcreteEVM(), addr, ccp, input, gas, true)
 	} else {
 		// At this point, we use a copy of address. If we don't, the go compiler will
 		// leak the 'contract' to the outer scope, and make allocation for 'contract'
@@ -526,3 +542,21 @@ func (evm *EVM) Create2(caller ContractRef, code []byte, gas uint64, endowment *
 
 // ChainConfig returns the environment's chain configuration
 func (evm *EVM) ChainConfig() *params.ChainConfig { return evm.chainConfig }
+
+func (evm *EVM) NewConcreteEVM() concrete.EVM {
+	return &concreteEVM{evm}
+}
+
+type concreteEVM struct {
+	evm *EVM
+}
+
+func (evm *concreteEVM) StateDB() api.StateDB               { return evm.evm.StateDB }
+func (evm *concreteEVM) BlockHash(block uint64) common.Hash { return evm.evm.Context.GetHash(block) }
+func (evm *concreteEVM) BlockTimestamp() uint64             { return evm.evm.Context.Time }
+func (evm *concreteEVM) BlockNumber() *big.Int              { return evm.evm.Context.BlockNumber }
+func (evm *concreteEVM) BlockDifficulty() *big.Int          { return evm.evm.Context.Difficulty }
+func (evm *concreteEVM) BlockGasLimit() uint64              { return evm.evm.Context.GasLimit }
+func (evm *concreteEVM) BlockCoinbase() common.Address      { return evm.evm.Context.Coinbase }
+
+var _ concrete.EVM = (*concreteEVM)(nil)
