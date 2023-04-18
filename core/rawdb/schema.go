@@ -104,9 +104,10 @@ var (
 	trieNodeAccountPrefix = []byte("A") // trieNodeAccountPrefix + hexPath -> trie node
 	trieNodeStoragePrefix = []byte("O") // trieNodeStoragePrefix + accountHash + hexPath -> trie node
 
-	PreimagePrefix = []byte("secure-key-")       // PreimagePrefix + hash -> preimage
-	configPrefix   = []byte("ethereum-config-")  // config prefix for the db
-	genesisPrefix  = []byte("ethereum-genesis-") // genesis state prefix for the db
+	PreimagePrefix         = []byte("secure-key-")       // PreimagePrefix + hash -> preimage
+	ConcretePreimagePrefix = []byte("concrete-pi-")      // ConcretePreimagePrefix + hash -> concrete preimage
+	configPrefix           = []byte("ethereum-config-")  // config prefix for the db
+	genesisPrefix          = []byte("ethereum-genesis-") // genesis state prefix for the db
 
 	// BloomBitsIndexPrefix is the data table of a chain indexer to track its progress
 	BloomBitsIndexPrefix = []byte("iB")
@@ -213,6 +214,10 @@ func skeletonHeaderKey(number uint64) []byte {
 // preimageKey = PreimagePrefix + hash
 func preimageKey(hash common.Hash) []byte {
 	return append(PreimagePrefix, hash.Bytes()...)
+}
+
+func concretePreimageKey(hash common.Hash) []byte {
+	return append(ConcretePreimagePrefix, hash.Bytes()...)
 }
 
 // codeKey = CodePrefix + hash

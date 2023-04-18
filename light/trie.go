@@ -71,6 +71,14 @@ func (db *odrDatabase) CopyTrie(t state.Trie) state.Trie {
 	}
 }
 
+func (db *odrDatabase) ConcretePreimage(hash common.Hash) ([]byte, error) {
+	panic(fmt.Errorf("unimplemented"))
+}
+
+func (db *odrDatabase) ConcretePreimageSize(hash common.Hash) (int, error) {
+	panic(fmt.Errorf("unimplemented"))
+}
+
 func (db *odrDatabase) ContractCode(addrHash, codeHash common.Hash) ([]byte, error) {
 	if codeHash == sha3Nil {
 		return nil, nil

@@ -39,6 +39,11 @@ func WritePreimages(db ethdb.KeyValueWriter, preimages map[common.Hash][]byte) {
 	preimageHitCounter.Inc(int64(len(preimages)))
 }
 
+func ReadConcretePreimage(db ethdb.KeyValueReader, hash common.Hash) []byte {
+	data, _ := db.Get(concretePreimageKey(hash))
+	return data
+}
+
 // ReadCode retrieves the contract code of the provided code hash.
 func ReadCode(db ethdb.KeyValueReader, hash common.Hash) []byte {
 	// Try with the prefixed code scheme first, if not then try with legacy
@@ -77,6 +82,18 @@ func HasCode(db ethdb.KeyValueReader, hash common.Hash) bool {
 func HasCodeWithPrefix(db ethdb.KeyValueReader, hash common.Hash) bool {
 	ok, _ := db.Has(codeKey(hash))
 	return ok
+}
+
+func WriteConcretePreimages(db ethdb.KeyValueWriter, concretePreimages map[common.Hash][]byte) {
+	for hash, pi := range concretePreimages {
+		WriteConcretePreimage(db, hash, pi)
+	}
+}
+
+func WriteConcretePreimage(db ethdb.KeyValueWriter, hash common.Hash, concretePreimage []byte) {
+	if err := db.Put(concretePreimageKey(hash), concretePreimage); err != nil {
+		log.Crit("Failed to store hot preimage", "err", err)
+	}
 }
 
 // WriteCode writes the provided contract code database.
