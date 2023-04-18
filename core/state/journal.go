@@ -127,6 +127,16 @@ type (
 	addPreimageChange struct {
 		hash common.Hash
 	}
+	addPersistentPreimageChange struct {
+		hash common.Hash
+	}
+	addEphemeralPreimageChange struct {
+		hash common.Hash
+	}
+	ephemeralStorageChange struct {
+		account       *common.Address
+		key, prevalue common.Hash
+	}
 	touchChange struct {
 		account *common.Address
 	}
@@ -245,6 +255,34 @@ func (ch addLogChange) revert(s *StateDB) {
 }
 
 func (ch addLogChange) dirtied() *common.Address {
+	return nil
+}
+
+func (ch addPersistentPreimageChange) revert(s *StateDB) {
+	if s.persistentPreimageDirties[ch.hash]--; s.persistentPreimageDirties[ch.hash] == 0 {
+		delete(s.persistentPreimageDirties, ch.hash)
+	}
+}
+
+func (ch addPersistentPreimageChange) dirtied() *common.Address {
+	return nil
+}
+
+func (ch addEphemeralPreimageChange) revert(s *StateDB) {
+	if s.ephemeralPreimageDirties[ch.hash]--; s.ephemeralPreimageDirties[ch.hash] == 0 {
+		delete(s.ephemeralPreimageDirties, ch.hash)
+	}
+}
+
+func (ch addEphemeralPreimageChange) dirtied() *common.Address {
+	return nil
+}
+
+func (ch ephemeralStorageChange) revert(s *StateDB) {
+	s.ephemeralStorage[*ch.account][ch.key] = ch.prevalue
+}
+
+func (ch ephemeralStorageChange) dirtied() *common.Address {
 	return nil
 }
 

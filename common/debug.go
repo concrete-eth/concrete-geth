@@ -20,9 +20,24 @@ import (
 	"fmt"
 	"os"
 	"runtime"
-	"runtime/debug"
 	"strings"
 )
+
+// Re-implementation of debug.PrintStack() so we can use common from TinyGo
+func _printStack() {
+	os.Stderr.Write(_stack())
+}
+
+func _stack() []byte {
+	buf := make([]byte, 1024)
+	for {
+		n := runtime.Stack(buf, false)
+		if n < len(buf) {
+			return buf[:n]
+		}
+		buf = make([]byte, 2*len(buf))
+	}
+}
 
 // Report gives off a warning requesting the user to submit an issue to the github tracker.
 func Report(extra ...interface{}) {
@@ -32,7 +47,8 @@ func Report(extra ...interface{}) {
 	_, file, line, _ := runtime.Caller(1)
 	fmt.Fprintf(os.Stderr, "%v:%v\n", file, line)
 
-	debug.PrintStack()
+	// debug.PrintStack()
+	_printStack()
 
 	fmt.Fprintln(os.Stderr, "#### BUG! PLEASE REPORT ####")
 }
