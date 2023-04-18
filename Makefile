@@ -2,16 +2,27 @@
 # with Go source code. If you know what GOPATH is then you probably
 # don't need to bother with make.
 
-.PHONY: geth android ios evm all test clean
+.PHONY: geth android ios evm all test clean link unlink
 
 GOBIN = ./build/bin
 GO ?= latest
 GORUN = env GO111MODULE=on go run
 
+link:
+	go mod edit -replace github.com/therealbytes/concrete-native-precompiles=$(shell pwd)/../concrete-native-precompiles
+	go mod edit -replace github.com/therealbytes/concrete-wasm-precompiles=$(shell pwd)/../concrete-wasm-precompiles
+
+unlink:
+	go mod edit -dropreplace github.com/therealbytes/concrete-native-precompiles
+	go mod edit -dropreplace github.com/therealbytes/concrete-wasm-precompiles
+
 geth:
 	$(GORUN) build/ci.go install ./cmd/geth
 	@echo "Done building."
 	@echo "Run \"$(GOBIN)/geth\" to launch geth."
+
+docker:
+	docker build -t ghcr.io/therealbytes/concrete-geth:latest .
 
 all:
 	$(GORUN) build/ci.go install
