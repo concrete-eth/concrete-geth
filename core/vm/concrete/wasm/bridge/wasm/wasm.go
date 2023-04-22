@@ -222,17 +222,17 @@ func (p *ProxyEVM) StateDB() api.StateDB {
 	return p.stateDB
 }
 
-func (p *ProxyEVM) BlockHash(block uint64) common.Hash {
+func (p *ProxyEVM) BlockHash(block *big.Int) common.Hash {
 	retValue := p.call(
 		bridge.Op_EVM_BlockHash.Encode(),
-		bridge.Uint64ToBytes(block),
+		block.Bytes(),
 	)
 	return common.BytesToHash(retValue)
 }
 
-func (p *ProxyEVM) BlockTimestamp() uint64 {
+func (p *ProxyEVM) BlockTimestamp() *big.Int {
 	retValue := p.call(bridge.Op_EVM_BlockTimestamp.Encode())
-	return bridge.BytesToUint64(retValue)
+	return new(big.Int).SetBytes(retValue)
 }
 
 func (p *ProxyEVM) BlockNumber() *big.Int {
@@ -245,9 +245,9 @@ func (p *ProxyEVM) BlockDifficulty() *big.Int {
 	return new(big.Int).SetBytes(retValue)
 }
 
-func (p *ProxyEVM) BlockGasLimit() uint64 {
+func (p *ProxyEVM) BlockGasLimit() *big.Int {
 	retValue := p.call(bridge.Op_EVM_BlockGasLimit.Encode())
-	return bridge.BytesToUint64(retValue)
+	return new(big.Int).SetBytes(retValue)
 }
 
 func (p *ProxyEVM) BlockCoinbase() common.Address {

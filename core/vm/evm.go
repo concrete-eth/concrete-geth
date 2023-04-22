@@ -551,12 +551,32 @@ type concreteEVM struct {
 	evm *EVM
 }
 
-func (evm *concreteEVM) StateDB() api.StateDB               { return evm.evm.StateDB }
-func (evm *concreteEVM) BlockHash(block uint64) common.Hash { return evm.evm.Context.GetHash(block) }
-func (evm *concreteEVM) BlockTimestamp() uint64             { return evm.evm.Context.Time }
-func (evm *concreteEVM) BlockNumber() *big.Int              { return evm.evm.Context.BlockNumber }
-func (evm *concreteEVM) BlockDifficulty() *big.Int          { return evm.evm.Context.Difficulty }
-func (evm *concreteEVM) BlockGasLimit() uint64              { return evm.evm.Context.GasLimit }
-func (evm *concreteEVM) BlockCoinbase() common.Address      { return evm.evm.Context.Coinbase }
+func (evm *concreteEVM) StateDB() api.StateDB {
+	return evm.evm.StateDB
+}
+
+func (evm *concreteEVM) BlockHash(block *big.Int) common.Hash {
+	return evm.evm.Context.GetHash(block.Uint64())
+}
+
+func (evm *concreteEVM) BlockTimestamp() *big.Int {
+	return new(big.Int).SetUint64(evm.evm.Context.Time)
+}
+
+func (evm *concreteEVM) BlockNumber() *big.Int {
+	return evm.evm.Context.BlockNumber
+}
+
+func (evm *concreteEVM) BlockDifficulty() *big.Int {
+	return evm.evm.Context.Difficulty
+}
+
+func (evm *concreteEVM) BlockGasLimit() *big.Int {
+	return new(big.Int).SetUint64(evm.evm.Context.GasLimit)
+}
+
+func (evm *concreteEVM) BlockCoinbase() common.Address {
+	return evm.evm.Context.Coinbase
+}
 
 var _ concrete.EVM = (*concreteEVM)(nil)

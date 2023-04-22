@@ -102,12 +102,12 @@ func NewMockEVM(stateDB api.StateDB) *MockEVM {
 	}
 }
 
-func (m *MockEVM) StateDB() api.StateDB               { return m.stateDB }
-func (m *MockEVM) BlockHash(block uint64) common.Hash { return common.BytesToHash([]byte{}) }
-func (m *MockEVM) BlockTimestamp() uint64             { return 0 }
-func (m *MockEVM) BlockNumber() *big.Int              { return common.Big0 }
-func (m *MockEVM) BlockDifficulty() *big.Int          { return common.Big0 }
-func (m *MockEVM) BlockGasLimit() uint64              { return 0 }
-func (m *MockEVM) BlockCoinbase() common.Address      { return common.BytesToAddress([]byte{}) }
+func (m *MockEVM) StateDB() api.StateDB                 { return m.stateDB }
+func (m *MockEVM) BlockHash(block *big.Int) common.Hash { return common.BytesToHash([]byte{}) }
+func (m *MockEVM) BlockTimestamp() *big.Int             { return common.Big0 }
+func (m *MockEVM) BlockNumber() *big.Int                { return common.Big0 }
+func (m *MockEVM) BlockDifficulty() *big.Int            { return common.Big0 }
+func (m *MockEVM) BlockGasLimit() *big.Int              { return common.Big0 }
+func (m *MockEVM) BlockCoinbase() common.Address        { return common.BytesToAddress([]byte{}) }
 
 var _ api.EVM = &MockEVM{}
