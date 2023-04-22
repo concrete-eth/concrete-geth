@@ -263,7 +263,7 @@ func (s *StateDB) GetEphemeralState(addr common.Address, key common.Hash) common
 
 func (s *StateDB) NewConcretePrecompiles() {
 	for addr, p := range concrete.Precompiles {
-		api := cc_api.NewStateAPI(addr, s)
+		api := cc_api.NewStateAPI(s, addr)
 		if err := p.New(api); err != nil {
 			s.setError(fmt.Errorf("error in concrete precompile %x init: %v", addr, err))
 		}
@@ -272,7 +272,7 @@ func (s *StateDB) NewConcretePrecompiles() {
 
 func (s *StateDB) FinaliseConcretePrecompiles() {
 	for addr, p := range concrete.Precompiles {
-		api := cc_api.NewStateAPI(addr, s)
+		api := cc_api.NewStateAPI(s, addr)
 		if err := p.Commit(api); err != nil {
 			s.setError(fmt.Errorf("error in concrete precompile %x commit: %v", addr, err))
 		}
