@@ -164,6 +164,7 @@ var _ Block = (*block)(nil)
 
 type API interface {
 	Address() common.Address
+	EVM() EVM
 	StateDB() StateDB
 	Persistent() Datastore
 	Ephemeral() Datastore
@@ -176,7 +177,7 @@ type stateApi struct {
 	db      StateDB
 }
 
-func NewStateAPI(address common.Address, db StateDB) API {
+func NewStateAPI(db StateDB, address common.Address) API {
 	return &stateApi{
 		address: address,
 		db:      db,
@@ -185,6 +186,10 @@ func NewStateAPI(address common.Address, db StateDB) API {
 
 func (s *stateApi) Address() common.Address {
 	return s.address
+}
+
+func (s *stateApi) EVM() EVM {
+	return nil
 }
 
 func (s *stateApi) StateDB() StateDB {
@@ -225,6 +230,10 @@ func New(evm EVM, address common.Address) API {
 		stateApi: stateApi{address: address, db: evm.StateDB()},
 		evm:      evm,
 	}
+}
+
+func (a *api) EVM() EVM {
+	return a.evm
 }
 
 func (a *api) BlockHash(block uint64) common.Hash {

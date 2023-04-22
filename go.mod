@@ -59,7 +59,9 @@ require (
 	github.com/stretchr/testify v1.8.1
 	github.com/supranational/blst v0.3.11-0.20230406105308-e9dfc5ee724b
 	github.com/syndtr/goleveldb v1.0.1-0.20210819022825-2ae1ddf74ef7
+	github.com/tetratelabs/wazero v1.0.2
 	github.com/therealbytes/concrete-native-precompiles v0.0.0-20230418163521-c266167d4956
+	github.com/therealbytes/concrete-wasm-precompiles v0.0.0-20230000000000-000000000000
 	github.com/tyler-smith/go-bip39 v1.1.0
 	github.com/urfave/cli/v2 v2.17.2-0.20221006022127-8f469abc00aa
 	golang.org/x/crypto v0.7.0
