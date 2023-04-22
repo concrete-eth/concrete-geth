@@ -70,7 +70,7 @@ func GetValue(pointer uint64) []byte {
 func _LogBridge(pointer uint64) uint64
 
 func Log(a ...any) uint64 {
-	msg := fmt.Sprintln(a...)
+	msg := fmt.Sprint(a...)
 	pointer := PutValue([]byte(msg))
 	return _LogBridge(pointer)
 }
