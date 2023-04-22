@@ -18,12 +18,12 @@ package native
 import (
 	"context"
 	"errors"
-	"fmt"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/vm/concrete/api"
 	"github.com/ethereum/go-ethereum/core/vm/concrete/wasm/bridge"
+	"github.com/ethereum/go-ethereum/log"
 	wz_api "github.com/tetratelabs/wazero/api"
 )
 
@@ -293,6 +293,6 @@ func BridgeAddress(ctx context.Context, module wz_api.Module, pointer uint64, ad
 
 func BridgeLog(ctx context.Context, module wz_api.Module, pointer uint64) uint64 {
 	msg := GetValue(ctx, module, bridge.MemPointer(pointer))
-	fmt.Println(string(msg))
+	log.Debug("wasm:", string(msg))
 	return bridge.NullPointer.Uint64()
 }
