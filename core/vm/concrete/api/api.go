@@ -36,11 +36,11 @@ type StateDB interface {
 
 type EVM interface {
 	StateDB() StateDB
-	BlockHash(block uint64) common.Hash
-	BlockTimestamp() uint64
+	BlockHash(block *big.Int) common.Hash
+	BlockTimestamp() *big.Int
 	BlockNumber() *big.Int
 	BlockDifficulty() *big.Int
-	BlockGasLimit() uint64
+	BlockGasLimit() *big.Int
 	BlockCoinbase() common.Address
 }
 
@@ -143,10 +143,10 @@ func (s *EphemeralStorage) GetPreimageSize(hash common.Hash) int {
 var _ Storage = (*EphemeralStorage)(nil)
 
 type Block interface {
-	Timestamp() uint64
+	Timestamp() *big.Int
 	Number() *big.Int
 	Difficulty() *big.Int
-	GasLimit() uint64
+	GasLimit() *big.Int
 	Coinbase() common.Address
 }
 
@@ -154,10 +154,10 @@ type block struct {
 	evm EVM
 }
 
-func (b *block) Timestamp() uint64        { return b.evm.BlockTimestamp() }
+func (b *block) Timestamp() *big.Int      { return b.evm.BlockTimestamp() }
 func (b *block) Number() *big.Int         { return b.evm.BlockNumber() }
 func (b *block) Difficulty() *big.Int     { return b.evm.BlockDifficulty() }
-func (b *block) GasLimit() uint64         { return b.evm.BlockGasLimit() }
+func (b *block) GasLimit() *big.Int       { return b.evm.BlockGasLimit() }
 func (b *block) Coinbase() common.Address { return b.evm.BlockCoinbase() }
 
 var _ Block = (*block)(nil)
@@ -168,7 +168,7 @@ type API interface {
 	StateDB() StateDB
 	Persistent() Datastore
 	Ephemeral() Datastore
-	BlockHash(block uint64) common.Hash
+	BlockHash(block *big.Int) common.Hash
 	Block() Block
 }
 
@@ -210,7 +210,7 @@ func (s *stateApi) Ephemeral() Datastore {
 	}}
 }
 
-func (s *stateApi) BlockHash(block uint64) common.Hash {
+func (s *stateApi) BlockHash(block *big.Int) common.Hash {
 	panic("API method not available")
 }
 
@@ -236,7 +236,7 @@ func (a *api) EVM() EVM {
 	return a.evm
 }
 
-func (a *api) BlockHash(block uint64) common.Hash {
+func (a *api) BlockHash(block *big.Int) common.Hash {
 	return a.evm.BlockHash(block)
 }
 

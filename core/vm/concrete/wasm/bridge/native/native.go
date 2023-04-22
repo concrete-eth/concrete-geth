@@ -19,6 +19,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/vm/concrete/api"
@@ -258,13 +259,13 @@ func BridgeCallEVM(ctx context.Context, module wz_api.Module, pointer uint64, ev
 func callEVM(evm api.EVM, opcode bridge.OpCode, args [][]byte) []byte {
 	switch opcode {
 	case bridge.Op_EVM_BlockHash:
-		block := bridge.BytesToUint64(args[0])
+		block := new(big.Int).SetBytes(args[0])
 		hash := evm.BlockHash(block)
 		return hash.Bytes()
 
 	case bridge.Op_EVM_BlockTimestamp:
 		timestamp := evm.BlockTimestamp()
-		return bridge.Uint64ToBytes(timestamp)
+		return timestamp.Bytes()
 
 	case bridge.Op_EVM_BlockNumber:
 		number := evm.BlockNumber()
@@ -276,7 +277,7 @@ func callEVM(evm api.EVM, opcode bridge.OpCode, args [][]byte) []byte {
 
 	case bridge.Op_EVM_BlockGasLimit:
 		gasLimit := evm.BlockGasLimit()
-		return bridge.Uint64ToBytes(gasLimit)
+		return gasLimit.Bytes()
 
 	case bridge.Op_EVM_BlockCoinbase:
 		coinbase := evm.BlockCoinbase()
