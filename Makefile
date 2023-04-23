@@ -21,9 +21,6 @@ geth:
 	@echo "Done building."
 	@echo "Run \"$(GOBIN)/geth\" to launch geth."
 
-docker:
-	docker build -t ghcr.io/therealbytes/concrete-geth:latest .
-
 all:
 	$(GORUN) build/ci.go install
 
