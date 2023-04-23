@@ -16,7 +16,6 @@
 package core
 
 import (
-	"fmt"
 	"reflect"
 	"sync"
 	"unsafe"
@@ -63,16 +62,6 @@ func PutValue(value []byte) uint64 {
 
 func GetValue(pointer uint64) []byte {
 	return wasm.GetValue(Memory, bridge.MemPointer(pointer))
-}
-
-//go:wasm-module env
-//export concrete_LogBridge
-func _LogBridge(pointer uint64) uint64
-
-func Log(a ...any) uint64 {
-	msg := fmt.Sprint(a...)
-	pointer := PutValue([]byte(msg))
-	return _LogBridge(pointer)
 }
 
 //go:wasm-module env
