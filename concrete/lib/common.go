@@ -16,11 +16,7 @@
 package lib
 
 import (
-	"errors"
-	"math/big"
-
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/concrete/api"
 )
 
 func GetData(data []byte, start uint64, size uint64) []byte {
@@ -33,55 +29,4 @@ func GetData(data []byte, start uint64, size uint64) []byte {
 		end = length
 	}
 	return common.RightPadBytes(data[start:end], int(size))
-}
-
-type PrecompileDemux map[int]api.Precompile
-
-func (d PrecompileDemux) getSelect(input []byte) int {
-	return int(new(big.Int).SetBytes(GetData(input, 0, 32)).Uint64())
-}
-
-func (d PrecompileDemux) MutatesStorage(input []byte) bool {
-	sel := d.getSelect(input)
-	pc, ok := d[sel]
-	if !ok {
-		return false
-	}
-	return pc.MutatesStorage(input[32:])
-}
-
-func (d PrecompileDemux) RequiredGas(input []byte) uint64 {
-	sel := d.getSelect(input)
-	pc, ok := d[sel]
-	if !ok {
-		return 0
-	}
-	return pc.RequiredGas(input[32:])
-}
-
-func (d PrecompileDemux) New(api api.API) error {
-	for _, pc := range d {
-		if err := pc.New(api); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func (d PrecompileDemux) Commit(api api.API) error {
-	for _, pc := range d {
-		if err := pc.Commit(api); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func (d PrecompileDemux) Run(api api.API, input []byte) ([]byte, error) {
-	sel := d.getSelect(input)
-	pc, ok := d[sel]
-	if !ok {
-		return nil, errors.New("invalid select value")
-	}
-	return pc.Run(api, input[32:])
 }
