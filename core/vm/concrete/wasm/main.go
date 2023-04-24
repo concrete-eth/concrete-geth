@@ -26,7 +26,6 @@ import (
 	"github.com/tetratelabs/wazero"
 	wz_api "github.com/tetratelabs/wazero/api"
 	"github.com/tetratelabs/wazero/imports/wasi_snapshot_preview1"
-	"github.com/therealbytes/concrete-wasm-precompiles/wasm"
 )
 
 var (
@@ -41,17 +40,6 @@ var (
 	WASM_ADDRESS_BRIDGE  = "concrete_AddressBridge"
 	WASM_LOG_BRIDGE      = "concrete_LogBridge"
 )
-
-var (
-	Precompiles = map[common.Address]api.Precompile{}
-)
-
-func init() {
-	for addr, code := range wasm.PrecompilesWasm {
-		println("Registering precompile", addr.Hex(), len(code))
-		Precompiles[addr] = NewWasmPrecompile(code)
-	}
-}
 
 func NewWasmPrecompile(code []byte) api.Precompile {
 	ctx := context.Background()

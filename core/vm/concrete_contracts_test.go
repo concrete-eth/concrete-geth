@@ -35,7 +35,7 @@ var (
 	PersistentValueID             = crypto.Keccak256Hash([]byte{2})
 )
 
-func newTestConcreteAPI() (concrete.API, concrete.EVM, *state.StateDB) {
+func newTestConcreteAPI() (api.API, api.EVM, *state.StateDB) {
 	stateDB, _ := state.New(common.Hash{}, state.NewDatabase(rawdb.NewMemoryDatabase()), nil)
 	evm := lib.NewMockEVM(stateDB)
 	api := api.New(evm, TestConcretePrecompileAddress)
@@ -68,7 +68,7 @@ func (op *testPC) Run(db cc_api.API, input []byte) ([]byte, error) {
 
 func TestConcretePrecompiledNewCommit(t *testing.T) {
 
-	concrete.Precompiles = make(map[common.Address]concrete.Precompile)
+	concrete.Precompiles = make(map[common.Address]api.Precompile)
 	concrete.Precompiles[TestConcretePrecompileAddress] = &testPC{}
 
 	api, _, stateDB := newTestConcreteAPI()

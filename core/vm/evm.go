@@ -24,8 +24,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/core/vm/concrete"
-	"github.com/ethereum/go-ethereum/core/vm/concrete/api"
+	cc_api "github.com/ethereum/go-ethereum/core/vm/concrete/api"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
 )
@@ -60,7 +59,7 @@ func (evm *EVM) precompile(addr common.Address) (PrecompiledContract, bool) {
 	return p, ok
 }
 
-func (evm *EVM) concretePrecompile(addr common.Address) (concrete.Precompile, bool) {
+func (evm *EVM) concretePrecompile(addr common.Address) (cc_api.Precompile, bool) {
 	p, ok := ConcretePrecompiles[addr]
 	return p, ok
 }
@@ -543,7 +542,7 @@ func (evm *EVM) Create2(caller ContractRef, code []byte, gas uint64, endowment *
 // ChainConfig returns the environment's chain configuration
 func (evm *EVM) ChainConfig() *params.ChainConfig { return evm.chainConfig }
 
-func (evm *EVM) NewConcreteEVM() concrete.EVM {
+func (evm *EVM) NewConcreteEVM() cc_api.EVM {
 	return &concreteEVM{evm}
 }
 
@@ -551,7 +550,7 @@ type concreteEVM struct {
 	evm *EVM
 }
 
-func (evm *concreteEVM) StateDB() api.StateDB {
+func (evm *concreteEVM) StateDB() cc_api.StateDB {
 	return evm.evm.StateDB
 }
 
@@ -579,4 +578,4 @@ func (evm *concreteEVM) BlockCoinbase() common.Address {
 	return evm.evm.Context.Coinbase
 }
 
-var _ concrete.EVM = (*concreteEVM)(nil)
+var _ cc_api.EVM = (*concreteEVM)(nil)

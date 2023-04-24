@@ -43,7 +43,7 @@ func ActiveConcretePrecompiles() []common.Address {
 // - the returned bytes,
 // - the _remaining_ gas,
 // - any error that occurred
-func RunConcretePrecompile(evm concrete.EVM, addr common.Address, p concrete.Precompile, input []byte, suppliedGas uint64, readOnly bool) (ret []byte, remainingGas uint64, err error) {
+func RunConcretePrecompile(evm cc_api.EVM, addr common.Address, p cc_api.Precompile, input []byte, suppliedGas uint64, readOnly bool) (ret []byte, remainingGas uint64, err error) {
 	gasCost := p.RequiredGas(input)
 	if suppliedGas < gasCost {
 		return nil, 0, ErrOutOfGas

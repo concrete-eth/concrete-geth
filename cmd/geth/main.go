@@ -15,10 +15,11 @@
 // along with go-ethereum. If not, see <http://www.gnu.org/licenses/>.
 
 // geth is the official command-line client for Ethereum.
-package main
+package geth
 
 import (
 	"fmt"
+	"math/big"
 	"os"
 	"sort"
 	"strconv"
@@ -30,6 +31,9 @@ import (
 	"github.com/ethereum/go-ethereum/cmd/utils"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/console/prompt"
+	"github.com/ethereum/go-ethereum/core/vm/concrete"
+	cc_api "github.com/ethereum/go-ethereum/core/vm/concrete/api"
+	"github.com/ethereum/go-ethereum/core/vm/concrete/wasm"
 	"github.com/ethereum/go-ethereum/eth"
 	"github.com/ethereum/go-ethereum/eth/downloader"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -477,4 +481,42 @@ func unlockAccounts(ctx *cli.Context, stack *node.Node) {
 	for i, account := range unlocks {
 		unlockAccount(ks, account, i, passwords)
 	}
+}
+
+type concreteGeth struct {
+	app *cli.App
+}
+
+var ConcreteGeth = &concreteGeth{
+	app: app,
+}
+
+func (a *concreteGeth) Run() error {
+	return app.Run(os.Args)
+}
+
+func (a *concreteGeth) validateNewPCAddress(addr common.Address) error {
+	if _, ok := concrete.Precompiles[addr]; ok {
+		return fmt.Errorf("precompile already exists at address %x", addr)
+	}
+	if addr.Big().Cmp(big.NewInt(128)) < 0 {
+		return fmt.Errorf("precompile address cannot be below 0x80")
+	}
+	return nil
+}
+
+func (a *concreteGeth) AddPrecompile(addr common.Address, pc cc_api.Precompile) error {
+	if err := a.validateNewPCAddress(addr); err != nil {
+		return err
+	}
+	concrete.Precompiles[addr] = pc
+	return nil
+}
+
+func (a *concreteGeth) AddPrecompileWASM(addr common.Address, code []byte) error {
+	if err := a.validateNewPCAddress(addr); err != nil {
+		return err
+	}
+	concrete.Precompiles[addr] = wasm.NewWasmPrecompile(code)
+	return nil
 }

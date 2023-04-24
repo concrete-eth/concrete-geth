@@ -16,37 +16,8 @@
 package concrete
 
 import (
-	"fmt"
-
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/vm/concrete/api"
-	wasm_pcs "github.com/ethereum/go-ethereum/core/vm/concrete/wasm"
-	ntv_pcs "github.com/therealbytes/concrete-native-precompiles/precompiles"
 )
 
-type API = api.API
-type EVM = api.EVM
-type StateDB = api.StateDB
-type Precompile = api.Precompile
-
-var Precompiles = ntv_pcs.Precompiles
-
-// type EchoPrecompile struct {
-// 	Precompile
-// }
-
-// func (p *EchoPrecompile) Run(api API, input []byte) ([]byte, error) {
-// 	return input, nil
-// }
-
-// var Precompiles = map[common.Address]Precompile{
-// 	ntv_pcs.BlankPrecompileAddress: &EchoPrecompile{ntv_pcs.Blank},
-// }
-
-func init() {
-	for addr, pc := range wasm_pcs.Precompiles {
-		if _, ok := Precompiles[addr]; ok {
-			panic(fmt.Errorf("could not add wasm precompile: precompile address %x already taken", addr))
-		}
-		Precompiles[addr] = pc
-	}
-}
+var Precompiles map[common.Address]api.Precompile
