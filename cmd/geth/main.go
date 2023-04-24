@@ -32,6 +32,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/console/prompt"
 	"github.com/ethereum/go-ethereum/core/vm/concrete"
+	"github.com/ethereum/go-ethereum/core/vm/concrete/api"
 	cc_api "github.com/ethereum/go-ethereum/core/vm/concrete/api"
 	"github.com/ethereum/go-ethereum/core/vm/concrete/wasm"
 	"github.com/ethereum/go-ethereum/eth"
@@ -474,6 +475,12 @@ func unlockAccounts(ctx *cli.Context, stack *node.Node) {
 	}
 }
 
+type ConcreteApp interface {
+	Run() error
+	AddPrecompile(addr common.Address, pc api.Precompile) error
+	AddPrecompileWASM(addr common.Address, code []byte) error
+}
+
 type concreteGeth struct {
 	app *cli.App
 }
@@ -487,7 +494,7 @@ func (a *concreteGeth) Run() error {
 }
 
 func (a *concreteGeth) validateNewPCAddress(addr common.Address) error {
-	if _, ok := concrete.Precompiles[addr]; ok {
+	if _, ok := concrete.GetPrecompile(addr); ok {
 		return fmt.Errorf("precompile already exists at address %x", addr)
 	}
 	if addr.Big().Cmp(big.NewInt(128)) < 0 {
@@ -500,14 +507,14 @@ func (a *concreteGeth) AddPrecompile(addr common.Address, pc cc_api.Precompile) 
 	if err := a.validateNewPCAddress(addr); err != nil {
 		return err
 	}
-	concrete.Precompiles[addr] = pc
-	return nil
+	return concrete.AddPrecompile(addr, pc)
 }
 
 func (a *concreteGeth) AddPrecompileWASM(addr common.Address, code []byte) error {
 	if err := a.validateNewPCAddress(addr); err != nil {
 		return err
 	}
-	concrete.Precompiles[addr] = wasm.NewWasmPrecompile(code)
-	return nil
+	return concrete.AddPrecompile(addr, wasm.NewWasmPrecompile(code))
 }
+
+var _ ConcreteApp = &concreteGeth{}

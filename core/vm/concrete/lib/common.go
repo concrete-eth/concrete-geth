@@ -35,10 +35,6 @@ func GetData(data []byte, start uint64, size uint64) []byte {
 	return common.RightPadBytes(data[start:end], int(size))
 }
 
-var (
-	errInvalidSelect = errors.New("invalid select value")
-)
-
 type PrecompileDemux map[int]api.Precompile
 
 func (d PrecompileDemux) getSelect(input []byte) int {
@@ -85,7 +81,7 @@ func (d PrecompileDemux) Run(api api.API, input []byte) ([]byte, error) {
 	sel := d.getSelect(input)
 	pc, ok := d[sel]
 	if !ok {
-		return nil, errInvalidSelect
+		return nil, errors.New("invalid select value")
 	}
 	return pc.Run(api, input[32:])
 }

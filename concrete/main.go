@@ -17,14 +17,8 @@ package concrete
 
 import (
 	"github.com/ethereum/go-ethereum/cmd/geth"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/vm/concrete/api"
 )
 
-type ConcreteApp interface {
-	Run() error
-	AddPrecompile(addr common.Address, pc api.Precompile) error
-	AddPrecompileWASM(addr common.Address, code []byte) error
-}
+type ConcreteApp = geth.ConcreteApp
 
 var ConcreteGeth ConcreteApp = geth.ConcreteGeth
