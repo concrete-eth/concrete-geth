@@ -38,8 +38,6 @@ import (
 	"github.com/ethereum/go-ethereum/trie"
 )
 
-// NOTE: This is overcomplicated and will get simplified in the coming refactor.
-
 type revision struct {
 	id           int
 	journalIndex int
