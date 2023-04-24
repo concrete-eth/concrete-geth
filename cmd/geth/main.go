@@ -19,7 +19,6 @@ package geth
 
 import (
 	"fmt"
-	"math/big"
 	"os"
 	"sort"
 	"strconv"
@@ -30,10 +29,6 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/keystore"
 	"github.com/ethereum/go-ethereum/cmd/utils"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/concrete/api"
-	cc_api "github.com/ethereum/go-ethereum/concrete/api"
-	"github.com/ethereum/go-ethereum/concrete/contracts"
-	"github.com/ethereum/go-ethereum/concrete/wasm"
 	"github.com/ethereum/go-ethereum/console/prompt"
 	"github.com/ethereum/go-ethereum/eth"
 	"github.com/ethereum/go-ethereum/eth/downloader"
@@ -213,6 +208,7 @@ var (
 )
 
 var app = flags.NewApp("the go-ethereum command line interface")
+var App = app
 
 func init() {
 	// Initialize the CLI app and start Geth
@@ -483,47 +479,3 @@ func unlockAccounts(ctx *cli.Context, stack *node.Node) {
 		unlockAccount(ks, account, i, passwords)
 	}
 }
-
-type ConcreteApp interface {
-	Run() error
-	AddPrecompile(addr common.Address, pc api.Precompile) error
-	AddPrecompileWASM(addr common.Address, code []byte) error
-}
-
-type concreteGeth struct {
-	app *cli.App
-}
-
-var ConcreteGeth = &concreteGeth{
-	app: app,
-}
-
-func (a *concreteGeth) Run() error {
-	return app.Run(os.Args)
-}
-
-func (a *concreteGeth) validateNewPCAddress(addr common.Address) error {
-	if _, ok := contracts.GetPrecompile(addr); ok {
-		return fmt.Errorf("precompile already exists at address %x", addr)
-	}
-	if addr.Big().Cmp(big.NewInt(128)) < 0 {
-		return fmt.Errorf("precompile address cannot be below 0x80")
-	}
-	return nil
-}
-
-func (a *concreteGeth) AddPrecompile(addr common.Address, pc cc_api.Precompile) error {
-	if err := a.validateNewPCAddress(addr); err != nil {
-		return err
-	}
-	return contracts.AddPrecompile(addr, pc)
-}
-
-func (a *concreteGeth) AddPrecompileWASM(addr common.Address, code []byte) error {
-	if err := a.validateNewPCAddress(addr); err != nil {
-		return err
-	}
-	return contracts.AddPrecompile(addr, wasm.NewWasmPrecompile(code))
-}
-
-var _ ConcreteApp = &concreteGeth{}

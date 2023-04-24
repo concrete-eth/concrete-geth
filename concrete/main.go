@@ -16,9 +16,56 @@
 package concrete
 
 import (
+	"fmt"
+	"math/big"
+	"os"
+
 	"github.com/ethereum/go-ethereum/cmd/geth"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/concrete/api"
+	"github.com/ethereum/go-ethereum/concrete/contracts"
+	"github.com/ethereum/go-ethereum/concrete/wasm"
+	"github.com/urfave/cli/v2"
 )
 
-type ConcreteApp = geth.ConcreteApp
+type ConcreteApp interface {
+	Run() error
+	AddPrecompile(addr common.Address, pc api.Precompile) error
+	AddPrecompileWASM(addr common.Address, code []byte) error
+}
 
-var ConcreteGeth ConcreteApp = geth.ConcreteGeth
+type concreteGeth struct {
+	app *cli.App
+}
+
+var ConcreteGeth ConcreteApp = &concreteGeth{
+	app: geth.App,
+}
+
+func (a *concreteGeth) Run() error {
+	return a.app.Run(os.Args)
+}
+
+func (a *concreteGeth) validateNewPCAddress(addr common.Address) error {
+	if _, ok := contracts.GetPrecompile(addr); ok {
+		return fmt.Errorf("precompile already exists at address %x", addr)
+	}
+	if addr.Big().Cmp(big.NewInt(128)) < 0 {
+		return fmt.Errorf("precompile address cannot be below 0x80")
+	}
+	return nil
+}
+
+func (a *concreteGeth) AddPrecompile(addr common.Address, pc api.Precompile) error {
+	if err := a.validateNewPCAddress(addr); err != nil {
+		return err
+	}
+	return contracts.AddPrecompile(addr, pc)
+}
+
+func (a *concreteGeth) AddPrecompileWASM(addr common.Address, code []byte) error {
+	if err := a.validateNewPCAddress(addr); err != nil {
+		return err
+	}
+	return contracts.AddPrecompile(addr, wasm.NewWasmPrecompile(code))
+}
