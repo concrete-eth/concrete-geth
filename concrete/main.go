@@ -31,7 +31,7 @@ import (
 type ConcreteApp interface {
 	Run() error
 	AddPrecompile(addr common.Address, pc api.Precompile) error
-	AddPrecompileWASM(addr common.Address, code []byte) error
+	AddPrecompileWasm(addr common.Address, code []byte) error
 }
 
 type concreteGeth struct {
@@ -63,7 +63,7 @@ func (a *concreteGeth) AddPrecompile(addr common.Address, pc api.Precompile) err
 	return contracts.AddPrecompile(addr, pc)
 }
 
-func (a *concreteGeth) AddPrecompileWASM(addr common.Address, code []byte) error {
+func (a *concreteGeth) AddPrecompileWasm(addr common.Address, code []byte) error {
 	if err := a.validateNewPCAddress(addr); err != nil {
 		return err
 	}
