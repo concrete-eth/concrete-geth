@@ -13,38 +13,18 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with the concrete library. If not, see <http://www.gnu.org/licenses/>.
 
-package wasm
+package concrete
 
 import (
-	"fmt"
-	"testing"
-	"time"
-
+	"github.com/ethereum/go-ethereum/cmd/geth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/vm/concrete/api"
-	"github.com/ethereum/go-ethereum/core/vm/concrete/lib"
-	"github.com/ethereum/go-ethereum/core/vm/concrete/wasm/bridge"
 )
 
-func newTestConcreteAPI() (api.API, api.EVM, api.StateDB) {
-	stateDB := lib.NewMockStateDB()
-	evm := lib.NewMockEVM(stateDB)
-	api := api.New(evm, common.Address{})
-	return api, evm, stateDB
+type ConcreteApp interface {
+	Run() error
+	AddPrecompile(addr common.Address, pc api.Precompile) error
+	AddPrecompileWASM(addr common.Address, code []byte) error
 }
 
-func TestWasmPrecompileBlank(t *testing.T) {
-	api, _, _ := newTestConcreteAPI()
-	p := Precompiles[common.BytesToAddress([]byte{129})]
-	if p == nil {
-		t.Fatal("Precompile not found")
-	}
-	gas := p.RequiredGas([]byte{})
-	fmt.Println("Gas:", gas)
-	starTime := time.Now()
-	result, err := p.Run(api, bridge.Uint64ToBytes(1))
-	fmt.Println("Duration:", time.Since(starTime))
-	fmt.Println("Result:", result)
-	// fmt.Println("Result (uint64):", bridge.BytesToUint64(result))
-	fmt.Println("Error:", err)
-}
+var ConcreteGeth ConcreteApp = geth.ConcreteGeth
