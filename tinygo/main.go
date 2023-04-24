@@ -21,9 +21,9 @@ import (
 	"unsafe"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/vm/concrete/api"
-	"github.com/ethereum/go-ethereum/core/vm/concrete/wasm/bridge"
-	"github.com/ethereum/go-ethereum/core/vm/concrete/wasm/bridge/wasm"
+	"github.com/ethereum/go-ethereum/concrete/api"
+	"github.com/ethereum/go-ethereum/concrete/wasm/bridge"
+	"github.com/ethereum/go-ethereum/concrete/wasm/bridge/wasm"
 )
 
 // Note: This uses a uint64 instead of two result values for compatibility with

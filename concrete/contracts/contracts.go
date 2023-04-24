@@ -13,14 +13,14 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with the concrete library. If not, see <http://www.gnu.org/licenses/>.
 
-package concrete
+package contracts
 
 import (
 	"errors"
 	"fmt"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/vm/concrete/api"
+	"github.com/ethereum/go-ethereum/concrete/api"
 )
 
 var (

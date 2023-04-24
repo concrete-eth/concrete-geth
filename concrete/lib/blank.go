@@ -16,7 +16,7 @@
 package lib
 
 import (
-	cc_api "github.com/ethereum/go-ethereum/core/vm/concrete/api"
+	cc_api "github.com/ethereum/go-ethereum/concrete/api"
 )
 
 var Blank = &blank{}
