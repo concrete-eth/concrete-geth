@@ -29,6 +29,8 @@ import (
 )
 
 type ConcreteApp interface {
+	RunWithArgs(args []string) error
+	RunWithOsArgs() error
 	Run() error
 	AddPrecompile(addr common.Address, pc api.Precompile) error
 	AddPrecompileWasm(addr common.Address, code []byte) error
@@ -42,14 +44,19 @@ var ConcreteGeth ConcreteApp = &concreteGeth{
 	app: geth.App,
 }
 
+func (a *concreteGeth) RunWithArgs(arguments []string) error {
+	return a.app.Run(arguments)
+}
+
+func (a *concreteGeth) RunWithOsArgs() error {
+	return a.RunWithArgs(os.Args)
+}
+
 func (a *concreteGeth) Run() error {
-	return a.app.Run(os.Args)
+	return a.RunWithOsArgs()
 }
 
 func (a *concreteGeth) validateNewPCAddress(addr common.Address) error {
-	if _, ok := contracts.GetPrecompile(addr); ok {
-		return fmt.Errorf("precompile already exists at address %x", addr)
-	}
 	if addr.Big().Cmp(big.NewInt(128)) < 0 {
 		return fmt.Errorf("precompile address cannot be below 0x80")
 	}
