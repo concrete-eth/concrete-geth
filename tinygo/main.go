@@ -29,8 +29,6 @@ import (
 // Note: This uses a uint64 instead of two result values for compatibility with
 // WebAssembly 1.0.
 
-func main() {}
-
 var precompile api.Precompile
 var precompileIsPure bool
 

@@ -17,7 +17,6 @@ package wasm
 
 import (
 	"context"
-	_ "embed"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/concrete/api"
