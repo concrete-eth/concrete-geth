@@ -25,11 +25,11 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	cc_api "github.com/ethereum/go-ethereum/concrete/api"
+	"github.com/ethereum/go-ethereum/concrete/contracts"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state/snapshot"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/core/vm/concrete"
-	cc_api "github.com/ethereum/go-ethereum/core/vm/concrete/api"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/metrics"
@@ -260,8 +260,8 @@ func (s *StateDB) GetEphemeralState(addr common.Address, key common.Hash) common
 }
 
 func (s *StateDB) NewConcretePrecompiles() {
-	for _, addr := range concrete.ActivePrecompiles() {
-		p, _ := concrete.GetPrecompile(addr)
+	for _, addr := range contracts.ActivePrecompiles() {
+		p, _ := contracts.GetPrecompile(addr)
 		api := cc_api.NewStateAPI(s, addr)
 		if err := p.New(api); err != nil {
 			s.setError(fmt.Errorf("error in concrete precompile %x init: %v", addr, err))
@@ -270,8 +270,8 @@ func (s *StateDB) NewConcretePrecompiles() {
 }
 
 func (s *StateDB) FinaliseConcretePrecompiles() {
-	for _, addr := range concrete.ActivePrecompiles() {
-		p, _ := concrete.GetPrecompile(addr)
+	for _, addr := range contracts.ActivePrecompiles() {
+		p, _ := contracts.GetPrecompile(addr)
 		api := cc_api.NewStateAPI(s, addr)
 		if err := p.Commit(api); err != nil {
 			s.setError(fmt.Errorf("error in concrete precompile %x commit: %v", addr, err))

@@ -19,7 +19,7 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/vm/concrete/api"
+	"github.com/ethereum/go-ethereum/concrete/api"
 )
 
 type MockStateDB struct {
