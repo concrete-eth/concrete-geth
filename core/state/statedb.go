@@ -272,6 +272,8 @@ func (s *StateDB) NewConcretePrecompiles() {
 	}
 }
 
+// BUG: this should NOT be called from s.Finalise() as it runs after every transaction when
+// computing the intermediate state root. [!!!]
 func (s *StateDB) FinaliseConcretePrecompiles() {
 	for _, addr := range contracts.ActivePrecompiles() {
 		p, _ := contracts.GetPrecompile(addr)
@@ -1029,6 +1031,12 @@ func (s *StateDB) Finalise(deleteEmptyObjects bool) {
 	// Invalidate journal because reverting across transactions is not allowed.
 	s.clearJournalAndRefund()
 }
+
+// BUG: The intermediary root is unaffected by ephemeral storage. This means that
+// the state root is not a valid identifier for the intermediary state of the
+// blockchain.
+// TODO: Refactor ephemeral storage with an intermediate root that merkleizes up
+// to the proper root.
 
 // IntermediateRoot computes the current root hash of the state trie.
 // It is called in between transactions to get the root hash that
