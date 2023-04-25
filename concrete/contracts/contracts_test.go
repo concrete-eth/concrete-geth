@@ -16,9 +16,11 @@
 package contracts
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
+	cc_api "github.com/ethereum/go-ethereum/concrete/api"
 	"github.com/ethereum/go-ethereum/concrete/lib"
 )
 
@@ -50,4 +52,85 @@ func TestAddPrecompile(t *testing.T) {
 	}
 }
 
-func TestRunPrecompile(t *testing.T) {}
+var (
+	REQUIRED_GAS    uint64
+	MUTATES_STORAGE bool
+)
+
+type testPrecompile struct {
+	lib.Blank
+}
+
+func (p *testPrecompile) RequiredGas(input []byte) uint64 {
+	return REQUIRED_GAS
+}
+
+func (p *testPrecompile) MutatesStorage(input []byte) bool {
+	return MUTATES_STORAGE
+}
+
+func (p *testPrecompile) Run(api cc_api.API, input []byte) (output []byte, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("panic occurred: %v", r)
+		}
+	}()
+
+	api.StateDB().SetPersistentState(api.Address(), common.BytesToHash([]byte{1}), common.BytesToHash([]byte{1}))
+
+	return nil, nil
+}
+
+var _ cc_api.Precompile = (*testPrecompile)(nil)
+
+func TestRunPrecompile(t *testing.T) {
+
+	REQUIRED_GAS = uint64(10)
+	MUTATES_STORAGE = true
+
+	addr := common.BytesToAddress([]byte{1})
+	pc := &testPrecompile{}
+	evm := cc_api.NewMockEVM(cc_api.NewMockStateDB())
+
+	input := []byte{0}
+	suppliedGas := uint64(0)
+	readOnly := false
+
+	_, _, err := RunPrecompile(evm, addr, pc, input, suppliedGas, readOnly)
+	if err == nil {
+		t.Errorf("expected error")
+	}
+
+	for ii := uint64(1); ii < 3; ii++ {
+		suppliedGas = ii * REQUIRED_GAS
+		_, remainingGas, err := RunPrecompile(evm, addr, pc, input, suppliedGas, readOnly)
+		if err != nil {
+			t.Error(err)
+		}
+		if remainingGas != suppliedGas-REQUIRED_GAS {
+			t.Errorf("expected 0 remaining gas, got %d", remainingGas)
+		}
+	}
+
+	suppliedGas = REQUIRED_GAS
+
+	_, _, err = RunPrecompile(evm, addr, pc, input, suppliedGas, readOnly)
+	if err != nil {
+		t.Error(err)
+	}
+
+	readOnly = true
+
+	_, _, err = RunPrecompile(evm, addr, pc, input, suppliedGas, readOnly)
+	if err == nil {
+		t.Errorf("expected error")
+	}
+
+	MUTATES_STORAGE = false
+
+	_, _, err = RunPrecompile(evm, addr, pc, input, suppliedGas, readOnly)
+	if err == nil {
+		t.Errorf("expected error")
+	}
+
+}
