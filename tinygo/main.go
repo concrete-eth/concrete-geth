@@ -57,8 +57,10 @@ func (m *memory) Deref(pointer bridge.MemPointer) []byte {
 	offset, size := pointer.Unpack()
 	return *(*[]byte)(unsafe.Pointer(&reflect.SliceHeader{
 		Data: uintptr(offset),
-		Len:  uintptr(size),
-		Cap:  uintptr(size),
+		//nolint:typecheck
+		Len: uintptr(size),
+		//nolint:typecheck
+		Cap: uintptr(size),
 	}))
 }
 
