@@ -20,7 +20,12 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
 	"golang.org/x/crypto/sha3"
+)
+
+var (
+	HashRegistryAddress = common.BytesToAddress(crypto.Keccak256([]byte("concrete.HashRegistry.v0")))
 )
 
 type StateDB interface {
@@ -105,6 +110,7 @@ func (s *PersistentStorage) Get(key common.Hash) common.Hash {
 
 func (s *PersistentStorage) AddPreimage(preimage []byte) {
 	hash := Keccak256Hash(preimage)
+	s.db.SetPersistentState(HashRegistryAddress, hash, common.BytesToHash(common.Big1.Bytes()))
 	s.db.AddPersistentPreimage(hash, preimage)
 }
 
@@ -133,6 +139,7 @@ func (s *EphemeralStorage) Get(key common.Hash) common.Hash {
 
 func (s *EphemeralStorage) AddPreimage(preimage []byte) {
 	hash := Keccak256Hash(preimage)
+	s.db.SetEphemeralState(HashRegistryAddress, hash, common.BytesToHash(common.Big1.Bytes()))
 	s.db.AddEphemeralPreimage(hash, preimage)
 }
 
