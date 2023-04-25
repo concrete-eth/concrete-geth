@@ -16,9 +16,11 @@
 package api
 
 import (
+	"hash"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
+	"golang.org/x/crypto/sha3"
 )
 
 type StateDB interface {
@@ -83,7 +85,7 @@ var _ StateDB = &ReadOnlyStateDB{}
 type Storage interface {
 	Set(key common.Hash, value common.Hash)
 	Get(key common.Hash) common.Hash
-	AddPreimage(hash common.Hash, preimage []byte)
+	AddPreimage(preimage []byte)
 	GetPreimage(hash common.Hash) []byte
 	GetPreimageSize(hash common.Hash) int
 }
@@ -101,7 +103,8 @@ func (s *PersistentStorage) Get(key common.Hash) common.Hash {
 	return s.db.GetPersistentState(s.address, key)
 }
 
-func (s *PersistentStorage) AddPreimage(hash common.Hash, preimage []byte) {
+func (s *PersistentStorage) AddPreimage(preimage []byte) {
+	hash := Keccak256Hash(preimage)
 	s.db.AddPersistentPreimage(hash, preimage)
 }
 
@@ -128,7 +131,8 @@ func (s *EphemeralStorage) Get(key common.Hash) common.Hash {
 	return s.db.GetEphemeralState(s.address, key)
 }
 
-func (s *EphemeralStorage) AddPreimage(hash common.Hash, preimage []byte) {
+func (s *EphemeralStorage) AddPreimage(preimage []byte) {
+	hash := Keccak256Hash(preimage)
 	s.db.AddEphemeralPreimage(hash, preimage)
 }
 
@@ -252,4 +256,24 @@ type Precompile interface {
 	New(api API) error
 	Commit(api API) error
 	Run(api API, input []byte) ([]byte, error)
+}
+
+// Re-implementation of Keccak256Hash so we it can be used from tinyGo
+
+type KeccakState interface {
+	hash.Hash
+	Read([]byte) (int, error)
+}
+
+func NewKeccakState() KeccakState {
+	return sha3.NewLegacyKeccak256().(KeccakState)
+}
+
+func Keccak256Hash(data ...[]byte) (h common.Hash) {
+	d := NewKeccakState()
+	for _, b := range data {
+		d.Write(b)
+	}
+	d.Read(h[:])
+	return h
 }
