@@ -24,8 +24,8 @@ import (
 )
 
 var (
-	precompiles          map[common.Address]api.Precompile
-	precompiledAddresses []common.Address
+	precompiles          = make(map[common.Address]api.Precompile)
+	precompiledAddresses = make([]common.Address, 0)
 )
 
 func AddPrecompile(addr common.Address, p api.Precompile) error {
