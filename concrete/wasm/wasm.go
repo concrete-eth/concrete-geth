@@ -183,7 +183,6 @@ func statefulPrecompileWorker(ctx context.Context, code []byte, workerIn__Err ch
 
 	for {
 		select {
-
 		case <-ctx.Done():
 			return
 
@@ -212,7 +211,6 @@ func statefulPrecompileWorker(ctx context.Context, code []byte, workerIn__Err ch
 			retPointer := bridge.MemPointer(_retPointer[0])
 			retValues, retErr := native.GetReturnWithError(ctx, mod, retPointer)
 			payload.out <- &workerResponse_BytesErr{retValues[0], retErr}
-
 		}
 
 		native.PruneMemory(ctx, mod)
