@@ -104,7 +104,11 @@ type StateDB struct {
 	persistentPreimageDirties map[common.Hash]int
 	ephemeralPreimages        map[common.Hash][]byte
 	ephemeralPreimageDirties  map[common.Hash]int
-	ephemeralStorage          map[common.Address]Storage
+
+	ephemeralDb             Database
+	ephemeralTrie           Trie
+	ephemeralStorage        map[common.Address]*ephemeralStorage
+	ephemeralStorageDirties map[common.Address]int
 
 	// Per-transaction access list
 	accessList *accessList
@@ -144,6 +148,11 @@ func New(root common.Hash, db Database, snaps *snapshot.Tree) (*StateDB, error) 
 	if err != nil {
 		return nil, err
 	}
+	ephDB := NewDatabase(rawdb.NewMemoryDatabase())
+	ephTr, err := ephDB.OpenTrie(types.EmptyRootHash)
+	if err != nil {
+		return nil, err
+	}
 	sdb := &StateDB{
 		db:                        db,
 		trie:                      tr,
@@ -159,7 +168,10 @@ func New(root common.Hash, db Database, snaps *snapshot.Tree) (*StateDB, error) 
 		persistentPreimageDirties: make(map[common.Hash]int),
 		ephemeralPreimages:        make(map[common.Hash][]byte),
 		ephemeralPreimageDirties:  make(map[common.Hash]int),
-		ephemeralStorage:          make(map[common.Address]Storage),
+		ephemeralDb:               ephDB,
+		ephemeralTrie:             ephTr,
+		ephemeralStorage:          make(map[common.Address]*ephemeralStorage),
+		ephemeralStorageDirties:   make(map[common.Address]int),
 		journal:                   newJournal(),
 		accessList:                newAccessList(),
 		transientStorage:          newTransientStorage(),
@@ -243,23 +255,38 @@ func (s *StateDB) GetPersistentState(addr common.Address, key common.Hash) commo
 }
 
 func (s *StateDB) SetEphemeralState(addr common.Address, key, value common.Hash) {
-	prev := s.ephemeralStorage[addr][key]
-	if prev == value {
-		return
+	store := s.GetOrNewEphemeralStorage(addr)
+	if store != nil {
+		store.SetState(s.ephemeralDb, key, value)
 	}
-	s.journal.append(ephemeralStorageChange{
-		account:  &addr,
-		key:      key,
-		prevalue: prev,
-	})
-	if s.ephemeralStorage[addr] == nil {
-		s.ephemeralStorage[addr] = make(Storage)
-	}
-	s.ephemeralStorage[addr][key] = value
 }
 
 func (s *StateDB) GetEphemeralState(addr common.Address, key common.Hash) common.Hash {
-	return s.ephemeralStorage[addr][key]
+	store := s.getEphemeralStorage(addr)
+	if store != nil {
+		return store.GetState(s.ephemeralDb, key)
+	}
+	return common.Hash{}
+}
+
+func (s *StateDB) getEphemeralStorage(addr common.Address) *ephemeralStorage {
+	if store, ok := s.ephemeralStorage[addr]; ok {
+		return store
+	}
+	return nil
+}
+
+func (s *StateDB) setEphemeralStorage(store *ephemeralStorage) {
+	s.ephemeralStorage[store.Address()] = store
+}
+
+func (s *StateDB) GetOrNewEphemeralStorage(addr common.Address) *ephemeralStorage {
+	store := s.getEphemeralStorage(addr)
+	if store == nil {
+		store = newEphemeralStorage(s, addr)
+		s.setEphemeralStorage(store)
+	}
+	return store
 }
 
 func (s *StateDB) NewConcretePrecompiles() {
@@ -272,24 +299,13 @@ func (s *StateDB) NewConcretePrecompiles() {
 	}
 }
 
-// BUG: this should NOT be called from s.Finalise() as it runs after every transaction when
-// computing the intermediate state root. [!!!]
-func (s *StateDB) FinaliseConcretePrecompiles() {
+func (s *StateDB) CommitConcretePrecompiles() {
 	for _, addr := range contracts.ActivePrecompiles() {
 		p, _ := contracts.GetPrecompile(addr)
 		api := cc_api.NewStateAPI(s, addr)
 		if err := p.Commit(api); err != nil {
 			s.setError(fmt.Errorf("error in concrete precompile %x commit: %v", addr, err))
 		}
-	}
-	if len(s.ephemeralPreimageDirties) > 0 {
-		s.ephemeralPreimageDirties = make(map[common.Hash]int)
-	}
-	if len(s.ephemeralPreimages) > 0 {
-		s.ephemeralPreimages = make(map[common.Hash][]byte)
-	}
-	if len(s.ephemeralStorage) > 0 {
-		s.ephemeralStorage = make(map[common.Address]Storage)
 	}
 }
 
@@ -846,7 +862,10 @@ func (s *StateDB) Copy() *StateDB {
 		persistentPreimageDirties: make(map[common.Hash]int, len(s.persistentPreimageDirties)),
 		ephemeralPreimages:        make(map[common.Hash][]byte, len(s.ephemeralPreimages)),
 		ephemeralPreimageDirties:  make(map[common.Hash]int, len(s.ephemeralPreimageDirties)),
-		ephemeralStorage:          make(map[common.Address]Storage, len(s.ephemeralStorage)),
+		ephemeralDb:               s.ephemeralDb,
+		ephemeralTrie:             s.ephemeralDb.CopyTrie(s.ephemeralTrie),
+		ephemeralStorage:          make(map[common.Address]*ephemeralStorage),
+		ephemeralStorageDirties:   make(map[common.Address]int),
 		journal:                   newJournal(),
 		hasher:                    crypto.NewKeccakState(),
 	}
@@ -910,7 +929,10 @@ func (s *StateDB) Copy() *StateDB {
 		state.ephemeralPreimageDirties[hash] = dirties
 	}
 	for addr, storage := range s.ephemeralStorage {
-		state.ephemeralStorage[addr] = storage.Copy()
+		state.ephemeralStorage[addr] = storage.deepCopy(state)
+	}
+	for hash, dirties := range s.ephemeralStorageDirties {
+		state.ephemeralStorageDirties[hash] = dirties
 	}
 	// Do we need to copy the access list and transient storage?
 	// In practice: No. At the start of a transaction, these two lists are empty.
@@ -985,8 +1007,6 @@ func (s *StateDB) GetRefund() uint64 {
 // the journal as well as the refunds. Finalise, however, will not push any updates
 // into the tries just yet. Only IntermediateRoot or Commit will do that.
 func (s *StateDB) Finalise(deleteEmptyObjects bool) {
-	s.FinaliseConcretePrecompiles()
-
 	addressesToPrefetch := make([][]byte, 0, len(s.journal.dirties))
 	for addr := range s.journal.dirties {
 		obj, exist := s.stateObjects[addr]
@@ -1038,10 +1058,28 @@ func (s *StateDB) Finalise(deleteEmptyObjects bool) {
 // TODO: Refactor ephemeral storage with an intermediate root that merkleizes up
 // to the proper root.
 
+var (
+	EphemeralStateAddress = common.BytesToAddress(crypto.Keccak256([]byte("concrete.EphemeralState.v0")))
+	EphemeralStateRootKey = crypto.Keccak256Hash([]byte("concrete.EphemeralState.v0.Root"))
+)
+
 // IntermediateRoot computes the current root hash of the state trie.
 // It is called in between transactions to get the root hash that
 // goes into transaction receipts.
 func (s *StateDB) IntermediateRoot(deleteEmptyObjects bool) common.Hash {
+	for addr := range s.ephemeralStorageDirties {
+		store := s.ephemeralStorage[addr]
+		err := store.updateRoot(s.db)
+		if err != nil {
+			s.setError(err)
+		}
+		s.ephemeralTrie.TryUpdate(addr.Bytes(), store.root.Bytes())
+	}
+	s.SetState(EphemeralStateAddress, EphemeralStateRootKey, s.ephemeralTrie.Hash())
+	if len(s.ephemeralStorageDirties) > 0 {
+		s.ephemeralStorageDirties = make(map[common.Address]int)
+	}
+
 	// Finalise all the dirty storage states and write them into the tries
 	s.Finalise(deleteEmptyObjects)
 
@@ -1119,12 +1157,13 @@ func (s *StateDB) clearJournalAndRefund() {
 
 // Commit writes the state to the underlying in-memory trie database.
 func (s *StateDB) Commit(deleteEmptyObjects bool) (common.Hash, error) {
-	// Short circuit in case any database failure occurred earlier.
+	s.CommitConcretePrecompiles()
+	// Finalize any pending changes and merge everything into the tries
+	s.IntermediateRoot(deleteEmptyObjects)
+
 	if s.dbErr != nil {
 		return common.Hash{}, fmt.Errorf("commit aborted due to earlier error: %v", s.dbErr)
 	}
-	// Finalize any pending changes and merge everything into the tries
-	s.IntermediateRoot(deleteEmptyObjects)
 
 	// Commit objects to the trie, measuring the elapsed time
 	var (
