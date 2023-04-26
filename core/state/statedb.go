@@ -167,12 +167,13 @@ func New(root common.Hash, db Database, snaps *snapshot.Tree) (*StateDB, error) 
 		ephemeralPreimageDirties:  make(map[common.Hash]int),
 		ephemeralDb:               ephDB,
 		ephemeralTrie:             ephTr,
-		ephemeralStorage:          make(map[common.Address]*ephemeralStorage),
-		ephemeralStorageDirties:   make(map[common.Address]int),
-		journal:                   newJournal(),
-		accessList:                newAccessList(),
-		transientStorage:          newTransientStorage(),
-		hasher:                    crypto.NewKeccakState(),
+		// Bug: pending vs. dirty
+		ephemeralStorage:        make(map[common.Address]*ephemeralStorage),
+		ephemeralStorageDirties: make(map[common.Address]int),
+		journal:                 newJournal(),
+		accessList:              newAccessList(),
+		transientStorage:        newTransientStorage(),
+		hasher:                  crypto.NewKeccakState(),
 	}
 	if sdb.snaps != nil {
 		if sdb.snap = sdb.snaps.Snapshot(root); sdb.snap != nil {
