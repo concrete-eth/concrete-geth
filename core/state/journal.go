@@ -279,7 +279,10 @@ func (ch addEphemeralPreimageChange) dirtied() *common.Address {
 }
 
 func (ch ephemeralStorageChange) revert(s *StateDB) {
-	s.ephemeralStorage[*ch.account][ch.key] = ch.prevalue
+	s.getEphemeralStorage(*ch.account).setState(ch.key, ch.prevalue)
+	if s.ephemeralStorageDirties[*ch.account]--; s.ephemeralStorageDirties[*ch.account] == 0 {
+		delete(s.ephemeralStorageDirties, *ch.account)
+	}
 }
 
 func (ch ephemeralStorageChange) dirtied() *common.Address {
