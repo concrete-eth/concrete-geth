@@ -156,6 +156,9 @@ func New(root common.Hash, db Database, snaps *snapshot.Tree) (*StateDB, error) 
 	}
 	ephDB := NewDatabase(rawdb.NewMemoryDatabase())
 	ephTrie, err := ephDB.OpenTrie(types.EmptyRootHash)
+	if err != nil {
+		return nil, err
+	}
 	sdb := &StateDB{
 		db:                         db,
 		trie:                       tr,
