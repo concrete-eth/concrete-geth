@@ -25,8 +25,6 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
-	cc_api "github.com/ethereum/go-ethereum/concrete/api"
-	"github.com/ethereum/go-ethereum/concrete/contracts"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state/snapshot"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -97,18 +95,6 @@ type StateDB struct {
 
 	preimages map[common.Hash][]byte
 
-	persistentPreimages        map[common.Hash][]byte
-	persistentPreimagesDirties map[common.Hash]int
-	persistentPreimagesPending map[common.Hash]struct{}
-
-	ephemeralPreimages        map[common.Hash][]byte
-	ephemeralPreimagesDirties map[common.Hash]int
-
-	ephemeralDb             Database
-	ephemeralTrie           Trie
-	ephemeralStorage        map[common.Address]*ephemeralStorage
-	ephemeralStorageDirties map[common.Address]int
-
 	// Per-transaction access list
 	accessList *accessList
 
@@ -147,35 +133,21 @@ func New(root common.Hash, db Database, snaps *snapshot.Tree) (*StateDB, error) 
 	if err != nil {
 		return nil, err
 	}
-	ephDB := NewDatabase(rawdb.NewMemoryDatabase())
-	ephTr, err := ephDB.OpenTrie(types.EmptyRootHash)
-	if err != nil {
-		return nil, err
-	}
 	sdb := &StateDB{
-		db:                         db,
-		trie:                       tr,
-		originalRoot:               root,
-		snaps:                      snaps,
-		stateObjects:               make(map[common.Address]*stateObject),
-		stateObjectsPending:        make(map[common.Address]struct{}),
-		stateObjectsDirty:          make(map[common.Address]struct{}),
-		stateObjectsDestruct:       make(map[common.Address]struct{}),
-		logs:                       make(map[common.Hash][]*types.Log),
-		preimages:                  make(map[common.Hash][]byte),
-		persistentPreimages:        make(map[common.Hash][]byte),
-		persistentPreimagesPending: make(map[common.Hash]struct{}),
-		persistentPreimagesDirties: make(map[common.Hash]int),
-		ephemeralPreimages:         make(map[common.Hash][]byte),
-		ephemeralPreimagesDirties:  make(map[common.Hash]int),
-		ephemeralDb:                ephDB,
-		ephemeralTrie:              ephTr,
-		ephemeralStorage:           make(map[common.Address]*ephemeralStorage),
-		ephemeralStorageDirties:    make(map[common.Address]int),
-		journal:                    newJournal(),
-		accessList:                 newAccessList(),
-		transientStorage:           newTransientStorage(),
-		hasher:                     crypto.NewKeccakState(),
+		db:                   db,
+		trie:                 tr,
+		originalRoot:         root,
+		snaps:                snaps,
+		stateObjects:         make(map[common.Address]*stateObject),
+		stateObjectsPending:  make(map[common.Address]struct{}),
+		stateObjectsDirty:    make(map[common.Address]struct{}),
+		stateObjectsDestruct: make(map[common.Address]struct{}),
+		logs:                 make(map[common.Hash][]*types.Log),
+		preimages:            make(map[common.Hash][]byte),
+		journal:              newJournal(),
+		accessList:           newAccessList(),
+		transientStorage:     newTransientStorage(),
+		hasher:               crypto.NewKeccakState(),
 	}
 	if sdb.snaps != nil {
 		if sdb.snap = sdb.snaps.Snapshot(root); sdb.snap != nil {
@@ -183,132 +155,7 @@ func New(root common.Hash, db Database, snaps *snapshot.Tree) (*StateDB, error) 
 			sdb.snapStorage = make(map[common.Hash]map[common.Hash][]byte)
 		}
 	}
-	sdb.NewConcretePrecompiles()
 	return sdb, nil
-}
-
-func (s *StateDB) AddPersistentPreimage(hash common.Hash, preimage []byte) {
-	if _, ok := s.persistentPreimagesPending[hash]; !ok {
-		s.journal.append(addPersistentPreimageChange{hash: hash})
-		s.persistentPreimagesDirties[hash]++
-		if _, ok := s.persistentPreimages[hash]; !ok {
-			pi := make([]byte, len(preimage))
-			copy(pi, preimage)
-			s.persistentPreimages[hash] = pi
-		}
-	}
-}
-
-func (s *StateDB) GetPersistentPreimage(hash common.Hash) []byte {
-	if preimage, ok := s.persistentPreimages[hash]; ok {
-		return preimage
-	}
-	preimage, err := s.db.ConcretePreimage(hash)
-	if err != nil {
-		s.setError(fmt.Errorf("can't load persistent preimage %x: %v", hash, err))
-	}
-	s.persistentPreimages[hash] = preimage
-	return preimage
-}
-
-func (s *StateDB) GetPersistentPreimageSize(hash common.Hash) int {
-	if preimage, ok := s.persistentPreimages[hash]; ok {
-		return len(preimage)
-	}
-	piSize, err := s.db.ConcretePreimageSize(hash)
-	if err != nil {
-		s.setError(fmt.Errorf("can't load persistent preimage size %x: %v", hash, err))
-	}
-	return piSize
-}
-
-func (s *StateDB) AddEphemeralPreimage(hash common.Hash, preimage []byte) {
-	if _, ok := s.ephemeralPreimagesPending[hash]; !ok {
-		s.journal.append(addEphemeralPreimageChange{hash: hash})
-		pi := make([]byte, len(preimage))
-		copy(pi, preimage)
-		s.ephemeralPreimages[hash] = pi
-		s.ephemeralPreimagesDirties[hash]++
-	}
-}
-
-func (s *StateDB) GetEphemeralPreimage(hash common.Hash) []byte {
-	if preimage, ok := s.ephemeralPreimages[hash]; ok {
-		return preimage
-	}
-	s.setError(fmt.Errorf("can't load ephemeral preimage %x", hash))
-	return nil
-}
-
-func (s *StateDB) GetEphemeralPreimageSize(hash common.Hash) int {
-	if preimage, ok := s.ephemeralPreimages[hash]; ok {
-		return len(preimage)
-	}
-	s.setError(fmt.Errorf("can't load ephemeral preimage size %x", hash))
-	return 0
-}
-
-func (s *StateDB) SetPersistentState(addr common.Address, key, value common.Hash) {
-	s.SetState(addr, key, value)
-}
-
-func (s *StateDB) GetPersistentState(addr common.Address, key common.Hash) common.Hash {
-	return s.GetState(addr, key)
-}
-
-func (s *StateDB) SetEphemeralState(addr common.Address, key, value common.Hash) {
-	store := s.GetOrNewEphemeralStorage(addr)
-	if store != nil {
-		store.SetState(s.ephemeralDb, key, value)
-	}
-}
-
-func (s *StateDB) GetEphemeralState(addr common.Address, key common.Hash) common.Hash {
-	store := s.getEphemeralStorage(addr)
-	if store != nil {
-		return store.GetState(s.ephemeralDb, key)
-	}
-	return common.Hash{}
-}
-
-func (s *StateDB) getEphemeralStorage(addr common.Address) *ephemeralStorage {
-	if store, ok := s.ephemeralStorage[addr]; ok {
-		return store
-	}
-	return nil
-}
-
-func (s *StateDB) setEphemeralStorage(store *ephemeralStorage) {
-	s.ephemeralStorage[store.Address()] = store
-}
-
-func (s *StateDB) GetOrNewEphemeralStorage(addr common.Address) *ephemeralStorage {
-	store := s.getEphemeralStorage(addr)
-	if store == nil {
-		store = newEphemeralStorage(s, addr)
-		s.setEphemeralStorage(store)
-	}
-	return store
-}
-
-func (s *StateDB) NewConcretePrecompiles() {
-	for _, addr := range contracts.ActivePrecompiles() {
-		p, _ := contracts.GetPrecompile(addr)
-		api := cc_api.NewStateAPI(s, addr)
-		if err := p.New(api); err != nil {
-			s.setError(fmt.Errorf("error in concrete precompile %x init: %v", addr, err))
-		}
-	}
-}
-
-func (s *StateDB) CommitConcretePrecompiles() {
-	for _, addr := range contracts.ActivePrecompiles() {
-		p, _ := contracts.GetPrecompile(addr)
-		api := cc_api.NewStateAPI(s, addr)
-		if err := p.Commit(api); err != nil {
-			s.setError(fmt.Errorf("error in concrete precompile %x commit: %v", addr, err))
-		}
-	}
 }
 
 // StartPrefetcher initializes a new trie prefetcher to pull in nodes from the
@@ -850,27 +697,19 @@ func (db *StateDB) ForEachStorage(addr common.Address, cb func(key, value common
 func (s *StateDB) Copy() *StateDB {
 	// Copy all the basic fields, initialize the memory ones
 	state := &StateDB{
-		db:                         s.db,
-		trie:                       s.db.CopyTrie(s.trie),
-		originalRoot:               s.originalRoot,
-		stateObjects:               make(map[common.Address]*stateObject, len(s.journal.dirties)),
-		stateObjectsPending:        make(map[common.Address]struct{}, len(s.stateObjectsPending)),
-		stateObjectsDirty:          make(map[common.Address]struct{}, len(s.journal.dirties)),
-		stateObjectsDestruct:       make(map[common.Address]struct{}, len(s.stateObjectsDestruct)),
-		refund:                     s.refund,
-		logs:                       make(map[common.Hash][]*types.Log, len(s.logs)),
-		logSize:                    s.logSize,
-		preimages:                  make(map[common.Hash][]byte, len(s.preimages)),
-		persistentPreimages:        make(map[common.Hash][]byte, len(s.persistentPreimages)),
-		persistentPreimagesDirties: make(map[common.Hash]int, len(s.persistentPreimagesDirties)),
-		ephemeralPreimages:         make(map[common.Hash][]byte, len(s.ephemeralPreimages)),
-		ephemeralPreimagesDirties:  make(map[common.Hash]int, len(s.ephemeralPreimagesDirties)),
-		ephemeralDb:                s.ephemeralDb,
-		ephemeralTrie:              s.ephemeralDb.CopyTrie(s.ephemeralTrie),
-		ephemeralStorage:           make(map[common.Address]*ephemeralStorage),
-		ephemeralStorageDirties:    make(map[common.Address]int),
-		journal:                    newJournal(),
-		hasher:                     crypto.NewKeccakState(),
+		db:                   s.db,
+		trie:                 s.db.CopyTrie(s.trie),
+		originalRoot:         s.originalRoot,
+		stateObjects:         make(map[common.Address]*stateObject, len(s.journal.dirties)),
+		stateObjectsPending:  make(map[common.Address]struct{}, len(s.stateObjectsPending)),
+		stateObjectsDirty:    make(map[common.Address]struct{}, len(s.journal.dirties)),
+		stateObjectsDestruct: make(map[common.Address]struct{}, len(s.stateObjectsDestruct)),
+		refund:               s.refund,
+		logs:                 make(map[common.Hash][]*types.Log, len(s.logs)),
+		logSize:              s.logSize,
+		preimages:            make(map[common.Hash][]byte, len(s.preimages)),
+		journal:              newJournal(),
+		hasher:               crypto.NewKeccakState(),
 	}
 	// Copy the dirty states, logs, and preimages
 	for addr := range s.journal.dirties {
@@ -918,24 +757,6 @@ func (s *StateDB) Copy() *StateDB {
 	}
 	for hash, preimage := range s.preimages {
 		state.preimages[hash] = preimage
-	}
-	for hash, preimage := range s.persistentPreimages {
-		state.persistentPreimages[hash] = preimage
-	}
-	for hash, dirties := range s.persistentPreimagesDirties {
-		state.persistentPreimagesDirties[hash] = dirties
-	}
-	for hash, preimage := range s.ephemeralPreimages {
-		state.ephemeralPreimages[hash] = preimage
-	}
-	for hash, dirties := range s.ephemeralPreimagesDirties {
-		state.ephemeralPreimagesDirties[hash] = dirties
-	}
-	for addr, storage := range s.ephemeralStorage {
-		state.ephemeralStorage[addr] = storage.deepCopy(state)
-	}
-	for hash, dirties := range s.ephemeralStorageDirties {
-		state.ephemeralStorageDirties[hash] = dirties
 	}
 	// Do we need to copy the access list and transient storage?
 	// In practice: No. At the start of a transaction, these two lists are empty.
@@ -1010,17 +831,6 @@ func (s *StateDB) GetRefund() uint64 {
 // the journal as well as the refunds. Finalise, however, will not push any updates
 // into the tries just yet. Only IntermediateRoot or Commit will do that.
 func (s *StateDB) Finalise(deleteEmptyObjects bool) {
-	for hash := range s.persistentPreimagesDirties {
-		s.persistentPreimagesPending[hash] = struct{}{}
-	}
-	if len(s.persistentPreimagesDirties) > 0 {
-		s.persistentPreimagesDirties = make(map[common.Hash]int)
-	}
-
-	if len(s.ephemeralPreimagesDirties) > 0 {
-		s.ephemeralPreimagesDirties = make(map[common.Hash]int)
-	}
-
 	addressesToPrefetch := make([][]byte, 0, len(s.journal.dirties))
 	for addr := range s.journal.dirties {
 		obj, exist := s.stateObjects[addr]
@@ -1066,34 +876,10 @@ func (s *StateDB) Finalise(deleteEmptyObjects bool) {
 	s.clearJournalAndRefund()
 }
 
-// BUG: The intermediary root is unaffected by ephemeral storage. This means that
-// the state root is not a valid identifier for the intermediary state of the
-// blockchain.
-// TODO: Refactor ephemeral storage with an intermediate root that merkleizes up
-// to the proper root.
-
-var (
-	EphemeralStateAddress = common.BytesToAddress(crypto.Keccak256([]byte("concrete.EphemeralState.v0")))
-	EphemeralStateRootKey = crypto.Keccak256Hash([]byte("concrete.EphemeralState.v0.Root"))
-)
-
 // IntermediateRoot computes the current root hash of the state trie.
 // It is called in between transactions to get the root hash that
 // goes into transaction receipts.
 func (s *StateDB) IntermediateRoot(deleteEmptyObjects bool) common.Hash {
-	for addr := range s.ephemeralStorageDirties {
-		store := s.ephemeralStorage[addr]
-		err := store.updateRoot(s.db)
-		if err != nil {
-			s.setError(err)
-		}
-		s.ephemeralTrie.TryUpdate(addr.Bytes(), store.root.Bytes())
-	}
-	s.SetState(EphemeralStateAddress, EphemeralStateRootKey, s.ephemeralTrie.Hash())
-	if len(s.ephemeralStorageDirties) > 0 {
-		s.ephemeralStorageDirties = make(map[common.Address]int)
-	}
-
 	// Finalise all the dirty storage states and write them into the tries
 	s.Finalise(deleteEmptyObjects)
 
@@ -1171,13 +957,11 @@ func (s *StateDB) clearJournalAndRefund() {
 
 // Commit writes the state to the underlying in-memory trie database.
 func (s *StateDB) Commit(deleteEmptyObjects bool) (common.Hash, error) {
-	s.CommitConcretePrecompiles()
-	// Finalize any pending changes and merge everything into the tries
-	s.IntermediateRoot(deleteEmptyObjects)
-
 	if s.dbErr != nil {
 		return common.Hash{}, fmt.Errorf("commit aborted due to earlier error: %v", s.dbErr)
 	}
+	// Finalize any pending changes and merge everything into the tries
+	s.IntermediateRoot(deleteEmptyObjects)
 
 	// Commit objects to the trie, measuring the elapsed time
 	var (
@@ -1188,7 +972,6 @@ func (s *StateDB) Commit(deleteEmptyObjects bool) (common.Hash, error) {
 		nodes                   = trie.NewMergedNodeSet()
 	)
 	codeWriter := s.db.DiskDB().NewBatch()
-	persistentPreimageWriter := s.db.DiskDB().NewBatch()
 	for addr := range s.stateObjectsDirty {
 		if obj := s.stateObjects[addr]; !obj.deleted {
 			// Write any contract code associated with the state object
@@ -1224,18 +1007,6 @@ func (s *StateDB) Commit(deleteEmptyObjects bool) (common.Hash, error) {
 	if codeWriter.ValueSize() > 0 {
 		if err := codeWriter.Write(); err != nil {
 			log.Crit("Failed to commit dirty codes", "error", err)
-		}
-	}
-	for hash := range s.persistentPreimagesDirties {
-		pi := s.persistentPreimages[hash]
-		rawdb.WriteConcretePreimage(persistentPreimageWriter, hash, pi)
-	}
-	if len(s.persistentPreimagesDirties) > 0 {
-		s.persistentPreimagesDirties = make(map[common.Hash]int)
-	}
-	if persistentPreimageWriter.ValueSize() > 0 {
-		if err := persistentPreimageWriter.Write(); err != nil {
-			log.Crit("Failed to commit dirty hot preimages", "error", err)
 		}
 	}
 	// Write the account trie changes, measuring the amount of wasted time
