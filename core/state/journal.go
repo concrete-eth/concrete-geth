@@ -146,6 +146,9 @@ type (
 	ephemeralPreimageChange struct {
 		hash common.Hash
 	}
+	persistentPreimageChange struct {
+		hash common.Hash
+	}
 )
 
 func (ch createObjectChange) revert(s *StateDB) {
@@ -292,5 +295,13 @@ func (ch ephemeralPreimageChange) revert(s *StateDB) {
 }
 
 func (ch ephemeralPreimageChange) dirtied() *common.Address {
+	return nil
+}
+
+func (ch persistentPreimageChange) revert(s *StateDB) {
+	delete(s.persistentPreimagesDirty, ch.hash)
+}
+
+func (ch persistentPreimageChange) dirtied() *common.Address {
 	return nil
 }
