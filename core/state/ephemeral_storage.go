@@ -16,8 +16,6 @@
 package state
 
 import (
-	"fmt"
-
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -29,21 +27,21 @@ type ephemeralStorage struct {
 	db       *StateDB
 	root     common.Hash
 
-	dbErr error
-
-	trie         Trie
-	storage      Storage
-	dirtyStorage Storage
+	trie           Trie
+	storage        Storage
+	dirtyStorage   Storage
+	pendingStorage map[common.Hash]struct{}
 }
 
 func newEphemeralStorage(db *StateDB, address common.Address) *ephemeralStorage {
 	return &ephemeralStorage{
-		address:      address,
-		addrHash:     crypto.Keccak256Hash(address.Bytes()),
-		root:         types.EmptyRootHash,
-		db:           db,
-		storage:      make(Storage),
-		dirtyStorage: make(Storage),
+		address:        address,
+		addrHash:       crypto.Keccak256Hash(address.Bytes()),
+		db:             db,
+		root:           types.EmptyRootHash,
+		storage:        make(Storage),
+		dirtyStorage:   make(Storage),
+		pendingStorage: make(map[common.Hash]struct{}),
 	}
 }
 
@@ -56,7 +54,6 @@ func (s *ephemeralStorage) SetState(db Database, key, value common.Hash) {
 	if prev == value {
 		return
 	}
-	s.db.ephemeralStorageDirties[s.address]++
 	s.db.journal.append(ephemeralStorageChange{
 		account:  &s.address,
 		key:      key,
@@ -70,16 +67,28 @@ func (s *ephemeralStorage) setState(key, value common.Hash) {
 }
 
 func (s *ephemeralStorage) GetState(db Database, key common.Hash) common.Hash {
+	return s.getState(db, key)
+}
+
+func (s *ephemeralStorage) getState(db Database, key common.Hash) common.Hash {
 	if value, ok := s.dirtyStorage[key]; ok {
 		return value
 	}
 	return s.storage[key]
 }
 
-func (s *ephemeralStorage) setError(err error) {
-	if s.dbErr == nil {
-		s.dbErr = err
+func (s *ephemeralStorage) finalise() {
+	if len(s.dirtyStorage) == 0 {
+		return
 	}
+	for key, value := range s.dirtyStorage {
+		if value == s.storage[key] {
+			continue
+		}
+		s.storage[key] = value
+		s.pendingStorage[key] = struct{}{}
+	}
+	s.dirtyStorage = make(Storage)
 }
 
 func (s *ephemeralStorage) getTrie(db Database) (Trie, error) {
@@ -93,56 +102,50 @@ func (s *ephemeralStorage) getTrie(db Database) (Trie, error) {
 	return s.trie, nil
 }
 
-func (s *ephemeralStorage) updateTrie(db Database) (Trie, error) {
-	if len(s.dirtyStorage) == 0 {
-		return s.trie, nil
+func (s *ephemeralStorage) updateTrie(db Database) error {
+	s.finalise()
+	if len(s.pendingStorage) == 0 {
+		return nil
 	}
 	tr, err := s.getTrie(db)
 	if err != nil {
-		s.setError(err)
-		return nil, err
+		return err
 	}
-	for key, value := range s.dirtyStorage {
-		s.storage[key] = value
-
+	for key := range s.pendingStorage {
+		value := s.storage[key]
 		if (value == common.Hash{}) {
-			if err := tr.TryDelete(key[:]); err != nil {
-				s.setError(err)
-				return nil, err
+			if err := tr.TryDelete(key.Bytes()); err != nil {
+				return err
 			}
 		} else {
-			if err := tr.TryUpdate(key[:], value[:]); err != nil {
-				s.setError(err)
-				return nil, err
+			if err := tr.TryUpdate(key.Bytes(), value.Bytes()); err != nil {
+				return err
 			}
 		}
 	}
-	if len(s.dirtyStorage) > 0 {
-		s.dirtyStorage = make(Storage)
-	}
-	return tr, nil
+	s.pendingStorage = make(map[common.Hash]struct{})
+	return nil
 }
 
 func (s *ephemeralStorage) updateRoot(db Database) error {
-	tr, err := s.updateTrie(db)
+	err := s.updateTrie(db)
 	if err != nil {
-		s.setError(fmt.Errorf("updateRoot (%x) error: %w", s.address, err))
 		return err
 	}
-	if tr == nil {
-		return nil
-	}
-	s.root = tr.Hash()
+	s.root = s.trie.Hash()
 	return nil
 }
 
 func (s *ephemeralStorage) deepCopy(db *StateDB) *ephemeralStorage {
 	store := newEphemeralStorage(db, s.address)
 	if s.trie != nil {
-		store.trie = db.db.CopyTrie(s.trie)
+		store.trie = db.ephemeralDB.CopyTrie(s.trie)
 	}
 	store.root = s.root
 	store.storage = s.storage.Copy()
 	store.dirtyStorage = s.dirtyStorage.Copy()
+	for key := range s.pendingStorage {
+		store.pendingStorage[key] = struct{}{}
+	}
 	return store
 }

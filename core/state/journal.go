@@ -146,6 +146,10 @@ type (
 	ephemeralPreimageChange struct {
 		hash common.Hash
 	}
+	ephemeralStorageChange struct {
+		account       *common.Address
+		key, prevalue common.Hash
+	}
 	persistentPreimageChange struct {
 		hash common.Hash
 	}
@@ -295,6 +299,14 @@ func (ch ephemeralPreimageChange) revert(s *StateDB) {
 }
 
 func (ch ephemeralPreimageChange) dirtied() *common.Address {
+	return nil
+}
+
+func (ch ephemeralStorageChange) revert(s *StateDB) {
+	s.ephemeralStorages[*ch.account].setState(ch.key, ch.prevalue)
+}
+
+func (ch ephemeralStorageChange) dirtied() *common.Address {
 	return nil
 }
 
