@@ -143,6 +143,9 @@ type (
 		account       *common.Address
 		key, prevalue common.Hash
 	}
+	ephemeralPreimageChange struct {
+		hash common.Hash
+	}
 )
 
 func (ch createObjectChange) revert(s *StateDB) {
@@ -278,5 +281,16 @@ func (ch accessListAddSlotChange) revert(s *StateDB) {
 }
 
 func (ch accessListAddSlotChange) dirtied() *common.Address {
+	return nil
+}
+
+func (ch ephemeralPreimageChange) revert(s *StateDB) {
+	delete(s.ephemeralPreimagesDirty, ch.hash)
+	if !s.hasEphemeralPreimage(ch.hash) {
+		delete(s.ephemeralPreimages, ch.hash)
+	}
+}
+
+func (ch ephemeralPreimageChange) dirtied() *common.Address {
 	return nil
 }
