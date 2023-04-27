@@ -290,7 +290,7 @@ func (s *StateDB) AddEphemeralPreimage(hash common.Hash, preimage []byte) {
 
 func (s *StateDB) GetEphemeralPreimage(hash common.Hash) []byte {
 	if !s.hasEphemeralPreimage(hash) {
-		return nil
+		return []byte{}
 	}
 	return s.getEphemeralPreimage(hash)
 }
@@ -341,7 +341,7 @@ func (s *StateDB) GetPersistentPreimage(hash common.Hash) []byte {
 	preimage, err := s.db.ConcretePreimage(hash)
 	if err != nil {
 		s.setError(fmt.Errorf("can't load persistent preimage %x: %v", hash, err))
-		return nil
+		return []byte{}
 	}
 	s.persistentPreimagesRead[hash] = struct{}{}
 	s.persistentPreimages[hash] = preimage
