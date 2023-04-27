@@ -1232,7 +1232,7 @@ func (s *StateDB) clearJournalAndRefund() {
 
 // Commit writes the state to the underlying in-memory trie database.
 func (s *StateDB) Commit(deleteEmptyObjects bool) (common.Hash, error) {
-	if s.dbErr != nil {
+	if s.dbErr == nil {
 		s.CommitConcretePrecompiles()
 		// Finalize any pending changes and merge everything into the tries
 		s.IntermediateRoot(deleteEmptyObjects)
