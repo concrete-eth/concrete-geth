@@ -236,6 +236,8 @@ func (s *StateDB) Logs() []*types.Log {
 }
 
 func (s *StateDB) hasEphemeralPreimage(hash common.Hash) bool {
+	// A preimage not marked as dirty or added is considered non-existent,
+	// even if it is present in the map.
 	if _, ok := s.ephemeralPreimagesDirty[hash]; ok {
 		return true
 	}
@@ -294,8 +296,8 @@ func (s *StateDB) AddPersistentPreimage(hash common.Hash, preimage []byte) {
 		return
 	}
 	if _, ok := s.persistentPreimagesSize[hash]; ok {
-		// The fact we have the size implies the preimage is already committed
-		// so we can add it as if we had read it.
+		// The size was read from the DB, but the preimage was not.
+		// The preimage is already committed, so it can be added as if it was read.
 		s.persistentPreimagesRead[hash] = struct{}{}
 		s.persistentPreimages[hash] = preimage
 		delete(s.persistentPreimagesSize, hash)
@@ -323,9 +325,6 @@ func (s *StateDB) GetPersistentPreimage(hash common.Hash) []byte {
 }
 
 func (s *StateDB) GetPersistentPreimageSize(hash common.Hash) int {
-	// All preimages marked as cached are in the map but not all preimages
-	// in the map are marked as cached as the transaction that added a
-	// dirty preimage may have been reverted.
 	if s.persistentPreimageCached(hash) {
 		preimage := s.persistentPreimages[hash]
 		return len(preimage)
@@ -336,8 +335,10 @@ func (s *StateDB) GetPersistentPreimageSize(hash common.Hash) int {
 		return 0
 	}
 	if _, ok := s.persistentPreimages[hash]; !ok {
-		// The fact we have the size implies the preimage is already committed.
-		// The preimage is already in the map so we can mark it as if we had read it.
+		// All preimages marked as cached are in the map but not all preimages
+		// in the map are marked as cached as the transaction that added a
+		// dirty preimage may have been reverted.
+		// The preimage is in the DB, so it can be added as if it was read.
 		s.persistentPreimagesRead[hash] = struct{}{}
 		return size
 	}
