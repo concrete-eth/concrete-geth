@@ -149,26 +149,34 @@ func New(root common.Hash, db Database, snaps *snapshot.Tree) (*StateDB, error) 
 	if err != nil {
 		return nil, err
 	}
+	ephDB := NewDatabase(rawdb.NewMemoryDatabase())
+	ephTrie, err := ephDB.OpenTrie(types.EmptyRootHash)
 	sdb := &StateDB{
-		db:                      db,
-		trie:                    tr,
-		originalRoot:            root,
-		snaps:                   snaps,
-		stateObjects:            make(map[common.Address]*stateObject),
-		stateObjectsPending:     make(map[common.Address]struct{}),
-		stateObjectsDirty:       make(map[common.Address]struct{}),
-		stateObjectsDestruct:    make(map[common.Address]struct{}),
-		logs:                    make(map[common.Hash][]*types.Log),
-		preimages:               make(map[common.Hash][]byte),
-		journal:                 newJournal(),
-		accessList:              newAccessList(),
-		transientStorage:        newTransientStorage(),
-		ephemeralPreimages:      make(map[common.Hash][]byte),
-		ephemeralPreimagesDirty: make(map[common.Hash]struct{}),
-		ephemeralPreimagesAdded: make(map[common.Hash]struct{}),
-		// TODO: other maps [!]
-		ephemeralStorages: make(map[common.Address]*ephemeralStorage),
-		hasher:            crypto.NewKeccakState(),
+		db:                         db,
+		trie:                       tr,
+		originalRoot:               root,
+		snaps:                      snaps,
+		stateObjects:               make(map[common.Address]*stateObject),
+		stateObjectsPending:        make(map[common.Address]struct{}),
+		stateObjectsDirty:          make(map[common.Address]struct{}),
+		stateObjectsDestruct:       make(map[common.Address]struct{}),
+		logs:                       make(map[common.Hash][]*types.Log),
+		preimages:                  make(map[common.Hash][]byte),
+		journal:                    newJournal(),
+		accessList:                 newAccessList(),
+		transientStorage:           newTransientStorage(),
+		ephemeralPreimages:         make(map[common.Hash][]byte),
+		ephemeralPreimagesDirty:    make(map[common.Hash]struct{}),
+		ephemeralPreimagesAdded:    make(map[common.Hash]struct{}),
+		persistentPreimages:        make(map[common.Hash][]byte),
+		persistentPreimagesSize:    make(map[common.Hash]int),
+		persistentPreimagesRead:    make(map[common.Hash]struct{}),
+		persistentPreimagesDirty:   make(map[common.Hash]struct{}),
+		persistentPreimagesPending: make(map[common.Hash]struct{}),
+		ephemeralDB:                ephDB,
+		ephemeralTrie:              ephTrie,
+		ephemeralStorages:          make(map[common.Address]*ephemeralStorage),
+		hasher:                     crypto.NewKeccakState(),
 	}
 	if sdb.snaps != nil {
 		if sdb.snap = sdb.snaps.Snapshot(root); sdb.snap != nil {
@@ -880,6 +888,8 @@ func (s *StateDB) Copy() *StateDB {
 		persistentPreimagesRead:    make(map[common.Hash]struct{}, len(s.persistentPreimagesRead)),
 		persistentPreimagesDirty:   make(map[common.Hash]struct{}, len(s.persistentPreimagesDirty)),
 		persistentPreimagesPending: make(map[common.Hash]struct{}, len(s.persistentPreimagesPending)),
+		ephemeralDB:                s.ephemeralDB,
+		ephemeralTrie:              s.ephemeralDB.CopyTrie(s.ephemeralTrie),
 		ephemeralStorages:          make(map[common.Address]*ephemeralStorage, len(s.ephemeralStorages)),
 		hasher:                     crypto.NewKeccakState(),
 	}
