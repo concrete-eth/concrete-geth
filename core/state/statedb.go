@@ -1140,6 +1140,7 @@ var (
 // goes into transaction receipts.
 func (s *StateDB) IntermediateRoot(deleteEmptyObjects bool) common.Hash {
 	for _, storage := range s.ephemeralStorages {
+		storage.finalise()
 		err := storage.updateRoot(s.ephemeralDB)
 		if err != nil {
 			s.setError(err)
@@ -1151,6 +1152,7 @@ func (s *StateDB) IntermediateRoot(deleteEmptyObjects bool) common.Hash {
 			s.ephemeralTrie.TryUpdate(storage.addrHash.Bytes(), root.Bytes())
 		}
 	}
+	// TODO: rework this along with new() and Commit()
 	s.SetState(EphemeralStateAddress, EphemeralStateRootKey, s.ephemeralTrie.Hash())
 
 	// Finalise all the dirty storage states and write them into the tries
