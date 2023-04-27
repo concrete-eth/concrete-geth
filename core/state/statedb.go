@@ -25,6 +25,8 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	cc_api "github.com/ethereum/go-ethereum/concrete/api"
+	"github.com/ethereum/go-ethereum/concrete/contracts"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state/snapshot"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -187,6 +189,7 @@ func New(root common.Hash, db Database, snaps *snapshot.Tree) (*StateDB, error) 
 			sdb.snapStorage = make(map[common.Hash]map[common.Hash][]byte)
 		}
 	}
+	sdb.NewConcretePrecompiles()
 	return sdb, nil
 }
 
@@ -393,6 +396,26 @@ func (s *StateDB) SetPersistentState(addr common.Address, key, value common.Hash
 
 func (s *StateDB) GetPersistentState(addr common.Address, key common.Hash) common.Hash {
 	return s.GetState(addr, key)
+}
+
+func (s *StateDB) NewConcretePrecompiles() {
+	for _, addr := range contracts.ActivePrecompiles() {
+		p, _ := contracts.GetPrecompile(addr)
+		api := cc_api.NewStateAPI(s, addr)
+		if err := p.New(api); err != nil {
+			s.setError(fmt.Errorf("error in concrete precompile %x New(): %v", addr, err))
+		}
+	}
+}
+
+func (s *StateDB) CommitConcretePrecompiles() {
+	for _, addr := range contracts.ActivePrecompiles() {
+		p, _ := contracts.GetPrecompile(addr)
+		api := cc_api.NewStateAPI(s, addr)
+		if err := p.Commit(api); err != nil {
+			s.setError(fmt.Errorf("error in concrete precompile %x Commit(): %v", addr, err))
+		}
+	}
 }
 
 // AddPreimage records a SHA3 preimage seen by the VM.
@@ -1205,10 +1228,13 @@ func (s *StateDB) clearJournalAndRefund() {
 // Commit writes the state to the underlying in-memory trie database.
 func (s *StateDB) Commit(deleteEmptyObjects bool) (common.Hash, error) {
 	if s.dbErr != nil {
+		s.CommitConcretePrecompiles()
+		// Finalize any pending changes and merge everything into the tries
+		s.IntermediateRoot(deleteEmptyObjects)
+	}
+	if s.dbErr != nil {
 		return common.Hash{}, fmt.Errorf("commit aborted due to earlier error: %v", s.dbErr)
 	}
-	// Finalize any pending changes and merge everything into the tries
-	s.IntermediateRoot(deleteEmptyObjects)
 
 	// Commit objects to the trie, measuring the elapsed time
 	var (
