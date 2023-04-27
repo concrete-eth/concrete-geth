@@ -20,6 +20,7 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"golang.org/x/crypto/sha3"
 )
@@ -91,6 +92,7 @@ type Storage interface {
 	Set(key common.Hash, value common.Hash)
 	Get(key common.Hash) common.Hash
 	AddPreimage(preimage []byte)
+	HasPreimage(hash common.Hash) bool
 	GetPreimage(hash common.Hash) []byte
 	GetPreimageSize(hash common.Hash) int
 }
@@ -109,16 +111,38 @@ func (s *PersistentStorage) Get(key common.Hash) common.Hash {
 }
 
 func (s *PersistentStorage) AddPreimage(preimage []byte) {
+	if len(preimage) == 0 {
+		return
+	}
 	hash := Keccak256Hash(preimage)
 	s.db.SetPersistentState(HashRegistryAddress, hash, common.BytesToHash(common.Big1.Bytes()))
 	s.db.AddPersistentPreimage(hash, preimage)
 }
 
+func (s *PersistentStorage) HasPreimage(hash common.Hash) bool {
+	if hash == types.EmptyPreimageHash {
+		return true
+	}
+	return s.db.GetPersistentState(HashRegistryAddress, hash) == common.BytesToHash(common.Big1.Bytes())
+}
+
 func (s *PersistentStorage) GetPreimage(hash common.Hash) []byte {
+	if hash == types.EmptyPreimageHash {
+		return []byte{}
+	}
+	if !s.HasPreimage(hash) {
+		return nil
+	}
 	return s.db.GetPersistentPreimage(hash)
 }
 
 func (s *PersistentStorage) GetPreimageSize(hash common.Hash) int {
+	if hash == types.EmptyPreimageHash {
+		return 0
+	}
+	if !s.HasPreimage(hash) {
+		return -1
+	}
 	return s.db.GetPersistentPreimageSize(hash)
 }
 
@@ -138,16 +162,38 @@ func (s *EphemeralStorage) Get(key common.Hash) common.Hash {
 }
 
 func (s *EphemeralStorage) AddPreimage(preimage []byte) {
+	if len(preimage) == 0 {
+		return
+	}
 	hash := Keccak256Hash(preimage)
 	s.db.SetEphemeralState(HashRegistryAddress, hash, common.BytesToHash(common.Big1.Bytes()))
 	s.db.AddEphemeralPreimage(hash, preimage)
 }
 
+func (s *EphemeralStorage) HasPreimage(hash common.Hash) bool {
+	if hash == types.EmptyPreimageHash {
+		return true
+	}
+	return s.db.GetEphemeralState(HashRegistryAddress, hash) == common.BytesToHash(common.Big1.Bytes())
+}
+
 func (s *EphemeralStorage) GetPreimage(hash common.Hash) []byte {
+	if hash == types.EmptyPreimageHash {
+		return []byte{}
+	}
+	if !s.HasPreimage(hash) {
+		return nil
+	}
 	return s.db.GetEphemeralPreimage(hash)
 }
 
 func (s *EphemeralStorage) GetPreimageSize(hash common.Hash) int {
+	if hash == types.EmptyPreimageHash {
+		return 0
+	}
+	if !s.HasPreimage(hash) {
+		return -1
+	}
 	return s.db.GetEphemeralPreimageSize(hash)
 }
 
