@@ -259,8 +259,8 @@ func (ch addLogChange) dirtied() *common.Address {
 }
 
 func (ch addPersistentPreimageChange) revert(s *StateDB) {
-	if s.persistentPreimageDirties[ch.hash]--; s.persistentPreimageDirties[ch.hash] == 0 {
-		delete(s.persistentPreimageDirties, ch.hash)
+	if s.persistentPreimagesDirties[ch.hash]--; s.persistentPreimagesDirties[ch.hash] == 0 {
+		delete(s.persistentPreimagesDirties, ch.hash)
 	}
 }
 
@@ -269,8 +269,8 @@ func (ch addPersistentPreimageChange) dirtied() *common.Address {
 }
 
 func (ch addEphemeralPreimageChange) revert(s *StateDB) {
-	if s.ephemeralPreimageDirties[ch.hash]--; s.ephemeralPreimageDirties[ch.hash] == 0 {
-		delete(s.ephemeralPreimageDirties, ch.hash)
+	if s.ephemeralPreimagesDirties[ch.hash]--; s.ephemeralPreimagesDirties[ch.hash] == 0 {
+		delete(s.ephemeralPreimagesDirties, ch.hash)
 	}
 }
 
