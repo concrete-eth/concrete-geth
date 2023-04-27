@@ -353,11 +353,11 @@ func (s *StateDB) GetPersistentPreimageSize(hash common.Hash) int {
 	return size
 }
 
-func (s *StateDB) SetPersistentStorage(addr common.Address, key, value common.Hash) {
+func (s *StateDB) SetPersistentState(addr common.Address, key, value common.Hash) {
 	s.SetState(addr, key, value)
 }
 
-func (s *StateDB) GetPersistentStorage(addr common.Address, key common.Hash) common.Hash {
+func (s *StateDB) GetPersistentState(addr common.Address, key common.Hash) common.Hash {
 	return s.GetState(addr, key)
 }
 
