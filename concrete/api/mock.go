@@ -66,7 +66,9 @@ func (m *mockStateDB) GetEphemeralState(addr common.Address, key common.Hash) co
 }
 
 func (m *mockStateDB) AddPersistentPreimage(hash common.Hash, preimage []byte) {
-	m.persistentPreimages[hash] = preimage
+	pi := make([]byte, len(preimage))
+	copy(pi, preimage)
+	m.persistentPreimages[hash] = pi
 }
 
 func (m *mockStateDB) GetPersistentPreimage(hash common.Hash) []byte {
@@ -78,7 +80,9 @@ func (m *mockStateDB) GetPersistentPreimageSize(hash common.Hash) int {
 }
 
 func (m *mockStateDB) AddEphemeralPreimage(hash common.Hash, preimage []byte) {
-	m.ephemeralPreimages[hash] = preimage
+	pi := make([]byte, len(preimage))
+	copy(pi, preimage)
+	m.ephemeralPreimages[hash] = pi
 }
 
 func (m *mockStateDB) GetEphemeralPreimage(hash common.Hash) []byte {

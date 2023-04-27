@@ -272,7 +272,9 @@ func (s *StateDB) hasEphemeralPreimage(hash common.Hash) bool {
 }
 
 func (s *StateDB) addEphemeralPreimage(hash common.Hash, preimage []byte) {
-	s.ephemeralPreimages[hash] = preimage
+	pi := make([]byte, len(preimage))
+	copy(pi, preimage)
+	s.ephemeralPreimages[hash] = pi
 	s.ephemeralPreimagesDirty[hash] = struct{}{}
 }
 
