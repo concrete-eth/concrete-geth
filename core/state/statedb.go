@@ -325,6 +325,9 @@ func (s *StateDB) GetPersistentPreimage(hash common.Hash) []byte {
 }
 
 func (s *StateDB) GetPersistentPreimageSize(hash common.Hash) int {
+	if size, ok := s.persistentPreimagesSize[hash]; ok {
+		return size
+	}
 	if s.persistentPreimageCached(hash) {
 		preimage := s.persistentPreimages[hash]
 		return len(preimage)
@@ -823,22 +826,27 @@ func (db *StateDB) ForEachStorage(addr common.Address, cb func(key, value common
 func (s *StateDB) Copy() *StateDB {
 	// Copy all the basic fields, initialize the memory ones
 	state := &StateDB{
-		db:                      s.db,
-		trie:                    s.db.CopyTrie(s.trie),
-		originalRoot:            s.originalRoot,
-		stateObjects:            make(map[common.Address]*stateObject, len(s.journal.dirties)),
-		stateObjectsPending:     make(map[common.Address]struct{}, len(s.stateObjectsPending)),
-		stateObjectsDirty:       make(map[common.Address]struct{}, len(s.journal.dirties)),
-		stateObjectsDestruct:    make(map[common.Address]struct{}, len(s.stateObjectsDestruct)),
-		refund:                  s.refund,
-		logs:                    make(map[common.Hash][]*types.Log, len(s.logs)),
-		logSize:                 s.logSize,
-		preimages:               make(map[common.Hash][]byte, len(s.preimages)),
-		journal:                 newJournal(),
-		ephemeralPreimages:      make(map[common.Hash][]byte, len(s.ephemeralPreimages)),
-		ephemeralPreimagesDirty: make(map[common.Hash]struct{}, len(s.ephemeralPreimagesDirty)),
-		ephemeralPreimagesAdded: make(map[common.Hash]struct{}, len(s.ephemeralPreimagesAdded)),
-		hasher:                  crypto.NewKeccakState(),
+		db:                         s.db,
+		trie:                       s.db.CopyTrie(s.trie),
+		originalRoot:               s.originalRoot,
+		stateObjects:               make(map[common.Address]*stateObject, len(s.journal.dirties)),
+		stateObjectsPending:        make(map[common.Address]struct{}, len(s.stateObjectsPending)),
+		stateObjectsDirty:          make(map[common.Address]struct{}, len(s.journal.dirties)),
+		stateObjectsDestruct:       make(map[common.Address]struct{}, len(s.stateObjectsDestruct)),
+		refund:                     s.refund,
+		logs:                       make(map[common.Hash][]*types.Log, len(s.logs)),
+		logSize:                    s.logSize,
+		preimages:                  make(map[common.Hash][]byte, len(s.preimages)),
+		journal:                    newJournal(),
+		ephemeralPreimages:         make(map[common.Hash][]byte, len(s.ephemeralPreimages)),
+		ephemeralPreimagesDirty:    make(map[common.Hash]struct{}, len(s.ephemeralPreimagesDirty)),
+		ephemeralPreimagesAdded:    make(map[common.Hash]struct{}, len(s.ephemeralPreimagesAdded)),
+		persistentPreimages:        make(map[common.Hash][]byte, len(s.persistentPreimages)),
+		persistentPreimagesSize:    make(map[common.Hash]int, len(s.persistentPreimagesSize)),
+		persistentPreimagesRead:    make(map[common.Hash]struct{}, len(s.persistentPreimagesRead)),
+		persistentPreimagesDirty:   make(map[common.Hash]struct{}, len(s.persistentPreimagesDirty)),
+		persistentPreimagesPending: make(map[common.Hash]struct{}, len(s.persistentPreimagesPending)),
+		hasher:                     crypto.NewKeccakState(),
 	}
 	// Copy the dirty states, logs, and preimages
 	for addr := range s.journal.dirties {
@@ -895,6 +903,21 @@ func (s *StateDB) Copy() *StateDB {
 	}
 	for hash := range s.ephemeralPreimagesAdded {
 		state.ephemeralPreimagesAdded[hash] = struct{}{}
+	}
+	for hash, preimage := range s.persistentPreimages {
+		state.persistentPreimages[hash] = preimage
+	}
+	for hash, size := range s.persistentPreimagesSize {
+		state.persistentPreimagesSize[hash] = size
+	}
+	for hash := range s.persistentPreimagesRead {
+		state.persistentPreimagesRead[hash] = struct{}{}
+	}
+	for hash := range s.persistentPreimagesDirty {
+		state.persistentPreimagesDirty[hash] = struct{}{}
+	}
+	for hash := range s.persistentPreimagesPending {
+		state.persistentPreimagesPending[hash] = struct{}{}
 	}
 	// Do we need to copy the access list and transient storage?
 	// In practice: No. At the start of a transaction, these two lists are empty.
@@ -974,6 +997,13 @@ func (s *StateDB) Finalise(deleteEmptyObjects bool) {
 	}
 	if len(s.ephemeralPreimagesDirty) > 0 {
 		s.ephemeralPreimagesDirty = make(map[common.Hash]struct{})
+	}
+
+	for hash := range s.persistentPreimagesDirty {
+		s.persistentPreimagesPending[hash] = struct{}{}
+	}
+	if len(s.persistentPreimagesDirty) > 0 {
+		s.persistentPreimagesDirty = make(map[common.Hash]struct{})
 	}
 
 	addressesToPrefetch := make([][]byte, 0, len(s.journal.dirties))
@@ -1152,6 +1182,20 @@ func (s *StateDB) Commit(deleteEmptyObjects bool) (common.Hash, error) {
 	if codeWriter.ValueSize() > 0 {
 		if err := codeWriter.Write(); err != nil {
 			log.Crit("Failed to commit dirty codes", "error", err)
+		}
+	}
+	persistentPreimageWriter := s.db.DiskDB().NewBatch()
+	for hash := range s.persistentPreimagesPending {
+		s.persistentPreimagesRead[hash] = struct{}{}
+		preimage := s.persistentPreimages[hash]
+		rawdb.WriteConcretePreimage(persistentPreimageWriter, hash, preimage)
+	}
+	if len(s.persistentPreimagesPending) > 0 {
+		s.persistentPreimagesPending = make(map[common.Hash]struct{})
+	}
+	if persistentPreimageWriter.ValueSize() > 0 {
+		if err := persistentPreimageWriter.Write(); err != nil {
+			log.Crit("Failed to commit persistent preimages", "error", err)
 		}
 	}
 	// Write the account trie changes, measuring the amount of wasted time
