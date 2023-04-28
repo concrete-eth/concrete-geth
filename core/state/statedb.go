@@ -118,9 +118,7 @@ type StateDB struct {
 	persistentPreimagesDirty   map[common.Hash]struct{}
 	persistentPreimagesPending map[common.Hash]struct{}
 
-	ephemeralDB       Database
-	ephemeralTrie     Trie
-	ephemeralStorages map[common.Address]*ephemeralStorage
+	ephemeralStorage ephemeralStorage
 
 	// Journal of state modifications. This is the backbone of
 	// Snapshot and RevertToSnapshot.
@@ -154,11 +152,6 @@ func New(root common.Hash, db Database, snaps *snapshot.Tree) (*StateDB, error) 
 	if err != nil {
 		return nil, err
 	}
-	ephDB := NewDatabase(rawdb.NewMemoryDatabase())
-	ephTrie, err := ephDB.OpenTrie(types.EmptyRootHash)
-	if err != nil {
-		return nil, err
-	}
 	sdb := &StateDB{
 		db:                         db,
 		trie:                       tr,
@@ -181,9 +174,7 @@ func New(root common.Hash, db Database, snaps *snapshot.Tree) (*StateDB, error) 
 		persistentPreimagesRead:    make(map[common.Hash]struct{}),
 		persistentPreimagesDirty:   make(map[common.Hash]struct{}),
 		persistentPreimagesPending: make(map[common.Hash]struct{}),
-		ephemeralDB:                ephDB,
-		ephemeralTrie:              ephTrie,
-		ephemeralStorages:          make(map[common.Address]*ephemeralStorage),
+		ephemeralStorage:           newEphemeralStorage(),
 		hasher:                     crypto.NewKeccakState(),
 	}
 	if sdb.snaps != nil {
@@ -375,24 +366,27 @@ func (s *StateDB) GetPersistentPreimageSize(hash common.Hash) int {
 	return size
 }
 
-func (s *StateDB) getOrNewEphemeralStorage(addr common.Address) *ephemeralStorage {
-	if storage, ok := s.ephemeralStorages[addr]; ok {
-		return storage
+func (s *StateDB) SetEphemeralState(addr common.Address, key, value common.Hash) {
+	prev := s.GetEphemeralState(addr, key)
+	if prev == value {
+		return
 	}
-	storage := newEphemeralStorage(s, addr)
-	s.ephemeralStorages[addr] = storage
-	return storage
+
+	s.journal.append(ephemeralStorageChange{
+		account:  &addr,
+		key:      key,
+		prevalue: prev,
+	})
+
+	s.setEphemeralState(addr, key, value)
 }
 
-func (s *StateDB) SetEphemeralState(addr common.Address, key, value common.Hash) {
-	s.getOrNewEphemeralStorage(addr).SetState(s.ephemeralDB, key, value)
+func (s *StateDB) setEphemeralState(addr common.Address, key, value common.Hash) {
+	s.ephemeralStorage.Set(addr, key, value)
 }
 
 func (s *StateDB) GetEphemeralState(addr common.Address, key common.Hash) common.Hash {
-	if storage, ok := s.ephemeralStorages[addr]; ok {
-		return storage.GetState(s.ephemeralDB, key)
-	}
-	return common.Hash{}
+	return s.ephemeralStorage.Get(addr, key)
 }
 
 func (s *StateDB) SetPersistentState(addr common.Address, key, value common.Hash) {
@@ -918,9 +912,6 @@ func (s *StateDB) Copy() *StateDB {
 		persistentPreimagesRead:    make(map[common.Hash]struct{}, len(s.persistentPreimagesRead)),
 		persistentPreimagesDirty:   make(map[common.Hash]struct{}, len(s.persistentPreimagesDirty)),
 		persistentPreimagesPending: make(map[common.Hash]struct{}, len(s.persistentPreimagesPending)),
-		ephemeralDB:                s.ephemeralDB,
-		ephemeralTrie:              s.ephemeralDB.CopyTrie(s.ephemeralTrie),
-		ephemeralStorages:          make(map[common.Address]*ephemeralStorage, len(s.ephemeralStorages)),
 		hasher:                     crypto.NewKeccakState(),
 	}
 	// Copy the dirty states, logs, and preimages
@@ -994,9 +985,6 @@ func (s *StateDB) Copy() *StateDB {
 	for hash := range s.persistentPreimagesPending {
 		state.persistentPreimagesPending[hash] = struct{}{}
 	}
-	for addr, storage := range s.ephemeralStorages {
-		state.ephemeralStorages[addr] = storage.deepCopy(state)
-	}
 	// Do we need to copy the access list and transient storage?
 	// In practice: No. At the start of a transaction, these two lists are empty.
 	// In practice, we only ever copy state _between_ transactions/blocks, never
@@ -1005,6 +993,7 @@ func (s *StateDB) Copy() *StateDB {
 	// in the middle of a transaction.
 	state.accessList = s.accessList.Copy()
 	state.transientStorage = s.transientStorage.Copy()
+	state.ephemeralStorage = s.ephemeralStorage.Copy()
 
 	// If there's a prefetcher running, make an inactive copy of it that can
 	// only access data but does not actively preload (since the user will not
@@ -1083,9 +1072,6 @@ func (s *StateDB) Finalise(deleteEmptyObjects bool) {
 	if len(s.persistentPreimagesDirty) > 0 {
 		s.persistentPreimagesDirty = make(map[common.Hash]struct{})
 	}
-	for _, storage := range s.ephemeralStorages {
-		storage.finalise()
-	}
 
 	addressesToPrefetch := make([][]byte, 0, len(s.journal.dirties))
 	for addr := range s.journal.dirties {
@@ -1141,22 +1127,6 @@ var (
 // It is called in between transactions to get the root hash that
 // goes into transaction receipts.
 func (s *StateDB) IntermediateRoot(deleteEmptyObjects bool) common.Hash {
-	for _, storage := range s.ephemeralStorages {
-		storage.finalise()
-		err := storage.updateRoot(s.ephemeralDB)
-		if err != nil {
-			s.setError(err)
-		}
-		root := storage.root
-		if root == (common.Hash{}) || root == types.EmptyRootHash {
-			s.ephemeralTrie.TryDelete(storage.addrHash.Bytes())
-		} else {
-			s.ephemeralTrie.TryUpdate(storage.addrHash.Bytes(), root.Bytes())
-		}
-	}
-	// TODO: rework this along with new() and Commit()
-	s.SetState(EphemeralStateAddress, EphemeralStateRootKey, s.ephemeralTrie.Hash())
-
 	// Finalise all the dirty storage states and write them into the tries
 	s.Finalise(deleteEmptyObjects)
 
