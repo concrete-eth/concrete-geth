@@ -42,6 +42,46 @@ type StateDB interface {
 	GetEphemeralPreimageSize(hash common.Hash) int
 }
 
+type ReadOnlyStateDB struct {
+	StateDB
+}
+
+func NewReadOnlyStateDB(db StateDB) StateDB {
+	return &ReadOnlyStateDB{db}
+}
+
+func (db *ReadOnlyStateDB) SetPersistentState(addr common.Address, key common.Hash, value common.Hash) {
+	panic("stateDB write protection")
+}
+
+func (db *ReadOnlyStateDB) SetEphemeralState(addr common.Address, key common.Hash, value common.Hash) {
+	panic("stateDB write protection")
+}
+
+func (db *ReadOnlyStateDB) AddPersistentPreimage(hash common.Hash, preimage []byte) {
+	panic("stateDB write protection")
+}
+
+func (db *ReadOnlyStateDB) AddEphemeralPreimage(hash common.Hash, preimage []byte) {
+	panic("stateDB write protection")
+}
+
+var _ StateDB = &ReadOnlyStateDB{}
+
+type CommitSafeStateDB struct {
+	StateDB
+}
+
+func NewCommitSafeStateDB(db StateDB) StateDB {
+	return &CommitSafeStateDB{db}
+}
+
+func (db *CommitSafeStateDB) SetPersistentState(addr common.Address, key common.Hash, value common.Hash) {
+	panic("stateDB write protection")
+}
+
+var _ StateDB = &CommitSafeStateDB{}
+
 type EVM interface {
 	StateDB() StateDB
 	BlockHash(block *big.Int) common.Hash
@@ -66,27 +106,19 @@ func (evm *ReadOnlyEVM) StateDB() StateDB {
 
 var _ EVM = &ReadOnlyEVM{}
 
-type ReadOnlyStateDB struct {
-	StateDB
+type CommitSafeEVM struct {
+	EVM
 }
 
-func (db *ReadOnlyStateDB) SetPersistentState(addr common.Address, key common.Hash, value common.Hash) {
-	panic("stateDB write protection")
+func NewCommitSafeEVM(evm EVM) EVM {
+	return &CommitSafeEVM{evm}
 }
 
-func (db *ReadOnlyStateDB) SetEphemeralState(addr common.Address, key common.Hash, value common.Hash) {
-	panic("stateDB write protection")
+func (evm *CommitSafeEVM) StateDB() StateDB {
+	return &CommitSafeStateDB{evm.EVM.StateDB()}
 }
 
-func (db *ReadOnlyStateDB) AddPersistentPreimage(hash common.Hash, preimage []byte) {
-	panic("stateDB write protection")
-}
-
-func (db *ReadOnlyStateDB) AddEphemeralPreimage(hash common.Hash, preimage []byte) {
-	panic("stateDB write protection")
-}
-
-var _ StateDB = &ReadOnlyStateDB{}
+var _ EVM = &CommitSafeEVM{}
 
 type Storage interface {
 	Set(key common.Hash, value common.Hash)
@@ -230,8 +262,10 @@ type API interface {
 }
 
 type stateApi struct {
-	address common.Address
-	db      StateDB
+	address    common.Address
+	db         StateDB
+	persistent Datastore
+	ephemeral  Datastore
 }
 
 func NewStateAPI(db StateDB, address common.Address) API {
@@ -254,17 +288,23 @@ func (s *stateApi) StateDB() StateDB {
 }
 
 func (s *stateApi) Persistent() Datastore {
-	return &datastore{&PersistentStorage{
-		address: s.address,
-		db:      s.db,
-	}}
+	if s.persistent == nil {
+		s.persistent = &datastore{&PersistentStorage{
+			address: s.address,
+			db:      s.db,
+		}}
+	}
+	return s.persistent
 }
 
 func (s *stateApi) Ephemeral() Datastore {
-	return &datastore{&EphemeralStorage{
-		address: s.address,
-		db:      s.db,
-	}}
+	if s.ephemeral == nil {
+		s.ephemeral = &datastore{&EphemeralStorage{
+			address: s.address,
+			db:      s.db,
+		}}
+	}
+	return s.ephemeral
 }
 
 func (s *stateApi) BlockHash(block *big.Int) common.Hash {
