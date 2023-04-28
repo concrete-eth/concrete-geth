@@ -25,6 +25,8 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	cc_api "github.com/ethereum/go-ethereum/concrete/api"
+	"github.com/ethereum/go-ethereum/concrete/contracts"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state/snapshot"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -395,23 +397,23 @@ func (s *StateDB) GetPersistentState(addr common.Address, key common.Hash) commo
 }
 
 func (s *StateDB) FinaliseConcretePrecompiles() {
-	// for _, addr := range contracts.ActivePrecompiles() {
-	// 	p, _ := contracts.GetPrecompile(addr)
-	// 	api := cc_api.NewStateAPI(s, addr)
-	// 	if err := p.New(api); err != nil {
-	// 		s.setError(fmt.Errorf("error in concrete precompile %x Finalise(): %v", addr, err))
-	// 	}
-	// }
+	for _, addr := range contracts.ActivePrecompiles() {
+		p, _ := contracts.GetPrecompile(addr)
+		api := cc_api.NewStateAPI(s, addr)
+		if err := p.Finalise(api); err != nil {
+			s.setError(fmt.Errorf("error in concrete precompile %x Finalise(): %v", addr, err))
+		}
+	}
 }
 
 func (s *StateDB) CommitConcretePrecompiles() {
-	// for _, addr := range contracts.ActivePrecompiles() {
-	// 	p, _ := contracts.GetPrecompile(addr)
-	// 	api := cc_api.NewStateAPI(s, addr)
-	// 	if err := p.Commit(api); err != nil {
-	// 		s.setError(fmt.Errorf("error in concrete precompile %x Commit(): %v", addr, err))
-	// 	}
-	// }
+	for _, addr := range contracts.ActivePrecompiles() {
+		p, _ := contracts.GetPrecompile(addr)
+		api := cc_api.NewStateAPI(s, addr)
+		if err := p.Commit(api); err != nil {
+			s.setError(fmt.Errorf("error in concrete precompile %x Commit(): %v", addr, err))
+		}
+	}
 }
 
 // AddPreimage records a SHA3 preimage seen by the VM.
