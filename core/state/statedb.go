@@ -399,7 +399,7 @@ func (s *StateDB) GetPersistentState(addr common.Address, key common.Hash) commo
 func (s *StateDB) FinaliseConcretePrecompiles() {
 	for _, addr := range contracts.ActivePrecompiles() {
 		p, _ := contracts.GetPrecompile(addr)
-		api := cc_api.NewStateAPI(s, addr)
+		api := cc_api.NewStateAPI(cc_api.NewCommitSafeStateDB(s), addr)
 		if err := p.Finalise(api); err != nil {
 			s.setError(fmt.Errorf("error in concrete precompile %x Finalise(): %v", addr, err))
 		}
@@ -409,7 +409,7 @@ func (s *StateDB) FinaliseConcretePrecompiles() {
 func (s *StateDB) CommitConcretePrecompiles() {
 	for _, addr := range contracts.ActivePrecompiles() {
 		p, _ := contracts.GetPrecompile(addr)
-		api := cc_api.NewStateAPI(s, addr)
+		api := cc_api.NewStateAPI(cc_api.NewCommitSafeStateDB(s), addr)
 		if err := p.Commit(api); err != nil {
 			s.setError(fmt.Errorf("error in concrete precompile %x Commit(): %v", addr, err))
 		}
