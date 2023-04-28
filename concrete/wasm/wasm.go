@@ -31,7 +31,7 @@ var (
 	WASM_IS_PURE         = "concrete_IsPure"
 	WASM_MUTATES_STORAGE = "concrete_MutatesStorage"
 	WASM_REQUIRED_GAS    = "concrete_RequiredGas"
-	WASM_NEW             = "concrete_New"
+	WASM_FINALISE        = "concrete_Finalise"
 	WASM_COMMIT          = "concrete_Commit"
 	WASM_RUN             = "concrete_Run"
 	WASM_EVM_BRIDGE      = "concrete_EvmBridge"
@@ -250,7 +250,7 @@ func (p *StatefulWasmPrecompile) MutatesStorage(input []byte) bool {
 }
 
 func (p *StatefulWasmPrecompile) Finalise(api api.API) error {
-	return p.statefulCall__Err(api, &WASM_NEW)
+	return p.statefulCall__Err(api, &WASM_FINALISE)
 }
 
 func (p *StatefulWasmPrecompile) Commit(api api.API) error {
