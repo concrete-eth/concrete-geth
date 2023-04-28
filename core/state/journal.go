@@ -303,7 +303,7 @@ func (ch ephemeralPreimageChange) dirtied() *common.Address {
 }
 
 func (ch ephemeralStorageChange) revert(s *StateDB) {
-	s.ephemeralStorages[*ch.account].setState(ch.key, ch.prevalue)
+	s.setEphemeralState(*ch.account, ch.key, ch.prevalue)
 }
 
 func (ch ephemeralStorageChange) dirtied() *common.Address {
