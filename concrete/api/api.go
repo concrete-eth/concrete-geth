@@ -306,7 +306,7 @@ var _ API = (*api)(nil)
 type Precompile interface {
 	MutatesStorage(input []byte) bool
 	RequiredGas(input []byte) uint64
-	New(api API) error
+	Finalise(api API) error
 	Commit(api API) error
 	Run(api API, input []byte) ([]byte, error)
 }

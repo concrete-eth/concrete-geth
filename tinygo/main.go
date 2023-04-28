@@ -167,7 +167,7 @@ func RequiredGas(pointer uint64) uint64 {
 
 //export concrete_New
 func New() uint64 {
-	precompile.New(NewStateAPI())
+	precompile.Finalise(NewStateAPI())
 	return bridge.NullPointer.Uint64()
 }
 
