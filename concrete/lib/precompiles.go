@@ -32,7 +32,7 @@ func (op *Blank) RequiredGas(input []byte) uint64 {
 	return 0
 }
 
-func (op *Blank) New(api cc_api.API) error {
+func (op *Blank) Finalise(api cc_api.API) error {
 	return nil
 }
 
@@ -70,9 +70,9 @@ func (d PrecompileDemux) RequiredGas(input []byte) uint64 {
 	return pc.RequiredGas(input[32:])
 }
 
-func (d PrecompileDemux) New(api cc_api.API) error {
+func (d PrecompileDemux) Finalise(api cc_api.API) error {
 	for _, pc := range d {
-		if err := pc.New(api); err != nil {
+		if err := pc.Finalise(api); err != nil {
 			return err
 		}
 	}

@@ -119,7 +119,7 @@ func (p *StatelessWasmPrecompile) RequiredGas(input []byte) uint64 {
 	return p.statelessCall_Bytes_Uint64(&WASM_REQUIRED_GAS, input)
 }
 
-func (p *StatelessWasmPrecompile) New(api api.API) error {
+func (p *StatelessWasmPrecompile) Finalise(api api.API) error {
 	return nil
 }
 
@@ -249,7 +249,7 @@ func (p *StatefulWasmPrecompile) MutatesStorage(input []byte) bool {
 	return _mutates != 0
 }
 
-func (p *StatefulWasmPrecompile) New(api api.API) error {
+func (p *StatefulWasmPrecompile) Finalise(api api.API) error {
 	return p.statefulCall__Err(api, &WASM_NEW)
 }
 
