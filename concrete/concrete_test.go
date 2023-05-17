@@ -41,6 +41,7 @@ import (
 var typicalWasm []byte
 
 func testPrecompile(t *testing.T, pcAddr common.Address) {
+	r := require.New(t)
 	var (
 		runCounterKey = crypto.Keccak256Hash([]byte("typical.counter.0"))
 		hashSetKey    = crypto.Keccak256Hash([]byte("typical.set.0"))
@@ -72,20 +73,20 @@ func testPrecompile(t *testing.T, pcAddr common.Address) {
 			hashes = append(hashes, hash)
 
 			tx, err := types.SignTx(types.NewTransaction(block.TxNonce(address), pcAddr, common.Big0, 1_000_000, block.BaseFee(), preimage), signer, key)
-			require.NoError(t, err)
+			r.NoError(err)
 			block.AddTx(tx)
 		}
 	})
 
-	for _, rr := range receipts {
-		for _, r := range rr {
-			require.Equal(t, uint64(1), r.Status)
+	for _, block := range receipts {
+		for _, receipt := range block {
+			r.Equal(uint64(1), receipt)
 		}
 	}
 
 	root := blocks[nBlocks-1].Root()
 	statedb, err := state.New(root, state.NewDatabase(db), nil)
-	require.NoError(t, err)
+	r.NoError(err)
 
 	persistent := cc_api.NewCoreDatastore(cc_api.NewPersistentStorage(statedb, pcAddr))
 	counter := lib.NewCounter(persistent.NewReference(runCounterKey))
@@ -93,13 +94,13 @@ func testPrecompile(t *testing.T, pcAddr common.Address) {
 
 	totalTxs := nBlocks * nTx
 
-	require.Equal(t, new(big.Int).SetInt64(int64(totalTxs)), counter.Get())
-	require.Equal(t, totalTxs, set.Size())
+	r.Equal(t, new(big.Int).SetInt64(int64(totalTxs)), counter.Get())
+	r.Equal(t, totalTxs, set.Size())
 
 	for ii, hash := range hashes {
 		preimage := preimages[ii]
-		require.True(t, set.Has(hash))
-		require.Equal(t, preimage, statedb.GetPersistentPreimage(hash))
+		r.True(set.Has(hash))
+		r.Equal(preimage, statedb.GetPersistentPreimage(hash))
 	}
 }
 

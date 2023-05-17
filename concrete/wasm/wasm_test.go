@@ -38,10 +38,11 @@ var typicalCode []byte
 var benchmarkCode []byte
 
 func TestWasmPrecompile(t *testing.T) {
+	r := require.New(t)
 	address := common.HexToAddress("0x01")
 	pc := NewWasmPrecompile(typicalCode, address)
 
-	require.IsType(t, &wasmPrecompile{}, pc)
+	r.IsType(&wasmPrecompile{}, pc)
 
 	runCounterKey := crypto.Keccak256Hash([]byte("typical.counter.0"))
 
@@ -57,14 +58,14 @@ func TestWasmPrecompile(t *testing.T) {
 			evm := newTestEVM(statedb)
 			api := cc_api.New(evm, address)
 			counter := lib.NewCounter(api.Persistent().NewReference(runCounterKey))
-			require.Equal(t, uint64(0), counter.Get().Uint64())
+			r.Equal(uint64(0), counter.Get().Uint64())
 			for jj := 0; jj < iterations; jj++ {
 				data := []byte{byte(ii), byte(jj)}
 				_, err := pc.Run(api, data)
-				require.NoError(t, err)
+				r.NoError(err)
 				time.Sleep(time.Duration(rand.Intn(10)) * time.Microsecond)
 			}
-			require.Equal(t, uint64(iterations), counter.Get().Uint64())
+			r.Equal(uint64(iterations), counter.Get().Uint64())
 		}(ii)
 	}
 
