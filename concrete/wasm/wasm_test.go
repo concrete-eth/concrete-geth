@@ -26,6 +26,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	cc_api "github.com/ethereum/go-ethereum/concrete/api"
 	"github.com/ethereum/go-ethereum/concrete/lib"
+	"github.com/ethereum/go-ethereum/concrete/lib/precompiles"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/require"
 )
@@ -80,7 +81,7 @@ func newBenchmarkAPI(address common.Address) cc_api.API {
 func BenchmarkNativeTypicalPrecompile(b *testing.B) {
 	address := common.HexToAddress("0x01")
 	api := newBenchmarkAPI(address)
-	pc := lib.TypicalPrecompile{}
+	pc := precompiles.TypicalPrecompile{}
 	preimage := crypto.Keccak256([]byte("hello world"))
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -102,7 +103,7 @@ func BenchmarkWasmTypicalPrecompile(b *testing.B) {
 func TestNativeBenchmarkPrecompile(t *testing.T) {
 	address := common.HexToAddress("0x01")
 	api := newBenchmarkAPI(address)
-	pc := lib.BenchmarkPrecompile{}
+	pc := precompiles.BenchmarkPrecompile{}
 	start := time.Now()
 	pc.Run(api, nil)
 	end := time.Now()

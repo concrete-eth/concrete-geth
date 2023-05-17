@@ -26,6 +26,7 @@ import (
 	cc_api "github.com/ethereum/go-ethereum/concrete/api"
 	"github.com/ethereum/go-ethereum/concrete/contracts"
 	"github.com/ethereum/go-ethereum/concrete/lib"
+	"github.com/ethereum/go-ethereum/concrete/lib/precompiles"
 	"github.com/ethereum/go-ethereum/concrete/wasm"
 	"github.com/ethereum/go-ethereum/consensus/ethash"
 	"github.com/ethereum/go-ethereum/core"
@@ -106,7 +107,7 @@ var mutex sync.Mutex
 
 func TestNativePrecompile(t *testing.T) {
 	address := common.BytesToAddress([]byte{128})
-	pc := &lib.TypicalPrecompile{}
+	pc := &precompiles.TypicalPrecompile{}
 	mutex.Lock()
 	err := contracts.AddPrecompile(address, pc)
 	mutex.Unlock()
