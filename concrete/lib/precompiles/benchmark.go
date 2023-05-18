@@ -69,7 +69,7 @@ func (pc *BenchmarkPrecompile) Run(api cc_api.API, input []byte) ([]byte, error)
 
 	runEnd := std.Now()
 
-	std.Print("[internal] BenchmarkPrecompile.Run", runEnd.Sub(runStart).Nanoseconds(), "ns")
+	std.Print("BenchmarkPrecompile.Run", runEnd.Sub(runStart).Microseconds(), "μs")
 
 	return nil, nil
 }
