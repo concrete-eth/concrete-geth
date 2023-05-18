@@ -52,7 +52,7 @@ var implementations = []struct {
 	{
 		name:    "Wasm",
 		address: common.BytesToAddress([]byte{129}),
-		pc:      wasm.NewWasmPrecompile(typicalWasm, common.BytesToAddress([]byte{129})),
+		pc:      wasm.NewWasmPrecompile(typicalWasm),
 	},
 }
 

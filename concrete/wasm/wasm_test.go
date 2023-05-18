@@ -41,7 +41,7 @@ var typicalImplementations = []struct {
 	pc   cc_api.Precompile
 }{
 	{"Native", &precompiles.TypicalPrecompile{}},
-	{"Wasm", NewWasmPrecompile(typicalCode, common.Address{})},
+	{"Wasm", NewWasmPrecompile(typicalCode)},
 }
 
 func TestPrecompile(t *testing.T) {
@@ -101,7 +101,7 @@ var benchmarkImplementations = []struct {
 	pc   cc_api.Precompile
 }{
 	{"Native", &precompiles.BenchmarkPrecompile{}},
-	{"Wasm", NewWasmPrecompile(benchmarkCode, common.Address{})},
+	{"Wasm", NewWasmPrecompile(benchmarkCode)},
 }
 
 func TestRunBenchmarkPrecompile(t *testing.T) {
