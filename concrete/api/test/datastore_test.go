@@ -30,8 +30,10 @@ func newDatastore() api.Datastore {
 }
 
 func TestDatastore(t *testing.T) {
-	r := require.New(t)
-	ds := newDatastore()
+	var (
+		r  = require.New(t)
+		ds = newDatastore()
+	)
 
 	// Test NewReference
 	refKey := common.HexToHash("0x01")
@@ -59,11 +61,12 @@ func TestDatastore(t *testing.T) {
 }
 
 func TestReference(t *testing.T) {
-	r := require.New(t)
-	ds := newDatastore()
-
-	refKey := common.HexToHash("0x01")
-	ref := ds.NewReference(refKey)
+	var (
+		r      = require.New(t)
+		ds     = newDatastore()
+		refKey = common.HexToHash("0x01")
+		ref    = ds.NewReference(refKey)
+	)
 
 	// Test Datastore
 	r.Equal(ds, ref.Datastore())
@@ -89,12 +92,13 @@ func TestReference(t *testing.T) {
 }
 
 func TestMapping(t *testing.T) {
-	r := require.New(t)
-	ds := newDatastore()
-
-	mapId := common.HexToHash("0x01")
-	mp := ds.NewMap(mapId)
-	key := common.HexToHash("0x02")
+	var (
+		r     = require.New(t)
+		ds    = newDatastore()
+		mapId = common.HexToHash("0x01")
+		mp    = ds.NewMap(mapId)
+		key   = common.HexToHash("0x02")
+	)
 
 	// Test Datastore
 	r.Equal(ds, mp.Datastore())
@@ -127,11 +131,12 @@ func TestMapping(t *testing.T) {
 }
 
 func TestArray(t *testing.T) {
-	r := require.New(t)
-	ds := newDatastore()
-
-	arrId := common.HexToHash("0x01")
-	arr := ds.NewArray(arrId)
+	var (
+		r     = require.New(t)
+		ds    = newDatastore()
+		arrId = common.HexToHash("0x01")
+		arr   = ds.NewArray(arrId)
+	)
 
 	// Test Datastore
 	r.Equal(ds, arr.Datastore())
@@ -196,11 +201,12 @@ func TestArray(t *testing.T) {
 }
 
 func TestSet(t *testing.T) {
-	r := require.New(t)
-	ds := newDatastore()
-
-	setId := common.HexToHash("0x01")
-	ss := ds.NewSet(setId)
+	var (
+		r     = require.New(t)
+		ds    = newDatastore()
+		setId = common.HexToHash("0x01")
+		ss    = ds.NewSet(setId)
+	)
 
 	// Test Datastore
 	r.Equal(ds, ss.Datastore())

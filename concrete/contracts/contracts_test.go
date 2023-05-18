@@ -26,9 +26,12 @@ import (
 )
 
 func TestAddPrecompile(t *testing.T) {
-	r := require.New(t)
-	n := 10
-	pcs := ActivePrecompiles()
+	var (
+		r   = require.New(t)
+		n   = 10
+		pcs = ActivePrecompiles()
+	)
+
 	r.Empty(pcs, "Expected no precompiles")
 
 	for i := byte(0); i < byte(n); i++ {
@@ -70,18 +73,20 @@ func (p *testPrecompile) Run(api cc_api.API, input []byte) (output []byte, err e
 var _ cc_api.Precompile = (*testPrecompile)(nil)
 
 func TestRunPrecompile(t *testing.T) {
-	r := require.New(t)
+	var (
+		r     = require.New(t)
+		addr  = common.BytesToAddress([]byte{1})
+		pc    = &testPrecompile{}
+		evm   = cc_api_test.NewMockEVM(cc_api_test.NewMockStateDB())
+		input = []byte{0}
+	)
+	var (
+		suppliedGas = uint64(0)
+		readOnly    = false
+	)
 
 	REQUIRED_GAS = uint64(10)
 	MUTATES_STORAGE = true
-
-	addr := common.BytesToAddress([]byte{1})
-	pc := &testPrecompile{}
-	evm := cc_api_test.NewMockEVM(cc_api_test.NewMockStateDB())
-
-	input := []byte{0}
-	suppliedGas := uint64(0)
-	readOnly := false
 
 	// Test invalid supplied gas
 	_, _, err := RunPrecompile(evm, addr, pc, input, suppliedGas, readOnly)
