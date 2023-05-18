@@ -241,7 +241,7 @@ var apis = []struct {
 		constructor: func() cc_api.API {
 			statedb := NewMockStateDB()
 			evm := NewMockEVM(statedb)
-			return cc_api.NewAPI(evm, common.Address{})
+			return cc_api.New(evm, common.Address{})
 		},
 		readOnly:  false,
 		stateOnly: false,
@@ -260,7 +260,7 @@ var apis = []struct {
 		constructor: func() cc_api.API {
 			statedb := NewMockStateDB()
 			evm := cc_api.NewReadOnlyEVM(NewMockEVM(statedb))
-			return cc_api.NewAPI(evm, common.Address{})
+			return cc_api.New(evm, common.Address{})
 		},
 		readOnly:  true,
 		stateOnly: false,
