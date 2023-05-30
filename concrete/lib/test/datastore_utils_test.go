@@ -16,12 +16,15 @@
 package test
 
 import (
+	"bytes"
+	"fmt"
 	"math/big"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
 	cc_api "github.com/ethereum/go-ethereum/concrete/api"
 	api_test "github.com/ethereum/go-ethereum/concrete/api/test"
+	"github.com/ethereum/go-ethereum/concrete/crypto"
 	"github.com/ethereum/go-ethereum/concrete/lib"
 	"github.com/stretchr/testify/require"
 )
@@ -66,4 +69,35 @@ func TestCounter(t *testing.T) {
 	ref.Set(common.BigToHash(value))
 	r.Equal(ref.Get(), common.BigToHash(counter.Get()))
 	r.Equal(value, counter.Get())
+}
+
+func TestBigPreimageStore(t *testing.T) {
+	var (
+		r   = require.New(t)
+		sdb = api_test.NewMockStateDB()
+		evm = api_test.NewMockEVM(sdb)
+		api = cc_api.New(evm, common.Address{})
+	)
+	var (
+		radixCases    = []int{2, 4, 8, 16}
+		leafSizeCases = []int{32, 128, 512}
+		pi0           = []byte("hello world")
+		pi1           = crypto.Keccak256(pi0)
+		pi2           = bytes.Repeat(pi1, 100)
+		preimageCases = [][]byte{pi0, pi1, pi2}
+	)
+	for _, radix := range radixCases {
+		for _, leafSize := range leafSizeCases {
+			for i, preimage := range preimageCases {
+				t.Run(fmt.Sprint("r", radix, "/l", leafSize, "/pi", i), func(t *testing.T) {
+					store := lib.NewBigPreimageStore(api.Persistent(), radix, leafSize)
+					root := store.Add(preimage)
+					retrivedPreimage := store.Get(root)
+					r.True(store.Has(root))
+					r.Equal(len(preimage), len(retrivedPreimage))
+					r.Equal(preimage, retrivedPreimage)
+				})
+			}
+		}
+	}
 }
