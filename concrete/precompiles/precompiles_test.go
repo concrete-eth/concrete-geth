@@ -27,12 +27,14 @@ import (
 
 func TestAddPrecompile(t *testing.T) {
 	var (
-		r   = require.New(t)
-		n   = 10
-		pcs = ActivePrecompiles()
+		r           = require.New(t)
+		n           = 10
+		nBuiltinPcs = 3
+		pcs         = ActivePrecompiles()
 	)
 
-	r.Empty(pcs, "Expected no precompiles")
+	// r.Empty(pcs, "Expected no precompiles")
+	r.Equal(len(pcs), nBuiltinPcs, "Expected 3 precompiles")
 
 	for i := byte(0); i < byte(n); i++ {
 		addr := common.BytesToAddress([]byte{i})
@@ -40,12 +42,12 @@ func TestAddPrecompile(t *testing.T) {
 		r.NoError(err, "AddPrecompile should not return an error")
 		_, ok := GetPrecompile(addr)
 		r.True(ok, "Expected precompile at address %x", addr)
-		pcAddr := ActivePrecompiles()[i]
+		pcAddr := ActivePrecompiles()[nBuiltinPcs+int(i)]
 		r.Equal(addr, pcAddr, "Expected precompile at address %x, got %x", addr, pcAddr)
 	}
 
 	pcs = ActivePrecompiles()
-	r.Len(pcs, n, "Expected %d precompiles", n)
+	r.Len(pcs, nBuiltinPcs+n, "Expected %d precompiles", nBuiltinPcs+n)
 }
 
 var (
