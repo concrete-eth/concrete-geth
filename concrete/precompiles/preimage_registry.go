@@ -42,7 +42,7 @@ func init() {
 		Version:     "0.1.0",
 		Author:      "The concrete-geth Authors",
 		Description: "A registry of stored preimages indexed by their hash.",
-		Source:      "https://github.com/therealbytes/concrete-geth/tree/concrete/concrete/precompiles/pi_registry.go",
+		Source:      "https://github.com/therealbytes/concrete-geth/tree/concrete/concrete/precompiles/preimage_registry.go",
 	})
 
 	bigPreimageRegistry := NewPreimageRegistry(
