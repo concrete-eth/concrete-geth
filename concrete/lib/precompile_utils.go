@@ -145,11 +145,13 @@ func (p *BlankMethodPrecompile) CallRunWithArgs(run func(concrete cc_api.API, ar
 var _ MethodPrecompile = &BlankMethodPrecompile{}
 
 type PrecompileWithABI struct {
+	ABI             abi.ABI
 	Implementations map[string]cc_api.Precompile
 }
 
 func NewPrecompileWithABI(contractABI abi.ABI, implementations map[string]MethodPrecompile) *PrecompileWithABI {
 	p := &PrecompileWithABI{
+		ABI:             contractABI,
 		Implementations: make(map[string]cc_api.Precompile),
 	}
 	for name, method := range contractABI.Methods {
