@@ -163,7 +163,7 @@ func (s *BigPreimageStore) Add(preimage []byte) common.Hash {
 			r = len(preimage)
 		}
 		leaf := s.newLeaf(preimage[l:r])
-		hash := s.add(leaf).Bytes()
+		hash := s.addNode(leaf).Bytes()
 		hashes[ii] = hash
 	}
 
@@ -177,7 +177,7 @@ func (s *BigPreimageStore) Add(preimage []byte) common.Hash {
 				r = len(hashes)
 			}
 			node := s.newNode(hashes[l:r])
-			hash := s.add(node).Bytes()
+			hash := s.addNode(node).Bytes()
 			hashes[ii] = hash
 		}
 		hashes = hashes[:nHashes]
@@ -202,7 +202,7 @@ func (s *BigPreimageStore) newNode(hashes [][]byte) []byte {
 	return node
 }
 
-func (s *BigPreimageStore) add(preimage []byte) common.Hash {
+func (s *BigPreimageStore) addNode(preimage []byte) common.Hash {
 	hash := crypto.Keccak256Hash(preimage)
 	if s.ds.HasPreimage(hash) {
 		return hash
