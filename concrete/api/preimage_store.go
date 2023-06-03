@@ -7,9 +7,10 @@ import (
 )
 
 type BigPreimageStore struct {
-	storage  Storage
-	radix    int
-	leafSize int
+	preimageStorage    Storage
+	bigPreimageStorage Storage
+	radix              int
+	leafSize           int
 }
 
 const (
@@ -18,26 +19,26 @@ const (
 )
 
 func NewPersistentBigPreimageStore(api API, radix, leafSize int) PreimageStore {
-	storage := &PersistentStorage{
-		address: BigPreimageRegistryAddress,
-		db:      api.StateDB(),
-	}
+	statedb := api.StateDB()
+	preimageStorage := &PersistentStorage{address: PreimageRegistryAddress, db: statedb}
+	bigPreimageStorage := &PersistentStorage{address: BigPreimageRegistryAddress, db: statedb}
 	return &BigPreimageStore{
-		storage:  storage,
-		radix:    radix,
-		leafSize: leafSize,
+		preimageStorage:    preimageStorage,
+		bigPreimageStorage: bigPreimageStorage,
+		radix:              radix,
+		leafSize:           leafSize,
 	}
 }
 
 func NewEphemeralBigPreimageStore(api API, radix, leafSize int) PreimageStore {
-	storage := &EphemeralStorage{
-		address: BigPreimageRegistryAddress,
-		db:      api.StateDB(),
-	}
+	statedb := api.StateDB()
+	preimageStorage := &EphemeralStorage{address: PreimageRegistryAddress, db: statedb}
+	bigPreimageStorage := &EphemeralStorage{address: BigPreimageRegistryAddress, db: statedb}
 	return &BigPreimageStore{
-		storage:  storage,
-		radix:    radix,
-		leafSize: leafSize,
+		preimageStorage:    preimageStorage,
+		bigPreimageStorage: bigPreimageStorage,
+		radix:              radix,
+		leafSize:           leafSize,
 	}
 }
 
@@ -81,7 +82,7 @@ func (s *BigPreimageStore) AddPreimage(preimage []byte) common.Hash {
 	// Register root with size
 	root := common.BytesToHash(hashes[0])
 	sizeBn := big.NewInt(int64(size))
-	s.storage.Set(root, common.BigToHash(sizeBn))
+	s.bigPreimageStorage.Set(root, common.BigToHash(sizeBn))
 
 	return root
 }
@@ -103,7 +104,7 @@ func (s *BigPreimageStore) newNode(hashes [][]byte) []byte {
 }
 
 func (s *BigPreimageStore) addNode(preimage []byte) common.Hash {
-	return s.storage.AddPreimage(preimage)
+	return s.preimageStorage.AddPreimage(preimage)
 }
 
 func (s *BigPreimageStore) GetPreimage(hash common.Hash) []byte {
@@ -120,7 +121,7 @@ func (s *BigPreimageStore) GetPreimage(hash common.Hash) []byte {
 }
 
 func (s *BigPreimageStore) get(hash common.Hash, dst []byte, ptr int) int {
-	preimage := s.storage.GetPreimage(hash)
+	preimage := s.preimageStorage.GetPreimage(hash)
 	flag := preimage[0]
 	body := preimage[1:]
 
@@ -140,7 +141,7 @@ func (s *BigPreimageStore) get(hash common.Hash, dst []byte, ptr int) int {
 }
 
 func (s *BigPreimageStore) GetPreimageSize(hash common.Hash) int {
-	sizeHash := s.storage.Get(hash)
+	sizeHash := s.bigPreimageStorage.Get(hash)
 	sizeBn := new(big.Int).SetBytes(sizeHash.Bytes())
 	size := int(sizeBn.Int64())
 	return size
