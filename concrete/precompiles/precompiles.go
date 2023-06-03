@@ -34,13 +34,13 @@ var (
 )
 
 type PrecompileMetadata struct {
-	Address     common.Address `json:"address"`
+	Addr        common.Address `json:"addr"`
 	Name        string         `json:"name"`
 	Version     string         `json:"version"`
 	Author      string         `json:"author"`
 	Description string         `json:"description"`
 	Source      string         `json:"source"`
-	ABI         string         `json:"abi"`
+	ABI         string         `json:"ABI"`
 }
 
 func AddPrecompile(addr common.Address, p api.Precompile, args ...interface{}) error {
@@ -59,7 +59,7 @@ func AddPrecompile(addr common.Address, p api.Precompile, args ...interface{}) e
 		return fmt.Errorf("precompile already exists at address %x", addr)
 	}
 
-	metadata.Address = addr
+	metadata.Addr = addr
 
 	if pwabi, ok := p.(*lib.PrecompileWithABI); ok {
 		abiJson, err := json.Marshal(pwabi.ABI)

@@ -76,7 +76,7 @@ func (p *getPrecompile) RequiredGas(input []byte) uint64 {
 
 func (p *getPrecompile) Run(concrete api.API, input []byte) ([]byte, error) {
 	return p.CallRunWithArgs(func(concrete api.API, args []interface{}) ([]interface{}, error) {
-		address := common.Address(args[0].([20]byte))
+		address := common.Address(args[0].(common.Address))
 		if metadata, ok := metadataByAddress[address]; ok {
 			return []interface{}{&metadata}, nil
 		}
@@ -96,9 +96,9 @@ func (p *getPrecompileByName) Run(concrete api.API, input []byte) ([]byte, error
 	return p.CallRunWithArgs(func(concrete api.API, args []interface{}) ([]interface{}, error) {
 		name := args[0].(string)
 		if metadata, ok := metadataByName[name]; ok {
-			return []interface{}{&metadata}, nil
+			return []interface{}{metadata.Addr}, nil
 		}
-		return []interface{}{PrecompileMetadata{}}, nil
+		return []interface{}{common.Address{}}, nil
 	}, concrete, input)
 }
 
