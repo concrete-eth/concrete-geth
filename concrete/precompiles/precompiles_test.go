@@ -33,7 +33,6 @@ func TestAddPrecompile(t *testing.T) {
 		pcs         = ActivePrecompiles()
 	)
 
-	// r.Empty(pcs, "Expected no precompiles")
 	r.Equal(len(pcs), nBuiltinPcs, "Expected 3 precompiles")
 
 	for i := byte(0); i < byte(n); i++ {
