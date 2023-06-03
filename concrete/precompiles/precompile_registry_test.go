@@ -28,32 +28,22 @@ import (
 
 func TestPrecompileRegistry(t *testing.T) {
 	var (
-		r          = require.New(t)
-		address    = common.HexToAddress("0xc0ffee")
-		pc         = precompiles[api.PrecompileRegistryAddress].(*lib.PrecompileWithABI)
-		abiJson, _ = json.Marshal(pc.ABI)
-		metadata   = PrecompileMetadata{
-			Addr:        address,
-			Name:        "test",
-			Version:     "0.1.0",
-			Description: "test",
-			Author:      "test",
-			Source:      "test",
-		}
+		r                = require.New(t)
+		address          = api.PrecompileRegistryAddress
+		pc               = precompiles[address].(*lib.PrecompileWithABI)
+		abiJson, _       = json.Marshal(pc.ABI)
 		expectedMetadata = PrecompileMetadata{
 			Addr:        address,
-			Name:        "test",
-			Version:     "0.1.0",
-			Description: "test",
-			Author:      "test",
-			Source:      "test",
+			Name:        PrecompileRegistryMetadata.Name,
+			Version:     PrecompileRegistryMetadata.Version,
+			Description: PrecompileRegistryMetadata.Description,
+			Author:      PrecompileRegistryMetadata.Author,
+			Source:      PrecompileRegistryMetadata.Source,
 			ABI:         string(abiJson),
 		}
 		evm      = cc_api_test.NewMockEVM(cc_api_test.NewMockStateDB())
 		concrete = api.New(evm, address)
 	)
-
-	AddPrecompile(address, pc, metadata)
 
 	// Test getFramework
 	input, err := pc.ABI.Pack("getFramework")
@@ -92,7 +82,7 @@ func TestPrecompileRegistry(t *testing.T) {
 	r.EqualValues(expectedMetadata, precompileData)
 
 	// Test getPrecompileByName
-	input, err = pc.ABI.Pack("getPrecompileByName", metadata.Name)
+	input, err = pc.ABI.Pack("getPrecompileByName", expectedMetadata.Name)
 	r.NoError(err)
 	output, err = pc.Run(concrete, input)
 	r.NoError(err)
@@ -111,8 +101,8 @@ func TestPrecompileRegistry(t *testing.T) {
 	r.NoError(err)
 	pc_addrs, ok := _pc_addrs[0].([]common.Address)
 	r.True(ok)
-	r.Equal(4, len(pc_addrs))
-	r.Equal(address, pc_addrs[3])
+	r.Equal(3, len(pc_addrs))
+	r.Contains(pc_addrs, address)
 
 	// Test getPrecompiles
 	input, err = pc.ABI.Pack("getPrecompiles")
@@ -131,6 +121,13 @@ func TestPrecompileRegistry(t *testing.T) {
 		ABI         string         `json:"ABI"`
 	})
 	r.True(ok)
-	r.Equal(4, len(pcs))
-	r.EqualValues(expectedMetadata, pcs[3])
+	r.Equal(3, len(pcs))
+	contains := false
+	for _, pc := range pcs {
+		if pc.Addr == address {
+			contains = true
+			r.EqualValues(expectedMetadata, pc)
+		}
+	}
+	r.True(contains)
 }

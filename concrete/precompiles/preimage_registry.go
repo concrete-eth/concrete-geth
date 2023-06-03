@@ -15,6 +15,23 @@ import (
 //go:embed sol/abi/PreimageRegistry.abi
 var preimageRegistryABI string
 
+var (
+	PreimageRegistryMetadata = PrecompileMetadata{
+		Name:        "PreimageRegistry",
+		Version:     "0.1.0",
+		Author:      "The concrete-geth Authors",
+		Description: "A registry of stored preimages indexed by their hash.",
+		Source:      "https://github.com/therealbytes/concrete-geth/tree/concrete/concrete/precompiles/preimage_registry.go",
+	}
+	BigPreimageRegistryMetadata = PrecompileMetadata{
+		Name:        "BigPreimageRegistry",
+		Version:     "0.1.0",
+		Author:      "The concrete-geth Authors",
+		Description: "A registry of stored preimage merkle trees indexed by their root hash.",
+		Source:      "https://github.com/therealbytes/concrete-geth/tree/concrete/concrete/precompiles/pi_registry.go",
+	}
+)
+
 func init() {
 	abiReader := strings.NewReader(preimageRegistryABI)
 	ABI, err := abi.JSON(abiReader)
@@ -37,13 +54,7 @@ func init() {
 		},
 		false,
 	)
-	AddPrecompile(api.PreimageRegistryAddress, preimageRegistry, PrecompileMetadata{
-		Name:        "PreimageRegistry",
-		Version:     "0.1.0",
-		Author:      "The concrete-geth Authors",
-		Description: "A registry of stored preimages indexed by their hash.",
-		Source:      "https://github.com/therealbytes/concrete-geth/tree/concrete/concrete/precompiles/preimage_registry.go",
-	})
+	AddPrecompile(api.PreimageRegistryAddress, preimageRegistry, PreimageRegistryMetadata)
 
 	bigPreimageRegistry := NewPreimageRegistry(
 		ABI,
@@ -60,13 +71,7 @@ func init() {
 		},
 		false,
 	)
-	AddPrecompile(api.BigPreimageRegistryAddress, bigPreimageRegistry, PrecompileMetadata{
-		Name:        "BigPreimageRegistry",
-		Version:     "0.1.0",
-		Author:      "The concrete-geth Authors",
-		Description: "A registry of stored preimage merkle trees indexed by their root hash.",
-		Source:      "https://github.com/therealbytes/concrete-geth/tree/concrete/concrete/precompiles/pi_registry.go",
-	})
+	AddPrecompile(api.BigPreimageRegistryAddress, bigPreimageRegistry, BigPreimageRegistryMetadata)
 }
 
 type storeGetter func(api.API) api.PreimageStore

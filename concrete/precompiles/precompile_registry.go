@@ -13,6 +13,14 @@ import (
 //go:embed sol/abi/PrecompileRegistry.abi
 var precompileRegistryABI string
 
+var PrecompileRegistryMetadata = PrecompileMetadata{
+	Name:        "PrecompileRegistry",
+	Version:     "0.1.0",
+	Author:      "The concrete-geth Authors",
+	Description: "A registry of precompiles indexed by address and name.",
+	Source:      "https://github.com/therealbytes/concrete-geth/tree/concrete/concrete/precompiles/precompile_registry.go",
+}
+
 var (
 	GetFrameworkGas            = uint64(10)
 	GetPrecompileGas           = uint64(10)
@@ -34,13 +42,7 @@ func init() {
 		"getPrecompiledAddresses": &getPrecompiledAddresses{},
 		"getPrecompiles":          &getPrecompiles{},
 	})
-	AddPrecompile(api.PrecompileRegistryAddress, precompileRegistry, PrecompileMetadata{
-		Name:        "PrecompileRegistry",
-		Version:     "0.1.0",
-		Author:      "The concrete-geth Authors",
-		Description: "A registry of precompiles indexed by address and name.",
-		Source:      "https://github.com/therealbytes/concrete-geth/tree/concrete/concrete/precompiles/precompile_registry.go",
-	})
+	AddPrecompile(api.PrecompileRegistryAddress, precompileRegistry, PrecompileRegistryMetadata)
 }
 
 type getFramework struct {
