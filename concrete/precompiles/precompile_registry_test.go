@@ -41,14 +41,14 @@ func TestPrecompileRegistry(t *testing.T) {
 			Source:      PrecompileRegistryMetadata.Source,
 			ABI:         string(abiJson),
 		}
-		evm      = cc_api_test.NewMockEVM(cc_api_test.NewMockStateDB())
-		concrete = cc_api.New(evm, address)
+		evm = cc_api_test.NewMockEVM(cc_api_test.NewMockStateDB())
+		api = cc_api.New(evm, address)
 	)
 
 	// Test getFramework
 	input, err := pc.ABI.Pack("getFramework")
 	r.NoError(err)
-	output, err := pc.Run(concrete, input)
+	output, err := pc.Run(api, input)
 	r.NoError(err)
 	_frameworkData, err := pc.ABI.Unpack("getFramework", output)
 	r.NoError(err)
@@ -65,7 +65,7 @@ func TestPrecompileRegistry(t *testing.T) {
 	// Test getPrecompile
 	input, err = pc.ABI.Pack("getPrecompile", address)
 	r.NoError(err)
-	output, err = pc.Run(concrete, input)
+	output, err = pc.Run(api, input)
 	r.NoError(err)
 	_precompileData, err := pc.ABI.Unpack("getPrecompile", output)
 	r.NoError(err)
@@ -84,7 +84,7 @@ func TestPrecompileRegistry(t *testing.T) {
 	// Test getPrecompileByName
 	input, err = pc.ABI.Pack("getPrecompileByName", expectedMetadata.Name)
 	r.NoError(err)
-	output, err = pc.Run(concrete, input)
+	output, err = pc.Run(api, input)
 	r.NoError(err)
 	_pc_addr, err := pc.ABI.Unpack("getPrecompileByName", output)
 	r.NoError(err)
@@ -95,7 +95,7 @@ func TestPrecompileRegistry(t *testing.T) {
 	// Test getPrecompiledAddresses
 	input, err = pc.ABI.Pack("getPrecompiledAddresses")
 	r.NoError(err)
-	output, err = pc.Run(concrete, input)
+	output, err = pc.Run(api, input)
 	r.NoError(err)
 	_pc_addrs, err := pc.ABI.Unpack("getPrecompiledAddresses", output)
 	r.NoError(err)
@@ -107,7 +107,7 @@ func TestPrecompileRegistry(t *testing.T) {
 	// Test getPrecompiles
 	input, err = pc.ABI.Pack("getPrecompiles")
 	r.NoError(err)
-	output, err = pc.Run(concrete, input)
+	output, err = pc.Run(api, input)
 	r.NoError(err)
 	_pcs, err := pc.ABI.Unpack("getPrecompiles", output)
 	r.NoError(err)
