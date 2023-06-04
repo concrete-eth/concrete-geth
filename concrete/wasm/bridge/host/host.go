@@ -23,7 +23,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
-	cc_api "github.com/ethereum/go-ethereum/concrete/api"
+	"github.com/ethereum/go-ethereum/concrete/api"
 	"github.com/ethereum/go-ethereum/concrete/wasm/bridge"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
@@ -129,7 +129,7 @@ func (m *memory) Read(pointer bridge.MemPointer) []byte {
 
 type HostFunc func(ctx context.Context, module wz_api.Module, pointer uint64) uint64
 
-func NewStateDBHostFunc(apiGetter func() cc_api.API) HostFunc {
+func NewStateDBHostFunc(apiGetter func() api.API) HostFunc {
 	return func(ctx context.Context, module wz_api.Module, _pointer uint64) uint64 {
 		statedb := apiGetter().StateDB()
 		mem, _ := NewMemory(ctx, module)
@@ -156,7 +156,7 @@ func NewStateDBHostFunc(apiGetter func() cc_api.API) HostFunc {
 	}
 }
 
-func NewEVMHostFunc(apiGetter func() cc_api.API) HostFunc {
+func NewEVMHostFunc(apiGetter func() api.API) HostFunc {
 	return func(ctx context.Context, module wz_api.Module, pointer uint64) uint64 {
 		mem, _ := NewMemory(ctx, module)
 		args := bridge.GetArgs(mem, bridge.MemPointer(pointer))
@@ -168,7 +168,7 @@ func NewEVMHostFunc(apiGetter func() cc_api.API) HostFunc {
 	}
 }
 
-func NewAddressHostFunc(apiGetter func() cc_api.API) HostFunc {
+func NewAddressHostFunc(apiGetter func() api.API) HostFunc {
 	return func(ctx context.Context, module wz_api.Module, pointer uint64) uint64 {
 		mem, _ := NewMemory(ctx, module)
 		address := apiGetter().Address()
@@ -204,7 +204,7 @@ func TimeHostFunc(ctx context.Context, module wz_api.Module, pointer uint64) uin
 	return uint64(time.Now().UnixNano())
 }
 
-func CallStateDB(db cc_api.StateDB, opcode bridge.OpCode, args [][]byte) []byte {
+func CallStateDB(db api.StateDB, opcode bridge.OpCode, args [][]byte) []byte {
 	switch opcode {
 	case bridge.Op_StateDB_GetPersistentState:
 		addr := common.BytesToAddress(args[0])
@@ -264,7 +264,7 @@ func CallStateDB(db cc_api.StateDB, opcode bridge.OpCode, args [][]byte) []byte 
 	return nil
 }
 
-func CallEVM(evm cc_api.EVM, opcode bridge.OpCode, args [][]byte) []byte {
+func CallEVM(evm api.EVM, opcode bridge.OpCode, args [][]byte) []byte {
 	switch opcode {
 	case bridge.Op_EVM_BlockHash:
 		block := new(big.Int).SetBytes(args[0])

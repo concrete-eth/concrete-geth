@@ -19,14 +19,14 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
-	cc_api "github.com/ethereum/go-ethereum/concrete/api"
+	"github.com/ethereum/go-ethereum/concrete/api"
 	"github.com/stretchr/testify/require"
 )
 
-func newDatastore() cc_api.Datastore {
+func newDatastore() api.Datastore {
 	address := common.HexToAddress("0x01")
 	db := NewMockStateDB()
-	return cc_api.NewCoreDatastore(cc_api.NewPersistentStorage(db, address))
+	return api.NewCoreDatastore(api.NewPersistentStorage(db, address))
 }
 
 func TestDatastore(t *testing.T) {
