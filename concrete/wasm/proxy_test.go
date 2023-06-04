@@ -128,10 +128,10 @@ func newEVMStub(db cc_api.StateDB) cc_api.EVM {
 
 func (m *mockEVM) StateDB() cc_api.StateDB              { return m.db }
 func (m *mockEVM) BlockHash(block *big.Int) common.Hash { return common.Hash{2} }
-func (m *mockEVM) BlockTimestamp() *big.Int             { return common.Big2 }
+func (m *mockEVM) BlockTimestamp() uint64               { return 0 }
+func (m *mockEVM) BlockGasLimit() uint64                { return 0 }
 func (m *mockEVM) BlockNumber() *big.Int                { return common.Big2 }
 func (m *mockEVM) BlockDifficulty() *big.Int            { return common.Big2 }
-func (m *mockEVM) BlockGasLimit() *big.Int              { return common.Big2 }
 func (m *mockEVM) BlockCoinbase() common.Address        { return common.Address{2} }
 
 var _ cc_api.EVM = &mockEVM{}
@@ -172,10 +172,10 @@ func TestEVMProxy(t *testing.T) {
 
 func TestBlockEncodeDecode(t *testing.T) {
 	block1 := bridge.BlockData{
-		Timestamp:  common.Big1,
+		Timestamp:  0,
+		GasLimit:   0,
 		Number:     common.Big2,
 		Difficulty: common.Big3,
-		GasLimit:   common.Big32,
 		Coinbase:   common.Address{1},
 	}
 	encoded := block1.Encode()

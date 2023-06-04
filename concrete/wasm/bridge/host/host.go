@@ -273,7 +273,11 @@ func CallEVM(evm cc_api.EVM, opcode bridge.OpCode, args [][]byte) []byte {
 
 	case bridge.Op_EVM_BlockTimestamp:
 		timestamp := evm.BlockTimestamp()
-		return timestamp.Bytes()
+		return bridge.Uint64ToBytes(timestamp)
+
+	case bridge.Op_EVM_BlockGasLimit:
+		gasLimit := evm.BlockGasLimit()
+		return bridge.Uint64ToBytes(gasLimit)
 
 	case bridge.Op_EVM_BlockNumber:
 		number := evm.BlockNumber()
@@ -283,10 +287,6 @@ func CallEVM(evm cc_api.EVM, opcode bridge.OpCode, args [][]byte) []byte {
 		difficulty := evm.BlockDifficulty()
 		return difficulty.Bytes()
 
-	case bridge.Op_EVM_BlockGasLimit:
-		gasLimit := evm.BlockGasLimit()
-		return gasLimit.Bytes()
-
 	case bridge.Op_EVM_BlockCoinbase:
 		coinbase := evm.BlockCoinbase()
 		return coinbase.Bytes()
@@ -294,9 +294,9 @@ func CallEVM(evm cc_api.EVM, opcode bridge.OpCode, args [][]byte) []byte {
 	case bridge.Op_EVM_Block:
 		block := bridge.BlockData{
 			Timestamp:  evm.BlockTimestamp(),
+			GasLimit:   evm.BlockGasLimit(),
 			Number:     evm.BlockNumber(),
 			Difficulty: evm.BlockDifficulty(),
-			GasLimit:   evm.BlockGasLimit(),
 			Coinbase:   evm.BlockCoinbase(),
 		}
 		return block.Encode()
