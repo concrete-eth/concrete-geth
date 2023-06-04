@@ -20,7 +20,7 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/concrete/api"
+	cc_api "github.com/ethereum/go-ethereum/concrete/api"
 	cc_api_test "github.com/ethereum/go-ethereum/concrete/api/test"
 	"github.com/ethereum/go-ethereum/concrete/lib"
 	"github.com/stretchr/testify/require"
@@ -29,7 +29,7 @@ import (
 func TestPrecompileRegistry(t *testing.T) {
 	var (
 		r                = require.New(t)
-		address          = api.PrecompileRegistryAddress
+		address          = cc_api.PrecompileRegistryAddress
 		pc               = precompiles[address].(*lib.PrecompileWithABI)
 		abiJson, _       = json.Marshal(pc.ABI)
 		expectedMetadata = PrecompileMetadata{
@@ -42,7 +42,7 @@ func TestPrecompileRegistry(t *testing.T) {
 			ABI:         string(abiJson),
 		}
 		evm      = cc_api_test.NewMockEVM(cc_api_test.NewMockStateDB())
-		concrete = api.New(evm, address)
+		concrete = cc_api.New(evm, address)
 	)
 
 	// Test getFramework

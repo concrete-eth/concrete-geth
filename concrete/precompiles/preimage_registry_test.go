@@ -20,7 +20,7 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/concrete/api"
+	cc_api "github.com/ethereum/go-ethereum/concrete/api"
 	cc_api_test "github.com/ethereum/go-ethereum/concrete/api/test"
 	"github.com/ethereum/go-ethereum/concrete/lib"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -29,7 +29,7 @@ import (
 
 type preimageRegistryPCWrapper struct {
 	*lib.PrecompileWithABI
-	concrete api.API
+	concrete cc_api.API
 }
 
 func (p *preimageRegistryPCWrapper) addPreimage(preimage []byte) (common.Hash, error) {
@@ -104,10 +104,10 @@ func (p *preimageRegistryPCWrapper) getPreimage(size uint64, hash common.Hash) (
 func TestPreimageRegistry(t *testing.T) {
 	var (
 		r        = require.New(t)
-		address  = api.PreimageRegistryAddress
+		address  = cc_api.PreimageRegistryAddress
 		pc       = precompiles[address].(*lib.PrecompileWithABI)
 		evm      = cc_api_test.NewMockEVM(cc_api_test.NewMockStateDB())
-		concrete = api.New(evm, address)
+		concrete = cc_api.New(evm, address)
 		wpc      = &preimageRegistryPCWrapper{PrecompileWithABI: pc, concrete: concrete}
 		preimage = []byte("test.data")
 		hash     = crypto.Keccak256Hash(preimage)
@@ -147,10 +147,10 @@ func TestBigPreimageRegistry(t *testing.T) {
 		r        = require.New(t)
 		radix    = 16
 		leafSize = 64
-		address  = api.BigPreimageRegistryAddress
+		address  = cc_api.BigPreimageRegistryAddress
 		pc       = precompiles[address].(*lib.PrecompileWithABI)
 		evm      = cc_api_test.NewMockEVM(cc_api_test.NewMockStateDB())
-		concrete = api.New(evm, address)
+		concrete = cc_api.New(evm, address)
 		wpc      = &preimageRegistryPCWrapper{PrecompileWithABI: pc, concrete: concrete}
 		preimage = []byte("test.data")
 	)
@@ -170,7 +170,7 @@ func TestBigPreimageRegistry(t *testing.T) {
 
 	// retHash, err := wpc.addPreimage(preimage)
 	// r.NoError(err)
-	retHash := api.NewPersistentBigPreimageStore(concrete, radix, leafSize).AddPreimage(preimage)
+	retHash := cc_api.NewPersistentBigPreimageStore(concrete, radix, leafSize).AddPreimage(preimage)
 	// r.Equal(hash, retHash)
 
 	has, err = wpc.hasPreimage(retHash)
