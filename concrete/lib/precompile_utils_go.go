@@ -32,16 +32,16 @@ func MethodIDToKey(methodID []byte) MethodIDKey {
 
 type MethodPrecompile interface {
 	api.Precompile
-	Init(parent *PrecompileWithABI, method *abi.Method)
+	Init(parent *PrecompileWithABI, method abi.Method)
 }
 
 type BlankMethodPrecompile struct {
 	BlankPrecompile
-	Method *abi.Method
 	Parent *PrecompileWithABI
+	Method abi.Method
 }
 
-func (p *BlankMethodPrecompile) Init(parent *PrecompileWithABI, method *abi.Method) {
+func (p *BlankMethodPrecompile) Init(parent *PrecompileWithABI, method abi.Method) {
 	p.Method = method
 }
 
@@ -90,7 +90,7 @@ func NewPrecompileWithABI(contractABI abi.ABI, methods map[string]MethodPrecompi
 		if !ok {
 			panic("missing implementation for " + name)
 		}
-		impl.Init(p, &method)
+		impl.Init(p, method)
 		p.Methods[MethodIDToKey(method.ID)] = impl
 	}
 	return p
