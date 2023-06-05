@@ -52,7 +52,7 @@ func (p *BlankMethodPrecompile) MutatesStorage(input []byte) bool {
 func (p *BlankMethodPrecompile) CallRequiredGasWithArgs(requiredGas func(args []interface{}) uint64, input []byte) uint64 {
 	args, err := p.Method.Inputs.UnpackValues(input)
 	if err != nil {
-		return 0
+		return FailGas
 	}
 	return requiredGas(args)
 }
@@ -117,7 +117,7 @@ func (p *PrecompileWithABI) MutatesStorage(input []byte) bool {
 func (p *PrecompileWithABI) RequiredGas(input []byte) uint64 {
 	pc, input, err := p.getMethod(input)
 	if err != nil {
-		return 0
+		return FailGas
 	}
 	return pc.RequiredGas(input)
 }
