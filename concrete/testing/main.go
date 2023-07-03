@@ -202,7 +202,40 @@ func runTestPaths(contractJsonPaths []string) {
 	fmt.Printf("\nTest result: %s. %d passed; %d failed; finished in %.2fms\n", result, totalPassed, totalFailed, timeMs)
 }
 
-func Test() {
+type TestConfig struct {
+	Contract string
+	TestDir  string
+	OutDir   string
+}
+
+func Test(config TestConfig) {
+	// Get test paths
+	var testPaths []string
+
+	if config.Contract != "" {
+		parts := strings.SplitN(config.Contract, ":", 2)
+		if len(parts) != 2 {
+			fmt.Printf("Invalid contract: %s. Must follow format Path:Contract\n", config.Contract)
+			return
+		}
+		_, fileName := filepath.Split(parts[0])
+		contractName := parts[1]
+		path := filepath.Join(config.OutDir, fileName, contractName+".json")
+		testPaths = []string{path}
+	} else {
+		var err error
+		testPaths, err = getTestPaths(config.TestDir, config.OutDir)
+		if err != nil {
+			fmt.Printf("Error getting test paths: %s\n", err)
+			return
+		}
+	}
+
+	// Run tests
+	runTestPaths(testPaths)
+}
+
+func TestCmd() {
 	// Define optional parameters
 	contract := flag.String("contract", "", "Specific contract to test")
 	testDir := flag.String("testDir", "test", "Directory containing test files")
@@ -225,28 +258,10 @@ func Test() {
 		os.Exit(1)
 	}
 
-	// Get test paths
-	var testPaths []string
-
-	if *contract != "" {
-		parts := strings.SplitN(*contract, ":", 2)
-		if len(parts) != 2 {
-			fmt.Printf("Invalid contract: %s. Must follow format Path:Contract\n", *contract)
-			return
-		}
-		_, fileName := filepath.Split(parts[0])
-		contractName := parts[1]
-		path := filepath.Join(*outDir, fileName, contractName+".json")
-		testPaths = []string{path}
-	} else {
-		var err error
-		testPaths, err = getTestPaths(*testDir, *outDir)
-		if err != nil {
-			fmt.Printf("Error getting test paths: %s\n", err)
-			return
-		}
-	}
-
 	// Run tests
-	runTestPaths(testPaths)
+	Test(TestConfig{
+		Contract: *contract,
+		TestDir:  *testDir,
+		OutDir:   *outDir,
+	})
 }
