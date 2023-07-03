@@ -17,9 +17,11 @@ package testing
 
 import (
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"math/big"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -33,7 +35,7 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 )
 
-func runTest(bytecode []byte, method abi.Method, shouldFail bool) (uint64, error) {
+func runTestMethod(bytecode []byte, method abi.Method, shouldFail bool) (uint64, error) {
 	var (
 		key, _          = crypto.HexToECDSA("b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291")
 		senderAddress   = crypto.PubkeyToAddress(key.PublicKey)
@@ -76,7 +78,7 @@ func runTest(bytecode []byte, method abi.Method, shouldFail bool) (uint64, error
 	return testReceipt.GasUsed, nil
 }
 
-func runTests(bytecode []byte, ABI abi.ABI) (int, int) {
+func runTestContract(bytecode []byte, ABI abi.ABI) (int, int) {
 	passed := 0
 	failed := 0
 	for _, method := range ABI.Methods {
@@ -84,7 +86,7 @@ func runTests(bytecode []byte, ABI abi.ABI) (int, int) {
 			continue
 		}
 		shouldFail := strings.HasPrefix(method.Name, "testFail")
-		gas, err := runTest(bytecode, method, shouldFail)
+		gas, err := runTestMethod(bytecode, method, shouldFail)
 		if err == nil {
 			passed++
 			fmt.Printf("[PASS] %s() (gas: %d)\n", method.Name, gas)
@@ -114,6 +116,14 @@ func extractTestData(contractJsonBytes []byte) ([]byte, abi.ABI, string, error) 
 	return bytecode, jsonData.ABI, jsonData.Ast.AbsolutePath, nil
 }
 
+func extractTestDataFromPath(contractJsonPath string) ([]byte, abi.ABI, string, error) {
+	contractJsonBytes, err := ioutil.ReadFile(contractJsonPath)
+	if err != nil {
+		return nil, abi.ABI{}, "", err
+	}
+	return extractTestData(contractJsonBytes)
+}
+
 func getFileNames(dir string, ext string) ([]string, error) {
 	var fileNames []string
 
@@ -138,15 +148,12 @@ func getFileNames(dir string, ext string) ([]string, error) {
 	return fileNames, nil
 }
 
-func RunTests(testDir, outDir string) {
-	var totalPassed, totalFailed int
+func getTestPaths(testDir, outDir string) ([]string, error) {
+	paths := make([]string, 0)
 	seenFiles := make(map[string]struct{})
-	startTime := time.Now()
-
 	testFileNames, err := getFileNames(testDir, ".sol")
 	if err != nil {
-		fmt.Println("Error finding tests:", err)
-		return
+		return nil, err
 	}
 	for _, fileName := range testFileNames {
 		if _, ok := seenFiles[fileName]; ok {
@@ -155,25 +162,32 @@ func RunTests(testDir, outDir string) {
 		seenFiles[fileName] = struct{}{}
 		contractNames, err := getFileNames(filepath.Join(outDir, fileName), ".json")
 		if err != nil {
-			fmt.Println("Error finding contract data:", err)
-			return
+			return nil, err
 		}
 		for _, contractName := range contractNames {
-			data, err := ioutil.ReadFile(filepath.Join(outDir, fileName, contractName))
-			if err != nil {
-				fmt.Println("Error reading contract data:", err)
-				return
-			}
-			bytecode, ABI, path, err := extractTestData(data)
-			if err != nil {
-				fmt.Println("Error extracting contract data:", err)
-				return
-			}
-			fmt.Printf("\nRunning tests for %s\n", path)
-			passed, failed := runTests(bytecode, ABI)
-			totalPassed += passed
-			totalFailed += failed
+			path := filepath.Join(outDir, fileName, contractName)
+			paths = append(paths, path)
 		}
+	}
+	return paths, nil
+}
+
+func runTestPaths(contractJsonPaths []string) {
+	var totalPassed, totalFailed int
+	startTime := time.Now()
+
+	for _, path := range contractJsonPaths {
+		bytecode, ABI, testPath, err := extractTestDataFromPath(path)
+		if err != nil {
+			fmt.Printf("Error extracting test data from %s: %s\n", path, err)
+			continue
+		}
+		contractName := filepath.Base(path)
+		contractName = strings.TrimSuffix(contractName, filepath.Ext(contractName))
+		fmt.Printf("\nRunning tests for %s:%s\n", testPath, contractName)
+		passed, failed := runTestContract(bytecode, ABI)
+		totalPassed += passed
+		totalFailed += failed
 	}
 
 	timeMs := float64(time.Since(startTime).Microseconds()) / 1000
@@ -186,4 +200,53 @@ func RunTests(testDir, outDir string) {
 	}
 
 	fmt.Printf("\nTest result: %s. %d passed; %d failed; finished in %.2fms\n", result, totalPassed, totalFailed, timeMs)
+}
+
+func Test() {
+	// Define optional parameters
+	contract := flag.String("contract", "", "Specific contract to test")
+	testDir := flag.String("testDir", "test", "Directory containing test files")
+	outDir := flag.String("outDir", "out", "Directory containing compiled contracts")
+
+	// Check for help command
+	if len(os.Args) >= 2 && strings.ToLower(os.Args[1]) == "help" {
+		flag.Usage()
+		return
+	}
+
+	// Parse command-line arguments
+	flag.Parse()
+
+	if flag.NArg() > 0 {
+		fmt.Println("Invalid parameter", flag.Arg(0))
+		fmt.Println("")
+		flag.Usage()
+		fmt.Println("")
+		os.Exit(1)
+	}
+
+	// Get test paths
+	var testPaths []string
+
+	if *contract != "" {
+		parts := strings.SplitN(*contract, ":", 2)
+		if len(parts) != 2 {
+			fmt.Printf("Invalid contract: %s. Must follow format Path:Contract\n", *contract)
+			return
+		}
+		_, fileName := filepath.Split(parts[0])
+		contractName := parts[1]
+		path := filepath.Join(*outDir, fileName, contractName+".json")
+		testPaths = []string{path}
+	} else {
+		var err error
+		testPaths, err = getTestPaths(*testDir, *outDir)
+		if err != nil {
+			fmt.Printf("Error getting test paths: %s\n", err)
+			return
+		}
+	}
+
+	// Run tests
+	runTestPaths(testPaths)
 }
