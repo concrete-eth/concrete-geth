@@ -172,7 +172,7 @@ func getTestPaths(testDir, outDir string) ([]string, error) {
 	return paths, nil
 }
 
-func runTestPaths(contractJsonPaths []string) {
+func runTestPaths(contractJsonPaths []string) (int, int) {
 	var totalPassed, totalFailed int
 	startTime := time.Now()
 
@@ -200,6 +200,8 @@ func runTestPaths(contractJsonPaths []string) {
 	}
 
 	fmt.Printf("\nTest result: %s. %d passed; %d failed; finished in %.2fms\n", result, totalPassed, totalFailed, timeMs)
+
+	return totalPassed, totalFailed
 }
 
 type TestConfig struct {
@@ -208,7 +210,7 @@ type TestConfig struct {
 	OutDir   string
 }
 
-func Test(config TestConfig) {
+func Test(config TestConfig) (int, int) {
 	// Get test paths
 	var testPaths []string
 
@@ -216,7 +218,7 @@ func Test(config TestConfig) {
 		parts := strings.SplitN(config.Contract, ":", 2)
 		if len(parts) != 2 {
 			fmt.Printf("Invalid contract: %s. Must follow format Path:Contract\n", config.Contract)
-			return
+			os.Exit(1)
 		}
 		_, fileName := filepath.Split(parts[0])
 		contractName := parts[1]
@@ -227,12 +229,12 @@ func Test(config TestConfig) {
 		testPaths, err = getTestPaths(config.TestDir, config.OutDir)
 		if err != nil {
 			fmt.Printf("Error getting test paths: %s\n", err)
-			return
+			os.Exit(1)
 		}
 	}
 
 	// Run tests
-	runTestPaths(testPaths)
+	return runTestPaths(testPaths)
 }
 
 func TestCmd() {
