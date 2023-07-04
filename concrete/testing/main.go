@@ -48,7 +48,7 @@ func runTestMethod(bytecode []byte, method abi.Method, shouldFail bool) (uint64,
 			},
 		}
 		signer   = types.LatestSigner(gspec.Config)
-		gasLimit = uint64(1e6)
+		gasLimit = uint64(1e7)
 		setupId  = crypto.Keccak256([]byte("setUp()"))[:4]
 	)
 
