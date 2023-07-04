@@ -18,5 +18,5 @@ package main
 import "github.com/ethereum/go-ethereum/concrete/testing"
 
 func main() {
-	testing.Test()
+	testing.TestCmd()
 }
