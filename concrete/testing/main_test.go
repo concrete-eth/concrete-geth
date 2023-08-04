@@ -42,5 +42,8 @@ func TestRunTestContract(t *testing.T) {
 // 	if err != nil {
 // 		t.Fatal(err)
 // 	}
+// 	if len(testPaths) == 0 {
+// 		t.Fatal("no test paths found")
+// 	}
 // 	runTestPaths(testPaths)
 // }
