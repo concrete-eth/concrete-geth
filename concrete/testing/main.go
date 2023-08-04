@@ -41,7 +41,7 @@ func runTestMethod(bytecode []byte, method abi.Method, shouldFail bool) (uint64,
 		senderAddress   = crypto.PubkeyToAddress(key.PublicKey)
 		contractAddress = common.HexToAddress("0x0000000000000000000000000000000000c0ffee")
 		gspec           = &core.Genesis{
-			GasLimit: 15e6,
+			GasLimit: 2e7,
 			Config:   params.TestChainConfig,
 			Alloc: core.GenesisAlloc{
 				senderAddress:   {Balance: big.NewInt(1e18)},
