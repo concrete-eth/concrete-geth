@@ -19,381 +19,393 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/concrete/crypto"
 )
 
-var (
-	// crypto.Keccak256Hash(nil)
-	EmptyPreimageHash = common.HexToHash("0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470")
-)
+/*
+eth_interface methods not included
+ReturnDataCopy
+GetReturnDataSize
+Finish
+Revert
+CallDataCopy
+CallCode
+ExternalCodeCopy
+SelfDestruct
 
-var (
-	PrecompileRegistryAddress  = common.HexToAddress("0xcc00000000000000000000000000000000000000")
-	PreimageRegistryAddress    = common.HexToAddress("0xcc00000000000000000000000000000000000001")
-	BigPreimageRegistryAddress = common.HexToAddress("0xcc00000000000000000000000000000000000002")
-)
+evm_interface-like methods added
+GetBalance
+*/
 
-type StateDB interface {
-	SetPersistentState(addr common.Address, key common.Hash, value common.Hash)
-	GetPersistentState(addr common.Address, key common.Hash) common.Hash
-	SetEphemeralState(addr common.Address, key common.Hash, value common.Hash)
-	GetEphemeralState(addr common.Address, key common.Hash) common.Hash
-	AddPersistentPreimage(hash common.Hash, preimage []byte)
-	GetPersistentPreimage(hash common.Hash) []byte
-	GetPersistentPreimageSize(hash common.Hash) int
-	AddEphemeralPreimage(hash common.Hash, preimage []byte)
-	GetEphemeralPreimage(hash common.Hash) []byte
-	GetEphemeralPreimageSize(hash common.Hash) int
-}
+type ConcreteAPI interface {
+	// Meta
+	EnableGasMetering(meter bool)
 
-type ReadOnlyStateDB struct {
-	StateDB
-}
-
-func NewReadOnlyStateDB(db StateDB) StateDB {
-	return &ReadOnlyStateDB{db}
-}
-
-func (db *ReadOnlyStateDB) SetPersistentState(addr common.Address, key common.Hash, value common.Hash) {
-	panic("stateDB write protection")
-}
-
-func (db *ReadOnlyStateDB) SetEphemeralState(addr common.Address, key common.Hash, value common.Hash) {
-	panic("stateDB write protection")
-}
-
-func (db *ReadOnlyStateDB) AddPersistentPreimage(hash common.Hash, preimage []byte) {
-	panic("stateDB write protection")
-}
-
-func (db *ReadOnlyStateDB) AddEphemeralPreimage(hash common.Hash, preimage []byte) {
-	panic("stateDB write protection")
-}
-
-var _ StateDB = &ReadOnlyStateDB{}
-
-type CommitSafeStateDB struct {
-	StateDB
-}
-
-func NewCommitSafeStateDB(db StateDB) StateDB {
-	return &CommitSafeStateDB{db}
-}
-
-func (db *CommitSafeStateDB) SetPersistentState(addr common.Address, key common.Hash, value common.Hash) {
-	panic("stateDB write protection")
-}
-
-var _ StateDB = &CommitSafeStateDB{}
-
-type EVM interface {
-	StateDB() StateDB
-	BlockHash(block *big.Int) common.Hash
-	BlockTimestamp() uint64
-	BlockGasLimit() uint64
-	BlockNumber() *big.Int
-	BlockDifficulty() *big.Int
-	BlockCoinbase() common.Address
-}
-
-type ReadOnlyEVM struct {
-	EVM
-}
-
-func NewReadOnlyEVM(evm EVM) EVM {
-	return &ReadOnlyEVM{evm}
-}
-
-func (evm *ReadOnlyEVM) StateDB() StateDB {
-	return &ReadOnlyStateDB{evm.EVM.StateDB()}
-}
-
-var _ EVM = &ReadOnlyEVM{}
-
-type CommitSafeEVM struct {
-	EVM
-}
-
-func NewCommitSafeEVM(evm EVM) EVM {
-	return &CommitSafeEVM{evm}
-}
-
-func (evm *CommitSafeEVM) StateDB() StateDB {
-	return &CommitSafeStateDB{evm.EVM.StateDB()}
-}
-
-var _ EVM = &CommitSafeEVM{}
-
-type TrieStore interface {
-	Set(key common.Hash, value common.Hash)
-	Get(key common.Hash) common.Hash
-}
-
-type PreimageStore interface {
-	AddPreimage(preimage []byte) common.Hash
-	HasPreimage(hash common.Hash) bool
-	GetPreimage(hash common.Hash) []byte
-	GetPreimageSize(hash common.Hash) int
-}
-
-type Storage interface {
-	TrieStore
-	PreimageStore
-	StateDB() StateDB
-	Address() common.Address
-}
-
-func preimageRegistryKey(hash common.Hash) common.Hash {
-	return crypto.Keccak256Hash(hash.Bytes(), common.Big0.Bytes())
-}
-
-type PersistentStorage struct {
-	address common.Address
-	db      StateDB
-}
-
-func (s *PersistentStorage) StateDB() StateDB {
-	return s.db
-}
-
-func (s *PersistentStorage) Address() common.Address {
-	return s.address
-}
-
-func (s *PersistentStorage) Set(key common.Hash, value common.Hash) {
-	s.db.SetPersistentState(s.address, key, value)
-}
-
-func (s *PersistentStorage) Get(key common.Hash) common.Hash {
-	return s.db.GetPersistentState(s.address, key)
-}
-
-func (s *PersistentStorage) AddPreimage(preimage []byte) common.Hash {
-	if len(preimage) == 0 {
-		return EmptyPreimageHash
-	}
-	hash := crypto.Keccak256Hash(preimage)
-	s.db.SetPersistentState(PreimageRegistryAddress, preimageRegistryKey(hash), common.BytesToHash(common.Big1.Bytes()))
-	s.db.AddPersistentPreimage(hash, preimage)
-	return hash
-}
-
-func (s *PersistentStorage) HasPreimage(hash common.Hash) bool {
-	if hash == EmptyPreimageHash {
-		return true
-	}
-	return s.db.GetPersistentState(PreimageRegistryAddress, preimageRegistryKey(hash)) == common.BytesToHash(common.Big1.Bytes())
-}
-
-func (s *PersistentStorage) GetPreimage(hash common.Hash) []byte {
-	if hash == EmptyPreimageHash {
-		return []byte{}
-	}
-	if !s.HasPreimage(hash) {
-		return nil
-	}
-	return s.db.GetPersistentPreimage(hash)
-}
-
-func (s *PersistentStorage) GetPreimageSize(hash common.Hash) int {
-	if hash == EmptyPreimageHash {
-		return 0
-	}
-	if !s.HasPreimage(hash) {
-		return -1
-	}
-	return s.db.GetPersistentPreimageSize(hash)
-}
-
-var _ Storage = (*PersistentStorage)(nil)
-
-type EphemeralStorage struct {
-	address common.Address
-	db      StateDB
-}
-
-func (s *EphemeralStorage) StateDB() StateDB {
-	return s.db
-}
-
-func (s *EphemeralStorage) Address() common.Address {
-	return s.address
-}
-
-func (s *EphemeralStorage) Set(key common.Hash, value common.Hash) {
-	s.db.SetEphemeralState(s.address, key, value)
-}
-
-func (s *EphemeralStorage) Get(key common.Hash) common.Hash {
-	return s.db.GetEphemeralState(s.address, key)
-}
-
-func (s *EphemeralStorage) AddPreimage(preimage []byte) common.Hash {
-	if len(preimage) == 0 {
-		return EmptyPreimageHash
-	}
-	hash := crypto.Keccak256Hash(preimage)
-	s.db.SetEphemeralState(PreimageRegistryAddress, preimageRegistryKey(hash), common.BytesToHash(common.Big1.Bytes()))
-	s.db.AddEphemeralPreimage(hash, preimage)
-	return hash
-}
-
-func (s *EphemeralStorage) HasPreimage(hash common.Hash) bool {
-	if hash == EmptyPreimageHash {
-		return true
-	}
-	return s.db.GetEphemeralState(PreimageRegistryAddress, preimageRegistryKey(hash)) == common.BytesToHash(common.Big1.Bytes())
-}
-
-func (s *EphemeralStorage) GetPreimage(hash common.Hash) []byte {
-	if hash == EmptyPreimageHash {
-		return []byte{}
-	}
-	if !s.HasPreimage(hash) {
-		return nil
-	}
-	return s.db.GetEphemeralPreimage(hash)
-}
-
-func (s *EphemeralStorage) GetPreimageSize(hash common.Hash) int {
-	if hash == EmptyPreimageHash {
-		return 0
-	}
-	if !s.HasPreimage(hash) {
-		return -1
-	}
-	return s.db.GetEphemeralPreimageSize(hash)
-}
-
-var _ Storage = (*EphemeralStorage)(nil)
-
-type Block interface {
-	Timestamp() uint64
-	GasLimit() uint64
-	Number() *big.Int
-	Difficulty() *big.Int
-	Coinbase() common.Address
-}
-
-type FullBlock struct {
-	evm EVM
-}
-
-func (b *FullBlock) Timestamp() uint64        { return b.evm.BlockTimestamp() }
-func (b *FullBlock) GasLimit() uint64         { return b.evm.BlockGasLimit() }
-func (b *FullBlock) Number() *big.Int         { return b.evm.BlockNumber() }
-func (b *FullBlock) Difficulty() *big.Int     { return b.evm.BlockDifficulty() }
-func (b *FullBlock) Coinbase() common.Address { return b.evm.BlockCoinbase() }
-
-var _ Block = (*FullBlock)(nil)
-
-type LiteAPI interface {
-	Address() common.Address
-	Persistent() Datastore
-	BlockHash(block *big.Int) common.Hash
-	Block() Block
-}
-
-type API interface {
-	Address() common.Address
-	EVM() EVM
-	StateDB() StateDB
+	// Wrappers
 	Persistent() Datastore
 	Ephemeral() Datastore
-	BlockHash(block *big.Int) common.Hash
 	Block() Block
+
+	// Aliases
+	PersistentLoad(key common.Hash) common.Hash
+	PersistentStore(key common.Hash, value common.Hash)
+
+	// Ephemeral
+	EphemeralLoad(key common.Hash) common.Hash
+	EphemeralStore(key common.Hash, value common.Hash)
+
+	// Preimage oracle
+	PersistentPreimageStore(hash common.Hash, preimage []byte)
+	PersistentPreimageLoad(hash common.Hash) []byte
+	PersistentPreimageLoadSize(hash common.Hash) int
+	EphemeralPreimageStore(hash common.Hash, preimage []byte)
+	EphemeralPreimageLoad(hash common.Hash) []byte
+	EphemeralPreimageLoadSize(hash common.Hash) int
+
+	// INTERNAL - READ
+	// Address
+	GetAddress() common.Address
+	// Gas
+	GetGasLeft() uint64
+	// Block
+	GetBlockNumber() uint64
+	GetBlockGasLimit() uint64
+	GetBlockTimestamp() uint64
+	GetBlockDifficulty() *big.Int
+	GetBlockBasefee() *big.Int
+	GetBlockCoinbase() common.Address
+	GetPrevRandao() common.Hash
+	// Block hash
+	GetBlockHash(block uint64) common.Hash
+	// Balance
+	GetBalance(address common.Address) *big.Int
+	// Transaction
+	GetTxGasPrice() *big.Int
+	GetTxOrigin() common.Address
+	// Call
+	GetCallData() []byte
+	GetCallDataSize() int
+	GetCaller() common.Address
+	GetCallValue() *big.Int
+	// Storage
+	StorageLoad(key common.Hash) common.Hash
+	// Code
+	GetCode(address common.Address) []byte
+	GetCodeSize() int
+
+	// INTERNAL - WRITE
+	// Gas
+	UseGas(amount uint64)
+	// Storage
+	StorageStore(key common.Hash, value common.Hash)
+	// Log
+	Log(topics []common.Hash, data []byte)
+
+	// EXTERNAL - READ
+	// Balance
+	GetExternalBalance(address common.Address) *big.Int
+	// Call
+	CallStatic(gas uint64, address common.Address, data []byte) ([]byte, uint64, error)
+	// Code
+	GetExternalCode(address common.Address) []byte
+	GetExternalCodeSize(address common.Address) int
+
+	// EXTERNAL - WRITE
+	// Call
+	Call(gas uint64, address common.Address, value *big.Int, data []byte) ([]byte, uint64, error)
+	CallDelegate(gas uint64, address common.Address, data []byte) ([]byte, uint64, error)
+	// Create
+	Create(value *big.Int, data []byte) common.Address
+	Create2(value *big.Int, data []byte, salt common.Hash) common.Address
 }
 
-type StateAPI struct {
-	address    common.Address
-	db         StateDB
-	persistent Datastore
-	ephemeral  Datastore
+type StoreConfig struct {
+	HasPersistent      bool
+	HasEphemeral       bool
+	PersistentReadOnly bool
+	EphemeralReadOnly  bool
 }
 
-func NewStateAPI(db StateDB, address common.Address) API {
-	return &StateAPI{
-		address: address,
-		db:      db,
+type API struct {
+	storageConfig         StoreConfig
+	preimageConfig        StoreConfig
+	meterGas              bool
+	canDisableGasMetering bool
+	address               common.Address
+	statedb               StateDB
+	table                 JumpTable
+	execute               func(op OpCode, api *API, args [][]byte) ([][]byte, error)
+
+	gas uint64
+}
+
+func NewAPI(address common.Address, statedb StateDB, storageConfig StoreConfig, preimageConfig StoreConfig, meterGas bool, canDisableGasMetering bool) *API {
+	api := &API{
+		storageConfig:         storageConfig,
+		preimageConfig:        preimageConfig,
+		meterGas:              meterGas,
+		canDisableGasMetering: canDisableGasMetering,
+		address:               address,
+		statedb:               statedb,
 	}
+	api.table = NewConcreteAPIMethods()
+	api.execute = func(op OpCode, api *API, args [][]byte) ([][]byte, error) {
+		return api.table[op].execute(api, args)
+	}
+	return api
 }
 
-func (s *StateAPI) Address() common.Address {
-	return s.address
+func (api *API) EnableGasMetering(meter bool) {
+	if api.meterGas == meter {
+		return
+	}
+	if !api.canDisableGasMetering {
+		panic("cannot disable gas metering")
+	}
+	api.meterGas = meter
 }
 
-func (s *StateAPI) EVM() EVM {
+func (api *API) Persistent() Datastore {
 	return nil
 }
 
-func (s *StateAPI) StateDB() StateDB {
-	return s.db
+func (api *API) Ephemeral() Datastore {
+	return nil
 }
 
-func (s *StateAPI) Persistent() Datastore {
-	if s.persistent == nil {
-		s.persistent = &CoreDatastore{&PersistentStorage{
-			address: s.address,
-			db:      s.db,
-		}}
+func (api *API) Block() Block {
+	return &BlockData{api: api}
+}
+
+func (api *API) PersistentLoad(key common.Hash) common.Hash {
+	return api.StorageLoad(key)
+}
+
+func (api *API) PersistentStore(key common.Hash, value common.Hash) {
+	api.StorageStore(key, value)
+}
+
+func (api *API) EphemeralLoad(key common.Hash) common.Hash {
+	input := [][]byte{key.Bytes()}
+	output, _ := api.execute(EphemeralLoad_OpCode, api, input)
+	hash := common.BytesToHash(output[0])
+	return hash
+}
+
+func (api *API) EphemeralStore(key common.Hash, value common.Hash) {
+	input := [][]byte{key.Bytes(), value.Bytes()}
+	api.execute(EphemeralStore_OpCode, api, input)
+}
+
+func (api *API) PersistentPreimageStore(hash common.Hash, preimage []byte) {
+	input := [][]byte{hash.Bytes(), preimage}
+	api.execute(PersistentPreimageStore_OpCode, api, input)
+}
+
+func (api *API) PersistentPreimageLoad(hash common.Hash) []byte {
+	input := [][]byte{hash.Bytes()}
+	output, _ := api.execute(PersistentPreimageLoad_OpCode, api, input)
+	return output[0]
+}
+
+func (api *API) PersistentPreimageLoadSize(hash common.Hash) int {
+	input := [][]byte{hash.Bytes()}
+	output, _ := api.execute(PersistentPreimageLoadSize_OpCode, api, input)
+	return int(BytesToUint64(output[0]))
+}
+
+func (api *API) EphemeralPreimageStore(hash common.Hash, preimage []byte) {
+	input := [][]byte{hash.Bytes(), preimage}
+	api.execute(EphemeralPreimageStore_OpCode, api, input)
+}
+
+func (api *API) EphemeralPreimageLoad(hash common.Hash) []byte {
+	input := [][]byte{hash.Bytes()}
+	output, _ := api.execute(EphemeralPreimageLoad_OpCode, api, input)
+	return output[0]
+}
+
+func (api *API) EphemeralPreimageLoadSize(hash common.Hash) int {
+	input := [][]byte{hash.Bytes()}
+	output, _ := api.execute(EphemeralPreimageLoadSize_OpCode, api, input)
+	return int(BytesToUint64(output[0]))
+}
+
+func (api *API) GetAddress() common.Address {
+	output, _ := api.execute(GetAddress_OpCode, api, nil)
+	return common.BytesToAddress(output[0])
+}
+
+func (api *API) GetGasLeft() uint64 {
+	output, _ := api.execute(GetGasLeft_OpCode, api, nil)
+	return BytesToUint64(output[0])
+}
+
+func (api *API) GetBlockNumber() uint64 {
+	output, _ := api.execute(GetBlockNumber_OpCode, api, nil)
+	return BytesToUint64(output[0])
+}
+
+func (api *API) GetBlockGasLimit() uint64 {
+	output, _ := api.execute(GetBlockGasLimit_OpCode, api, nil)
+	return BytesToUint64(output[0])
+}
+
+func (api *API) GetBlockTimestamp() uint64 {
+	output, _ := api.execute(GetBlockTimestamp_OpCode, api, nil)
+	return BytesToUint64(output[0])
+}
+
+func (api *API) GetBlockDifficulty() *big.Int {
+	output, _ := api.execute(GetBlockDifficulty_OpCode, api, nil)
+	return new(big.Int).SetBytes(output[0])
+}
+
+func (api *API) GetBlockBasefee() *big.Int {
+	output, _ := api.execute(GetBlockBasefee_OpCode, api, nil)
+	return new(big.Int).SetBytes(output[0])
+}
+
+func (api *API) GetBlockCoinbase() common.Address {
+	output, _ := api.execute(GetBlockCoinbase_OpCode, api, nil)
+	return common.BytesToAddress(output[0])
+}
+
+func (api *API) GetPrevRandao() common.Hash {
+	output, _ := api.execute(GetPrevRandao_OpCode, api, nil)
+	return common.BytesToHash(output[0])
+}
+
+func (api *API) GetBlockHash(number uint64) common.Hash {
+	input := [][]byte{Uint64ToBytes(number)}
+	output, _ := api.execute(GetBlockHash_OpCode, api, input)
+	return common.BytesToHash(output[0])
+}
+
+func (api *API) GetBalance(address common.Address) *big.Int {
+	input := [][]byte{address.Bytes()}
+	output, _ := api.execute(GetBalance_OpCode, api, input)
+	return new(big.Int).SetBytes(output[0])
+}
+
+func (api *API) GetTxGasPrice() *big.Int {
+	output, _ := api.execute(GetTxGasPrice_OpCode, api, nil)
+	return new(big.Int).SetBytes(output[0])
+}
+
+func (api *API) GetTxOrigin() common.Address {
+	output, _ := api.execute(GetTxOrigin_OpCode, api, nil)
+	return common.BytesToAddress(output[0])
+}
+
+func (api *API) GetCallData() []byte {
+	output, _ := api.execute(GetCallData_OpCode, api, nil)
+	return output[0]
+}
+
+func (api *API) GetCallDataSize() int {
+	output, _ := api.execute(GetCallDataSize_OpCode, api, nil)
+	return int(BytesToUint64(output[0]))
+}
+
+func (api *API) GetCaller() common.Address {
+	output, _ := api.execute(GetCaller_OpCode, api, nil)
+	return common.BytesToAddress(output[0])
+}
+
+func (api *API) GetCallValue() *big.Int {
+	output, _ := api.execute(GetCallValue_OpCode, api, nil)
+	return new(big.Int).SetBytes(output[0])
+}
+
+func (api *API) StorageLoad(key common.Hash) common.Hash {
+	input := [][]byte{key.Bytes()}
+	output, _ := api.execute(StorageLoad_OpCode, api, input)
+	return common.BytesToHash(output[0])
+}
+
+func (api *API) GetCode(address common.Address) []byte {
+	input := [][]byte{address.Bytes()}
+	output, _ := api.execute(GetCode_OpCode, api, input)
+	return output[0]
+}
+
+func (api *API) GetCodeSize() int {
+	output, _ := api.execute(GetCodeSize_OpCode, api, nil)
+	return int(BytesToUint64(output[0]))
+}
+
+func (api *API) UseGas(gas uint64) {
+	input := [][]byte{Uint64ToBytes(gas)}
+	api.execute(UseGas_OpCode, api, input)
+}
+
+func (api *API) StorageStore(key common.Hash, value common.Hash) {
+	input := [][]byte{key.Bytes(), value.Bytes()}
+	api.execute(StorageStore_OpCode, api, input)
+}
+
+func (api *API) Log(topics []common.Hash, data []byte) {
+	input := make([][]byte, len(topics)+1)
+	for i := 0; i < len(topics); i++ {
+		input[i] = topics[i].Bytes()
 	}
-	return s.persistent
+	input[len(topics)] = data
+	api.execute(Log_OpCode, api, input)
 }
 
-func (s *StateAPI) Ephemeral() Datastore {
-	if s.ephemeral == nil {
-		s.ephemeral = &CoreDatastore{&EphemeralStorage{
-			address: s.address,
-			db:      s.db,
-		}}
-	}
-	return s.ephemeral
+func (api *API) GetExternalBalance(address common.Address) *big.Int {
+	input := [][]byte{address.Bytes()}
+	output, _ := api.execute(GetExternalBalance_OpCode, api, input)
+	return new(big.Int).SetBytes(output[0])
 }
 
-func (s *StateAPI) BlockHash(block *big.Int) common.Hash {
-	panic("API method not available")
+func (api *API) CallStatic(gas uint64, address common.Address, data []byte) ([]byte, uint64, error) {
+	input := [][]byte{Uint64ToBytes(gas), address.Bytes(), data}
+	output, err := api.execute(CallStatic_OpCode, api, input)
+	return output[0], BytesToUint64(output[1]), err
 }
 
-func (s *StateAPI) Block() Block {
-	panic("API method not available")
+func (api *API) GetExternalCode(address common.Address) []byte {
+	input := [][]byte{address.Bytes()}
+	output, _ := api.execute(GetExternalCode_OpCode, api, input)
+	return output[0]
 }
 
-var _ API = (*StateAPI)(nil)
-
-type FullAPI struct {
-	StateAPI
-	evm EVM
+func (api *API) GetExternalCodeSize(address common.Address) int {
+	input := [][]byte{address.Bytes()}
+	output, _ := api.execute(GetExternalCodeSize_OpCode, api, input)
+	return int(BytesToUint64(output[0]))
 }
 
-func New(evm EVM, address common.Address) API {
-	return NewAPI(evm, address)
+func (api *API) Call(gas uint64, address common.Address, value *big.Int, data []byte) ([]byte, uint64, error) {
+	input := [][]byte{Uint64ToBytes(gas), address.Bytes(), value.Bytes(), data}
+	output, err := api.execute(Call_OpCode, api, input)
+	return output[0], BytesToUint64(output[1]), err
 }
 
-func NewAPI(evm EVM, address common.Address) API {
-	return &FullAPI{
-		StateAPI: StateAPI{address: address, db: evm.StateDB()},
-		evm:      evm,
-	}
+func (api *API) CallDelegate(gas uint64, address common.Address, data []byte) ([]byte, uint64, error) {
+	input := [][]byte{Uint64ToBytes(gas), address.Bytes(), data}
+	output, err := api.execute(CallDelegate_OpCode, api, input)
+	return output[0], BytesToUint64(output[1]), err
 }
 
-func (a *FullAPI) EVM() EVM {
-	return a.evm
+func (api *API) Create(value *big.Int, data []byte) common.Address {
+	input := [][]byte{value.Bytes(), data}
+	output, _ := api.execute(Create_OpCode, api, input)
+	return common.BytesToAddress(output[0])
 }
 
-func (a *FullAPI) BlockHash(block *big.Int) common.Hash {
-	return a.evm.BlockHash(block)
+func (api *API) Create2(value *big.Int, data []byte, salt common.Hash) common.Address {
+	input := [][]byte{value.Bytes(), data, salt.Bytes()}
+	output, _ := api.execute(Create2_OpCode, api, input)
+	return common.BytesToAddress(output[0])
 }
 
-func (a *FullAPI) Block() Block {
-	return &FullBlock{evm: a.evm}
-}
-
-var _ API = (*FullAPI)(nil)
+var _ ConcreteAPI = (*API)(nil)
 
 type Precompile interface {
-	MutatesStorage(input []byte) bool
-	RequiredGas(input []byte) uint64
-	Finalise(api API) error
-	Commit(api API) error
-	Run(api API, input []byte) ([]byte, error)
+	IsReadOnly(input []byte) bool
+	Finalise(api ConcreteAPI) error
+	Commit(api ConcreteAPI) error
+	Run(api ConcreteAPI, input []byte) ([]byte, error)
 }

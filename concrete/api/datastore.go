@@ -22,8 +22,222 @@ import (
 	"github.com/ethereum/go-ethereum/concrete/crypto"
 )
 
+var (
+	PrecompileRegistryAddress  = common.HexToAddress("0xcc00000000000000000000000000000000000000")
+	PreimageRegistryAddress    = common.HexToAddress("0xcc00000000000000000000000000000000000001")
+	BigPreimageRegistryAddress = common.HexToAddress("0xcc00000000000000000000000000000000000002")
+)
+
+var (
+	// crypto.Keccak256Hash(nil)
+	EmptyPreimageHash = common.HexToHash("0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470")
+)
+
+type Block interface {
+	Number() uint64
+	GasLimit() uint64
+	Timestamp() uint64
+	Difficulty() *big.Int
+	Basefee() *big.Int
+	Coinbase() common.Address
+}
+
+type BlockData struct {
+	api         ConcreteAPI
+	_number     uint64
+	_gasLimit   uint64
+	_timestamp  uint64
+	_difficulty *big.Int
+	_basefee    *big.Int
+	_coinbase   common.Address
+}
+
+func (b *BlockData) Number() uint64 {
+	if b._number == 0 {
+		b._number = b.api.Block().Number()
+	}
+	return b._number
+}
+
+func (b *BlockData) GasLimit() uint64 {
+	if b._gasLimit == 0 {
+		b._gasLimit = b.api.Block().GasLimit()
+	}
+	return b._gasLimit
+}
+
+func (b *BlockData) Timestamp() uint64 {
+	if b._timestamp == 0 {
+		b._timestamp = b.api.Block().Timestamp()
+	}
+	return b._timestamp
+}
+
+func (b *BlockData) Difficulty() *big.Int {
+	if b._difficulty == nil {
+		b._difficulty = b.api.Block().Difficulty()
+	}
+	return b._difficulty
+}
+
+func (b *BlockData) Basefee() *big.Int {
+	if b._basefee == nil {
+		b._basefee = b.api.Block().Basefee()
+	}
+	return b._basefee
+}
+
+func (b *BlockData) Coinbase() common.Address {
+	if b._coinbase == (common.Address{}) {
+		b._coinbase = b.api.Block().Coinbase()
+	}
+	return b._coinbase
+}
+
+type KeyValueStore interface {
+	Set(key common.Hash, value common.Hash)
+	Get(key common.Hash) common.Hash
+}
+
+type PreimageStore interface {
+	AddPreimage(preimage []byte) common.Hash
+	HasPreimage(hash common.Hash) bool
+	GetPreimage(hash common.Hash) []byte
+	GetPreimageSize(hash common.Hash) int
+}
+
+type AccountStore interface {
+	KeyValueStore
+	PreimageStore
+	Address() common.Address
+}
+
+func preimageRegistryKey(hash common.Hash) common.Hash {
+	return crypto.Keccak256Hash(hash.Bytes(), common.Big0.Bytes())
+}
+
+type PersistentStorage struct {
+	address common.Address
+	db      StateDB
+}
+
+func (s *PersistentStorage) StateDB() StateDB {
+	return s.db
+}
+
+func (s *PersistentStorage) Address() common.Address {
+	return s.address
+}
+
+func (s *PersistentStorage) Set(key common.Hash, value common.Hash) {
+	s.db.SetPersistentState(s.address, key, value)
+}
+
+func (s *PersistentStorage) Get(key common.Hash) common.Hash {
+	return s.db.GetPersistentState(s.address, key)
+}
+
+func (s *PersistentStorage) AddPreimage(preimage []byte) common.Hash {
+	if len(preimage) == 0 {
+		return EmptyPreimageHash
+	}
+	hash := crypto.Keccak256Hash(preimage)
+	s.db.SetPersistentState(PreimageRegistryAddress, preimageRegistryKey(hash), common.BytesToHash(common.Big1.Bytes()))
+	s.db.AddPersistentPreimage(hash, preimage)
+	return hash
+}
+
+func (s *PersistentStorage) HasPreimage(hash common.Hash) bool {
+	if hash == EmptyPreimageHash {
+		return true
+	}
+	return s.db.GetPersistentState(PreimageRegistryAddress, preimageRegistryKey(hash)) == common.BytesToHash(common.Big1.Bytes())
+}
+
+func (s *PersistentStorage) GetPreimage(hash common.Hash) []byte {
+	if hash == EmptyPreimageHash {
+		return []byte{}
+	}
+	if !s.HasPreimage(hash) {
+		return nil
+	}
+	return s.db.GetPersistentPreimage(hash)
+}
+
+func (s *PersistentStorage) GetPreimageSize(hash common.Hash) int {
+	if hash == EmptyPreimageHash {
+		return 0
+	}
+	if !s.HasPreimage(hash) {
+		return -1
+	}
+	return s.db.GetPersistentPreimageSize(hash)
+}
+
+var _ AccountStore = (*PersistentStorage)(nil)
+
+type EphemeralStorage struct {
+	address common.Address
+	db      StateDB
+}
+
+func (s *EphemeralStorage) StateDB() StateDB {
+	return s.db
+}
+
+func (s *EphemeralStorage) Address() common.Address {
+	return s.address
+}
+
+func (s *EphemeralStorage) Set(key common.Hash, value common.Hash) {
+	s.db.SetEphemeralState(s.address, key, value)
+}
+
+func (s *EphemeralStorage) Get(key common.Hash) common.Hash {
+	return s.db.GetEphemeralState(s.address, key)
+}
+
+func (s *EphemeralStorage) AddPreimage(preimage []byte) common.Hash {
+	if len(preimage) == 0 {
+		return EmptyPreimageHash
+	}
+	hash := crypto.Keccak256Hash(preimage)
+	s.db.SetEphemeralState(PreimageRegistryAddress, preimageRegistryKey(hash), common.BytesToHash(common.Big1.Bytes()))
+	s.db.AddEphemeralPreimage(hash, preimage)
+	return hash
+}
+
+func (s *EphemeralStorage) HasPreimage(hash common.Hash) bool {
+	if hash == EmptyPreimageHash {
+		return true
+	}
+	return s.db.GetEphemeralState(PreimageRegistryAddress, preimageRegistryKey(hash)) == common.BytesToHash(common.Big1.Bytes())
+}
+
+func (s *EphemeralStorage) GetPreimage(hash common.Hash) []byte {
+	if hash == EmptyPreimageHash {
+		return []byte{}
+	}
+	if !s.HasPreimage(hash) {
+		return nil
+	}
+	return s.db.GetEphemeralPreimage(hash)
+}
+
+func (s *EphemeralStorage) GetPreimageSize(hash common.Hash) int {
+	if hash == EmptyPreimageHash {
+		return 0
+	}
+	if !s.HasPreimage(hash) {
+		return -1
+	}
+	return s.db.GetEphemeralPreimageSize(hash)
+}
+
+var _ AccountStore = (*EphemeralStorage)(nil)
+
 type Datastore interface {
-	Storage
+	AccountStore
 	NewReference(key common.Hash) Reference
 	NewMap(id common.Hash) Mapping
 	NewArray(id common.Hash) Array
@@ -31,7 +245,7 @@ type Datastore interface {
 }
 
 type CoreDatastore struct {
-	Storage
+	AccountStore
 }
 
 func (d *CoreDatastore) NewReference(key common.Hash) Reference {
@@ -379,12 +593,4 @@ func NewEphemeralStorage(db StateDB, address common.Address) *EphemeralStorage {
 		db:      db,
 		address: address,
 	}
-}
-
-func NewFullBlock(evm EVM) *FullBlock {
-	return &FullBlock{evm}
-}
-
-func NewCoreDatastore(storage Storage) *CoreDatastore {
-	return &CoreDatastore{storage}
 }
