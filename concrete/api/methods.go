@@ -31,11 +31,14 @@ var (
 	ErrOutOfGas        = errors.New("out of gas")
 	ErrWriteProtection = errors.New("write protection")
 	ErrFeatureDisabled = errors.New("feature disabled")
+	ErrEnvNotTrusted   = errors.New("environment not trusted")
 )
 
 type OpCode byte
 
 const (
+	// TODO: logic to opcodes [?]
+	EnableGasMetering_OpCode          OpCode = 0x01
 	Keccak256_OpCode                  OpCode = 0x10
 	EphemeralStore_OpCode             OpCode = 0x11
 	EphemeralLoad_OpCode              OpCode = 0x12
@@ -106,6 +109,9 @@ type JumpTable [256]*operation
 
 func NewEnvironmentMethods() JumpTable {
 	tbl := JumpTable{
+		EnableGasMetering_OpCode: {
+			execute: opEnableGasMetering,
+		},
 		Keccak256_OpCode: {
 			execute:     opKeccak256,
 			constantGas: params.Keccak256Gas,
@@ -284,6 +290,21 @@ func NewEnvironmentMethods() JumpTable {
 
 func opUndefined(env *Env, args [][]byte) ([][]byte, error) {
 	return nil, ErrInvalidOpCode
+}
+
+func opEnableGasMetering(env *Env, args [][]byte) ([][]byte, error) {
+	var meter bool
+	if args[0][0] == byte(0x01) {
+		meter = true
+	}
+	if env.meterGas == meter {
+		return nil, nil
+	}
+	if !env.config.Trusted {
+		return nil, ErrEnvNotTrusted
+	}
+	env.meterGas = meter
+	return nil, nil
 }
 
 func gasKeccak256(env *Env, args [][]byte) (uint64, error) {

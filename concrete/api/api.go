@@ -203,13 +203,11 @@ func (env *Env) Error() error {
 }
 
 func (env *Env) EnableGasMetering(meter bool) {
-	if env.meterGas == meter {
-		return
+	var input byte
+	if meter {
+		input = byte(0x01)
 	}
-	if !env.config.Trusted {
-		panic("cannot disable gas metering")
-	}
-	env.meterGas = meter
+	env.execute(EnableGasMetering_OpCode, env, input)
 }
 
 func (env *Env) Persistent() Datastore {
