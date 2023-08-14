@@ -318,6 +318,9 @@ func opKeccak256(env *Env, args [][]byte) ([][]byte, error) {
 }
 
 func opEphemeralStore(env *Env, args [][]byte) ([][]byte, error) {
+	if !env.config.Trusted {
+		return nil, ErrEnvNotTrusted
+	}
 	if !env.config.Ephemeral {
 		return nil, ErrFeatureDisabled
 	}
@@ -331,6 +334,9 @@ func opEphemeralStore(env *Env, args [][]byte) ([][]byte, error) {
 }
 
 func opEphemeralLoad(env *Env, args [][]byte) ([][]byte, error) {
+	if !env.config.Trusted {
+		return nil, ErrEnvNotTrusted
+	}
 	if !env.config.Ephemeral {
 		return nil, ErrFeatureDisabled
 	}
@@ -346,6 +352,9 @@ func gasPersistentPreimageStore(env *Env, args [][]byte) (uint64, error) {
 }
 
 func opPersistentPreimageStore(env *Env, args [][]byte) ([][]byte, error) {
+	if !env.config.Trusted {
+		return nil, ErrEnvNotTrusted
+	}
 	if !env.config.Preimages {
 		return nil, ErrFeatureDisabled
 	}
@@ -359,6 +368,9 @@ func opPersistentPreimageStore(env *Env, args [][]byte) ([][]byte, error) {
 }
 
 func opPersistentPreimageLoad(env *Env, args [][]byte) ([][]byte, error) {
+	if !env.config.Trusted {
+		return nil, ErrEnvNotTrusted
+	}
 	if !env.config.Preimages {
 		return nil, ErrFeatureDisabled
 	}
@@ -368,6 +380,9 @@ func opPersistentPreimageLoad(env *Env, args [][]byte) ([][]byte, error) {
 }
 
 func opPersistentPreimageLoadSize(env *Env, args [][]byte) ([][]byte, error) {
+	if !env.config.Trusted {
+		return nil, ErrEnvNotTrusted
+	}
 	if !env.config.Preimages {
 		return nil, ErrFeatureDisabled
 	}
@@ -377,6 +392,9 @@ func opPersistentPreimageLoadSize(env *Env, args [][]byte) ([][]byte, error) {
 }
 
 func opEphemeralPreimageStore(env *Env, args [][]byte) ([][]byte, error) {
+	if !env.config.Trusted {
+		return nil, ErrEnvNotTrusted
+	}
 	if !env.config.Ephemeral || !env.config.Preimages {
 		return nil, ErrFeatureDisabled
 	}
@@ -390,6 +408,9 @@ func opEphemeralPreimageStore(env *Env, args [][]byte) ([][]byte, error) {
 }
 
 func opEphemeralPreimageLoad(env *Env, args [][]byte) ([][]byte, error) {
+	if !env.config.Trusted {
+		return nil, ErrEnvNotTrusted
+	}
 	if !env.config.Ephemeral || !env.config.Preimages {
 		return nil, ErrFeatureDisabled
 	}
@@ -399,6 +420,9 @@ func opEphemeralPreimageLoad(env *Env, args [][]byte) ([][]byte, error) {
 }
 
 func opEphemeralPreimageLoadSize(env *Env, args [][]byte) ([][]byte, error) {
+	if !env.config.Trusted {
+		return nil, ErrEnvNotTrusted
+	}
 	if !env.config.Ephemeral || !env.config.Preimages {
 		return nil, ErrFeatureDisabled
 	}
