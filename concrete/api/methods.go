@@ -16,54 +16,67 @@
 package api
 
 import (
+	"errors"
 	"fmt"
+	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/concrete/crypto"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
+)
+
+var (
+	ErrInvalidOpCode   = errors.New("invalid opcode")
+	ErrOutOfGas        = errors.New("out of gas")
+	ErrWriteProtection = errors.New("write protection")
+	ErrFeatureDisabled = errors.New("feature disabled")
 )
 
 type OpCode byte
 
 const (
-	EphemeralStore_OpCode             OpCode = 0x10
-	EphemeralLoad_OpCode              OpCode = 0x11
-	PersistentPreimageStore_OpCode    OpCode = 0x12
-	PersistentPreimageLoad_OpCode     OpCode = 0x13
-	PersistentPreimageLoadSize_OpCode OpCode = 0x14
-	EphemeralPreimageStore_OpCode     OpCode = 0x15
-	EphemeralPreimageLoad_OpCode      OpCode = 0x16
-	EphemeralPreimageLoadSize_OpCode  OpCode = 0x17
-	GetAddress_OpCode                 OpCode = 0x18
-	GetGasLeft_OpCode                 OpCode = 0x19
-	GetBlockNumber_OpCode             OpCode = 0x1a
-	GetBlockGasLimit_OpCode           OpCode = 0x1b
-	GetBlockTimestamp_OpCode          OpCode = 0x1c
-	GetBlockDifficulty_OpCode         OpCode = 0x1d
-	GetBlockBasefee_OpCode            OpCode = 0x1e
-	GetBlockCoinbase_OpCode           OpCode = 0x1f
-	GetPrevRandao_OpCode              OpCode = 0x20
-	GetBlockHash_OpCode               OpCode = 0x21
-	GetBalance_OpCode                 OpCode = 0x22
-	GetTxGasPrice_OpCode              OpCode = 0x23
-	GetTxOrigin_OpCode                OpCode = 0x24
-	GetCallData_OpCode                OpCode = 0x25
-	GetCallDataSize_OpCode            OpCode = 0x26
-	GetCaller_OpCode                  OpCode = 0x27
-	GetCallValue_OpCode               OpCode = 0x28
-	StorageLoad_OpCode                OpCode = 0x29
-	GetCode_OpCode                    OpCode = 0x2a
-	GetCodeSize_OpCode                OpCode = 0x2b
-	UseGas_OpCode                     OpCode = 0x2c
-	StorageStore_OpCode               OpCode = 0x2d
-	Log_OpCode                        OpCode = 0x2e
-	GetExternalBalance_OpCode         OpCode = 0x2f
-	CallStatic_OpCode                 OpCode = 0x30
-	GetExternalCode_OpCode            OpCode = 0x31
-	GetExternalCodeSize_OpCode        OpCode = 0x32
-	Call_OpCode                       OpCode = 0x33
-	CallDelegate_OpCode               OpCode = 0x34
-	Create_OpCode                     OpCode = 0x35
-	Create2_OpCode                    OpCode = 0x36
+	Keccak256_OpCode                  OpCode = 0x10
+	EphemeralStore_OpCode             OpCode = 0x11
+	EphemeralLoad_OpCode              OpCode = 0x12
+	PersistentPreimageStore_OpCode    OpCode = 0x13
+	PersistentPreimageLoad_OpCode     OpCode = 0x14
+	PersistentPreimageLoadSize_OpCode OpCode = 0x15
+	EphemeralPreimageStore_OpCode     OpCode = 0x16
+	EphemeralPreimageLoad_OpCode      OpCode = 0x17
+	EphemeralPreimageLoadSize_OpCode  OpCode = 0x18
+	GetAddress_OpCode                 OpCode = 0x19
+	GetGasLeft_OpCode                 OpCode = 0x1a
+	GetBlockNumber_OpCode             OpCode = 0x1b
+	GetBlockGasLimit_OpCode           OpCode = 0x1c
+	GetBlockTimestamp_OpCode          OpCode = 0x1d
+	GetBlockDifficulty_OpCode         OpCode = 0x1e
+	GetBlockBasefee_OpCode            OpCode = 0x1f
+	GetBlockCoinbase_OpCode           OpCode = 0x20
+	GetPrevRandao_OpCode              OpCode = 0x21
+	GetBlockHash_OpCode               OpCode = 0x22
+	GetBalance_OpCode                 OpCode = 0x23
+	GetTxGasPrice_OpCode              OpCode = 0x24
+	GetTxOrigin_OpCode                OpCode = 0x25
+	GetCallData_OpCode                OpCode = 0x26
+	GetCallDataSize_OpCode            OpCode = 0x27
+	GetCaller_OpCode                  OpCode = 0x28
+	GetCallValue_OpCode               OpCode = 0x29
+	StorageLoad_OpCode                OpCode = 0x2a
+	GetCode_OpCode                    OpCode = 0x2b
+	GetCodeSize_OpCode                OpCode = 0x2c
+	UseGas_OpCode                     OpCode = 0x2d
+	StorageStore_OpCode               OpCode = 0x2e
+	Log_OpCode                        OpCode = 0x2f
+	GetExternalBalance_OpCode         OpCode = 0x30
+	CallStatic_OpCode                 OpCode = 0x31
+	GetExternalCode_OpCode            OpCode = 0x32
+	GetExternalCodeSize_OpCode        OpCode = 0x33
+	GetExternalCodeHash_OpCode        OpCode = 0x34
+	Call_OpCode                       OpCode = 0x35
+	CallDelegate_OpCode               OpCode = 0x36
+	Create_OpCode                     OpCode = 0x37
+	Create2_OpCode                    OpCode = 0x38
 )
 
 const (
@@ -76,8 +89,8 @@ const (
 )
 
 type (
-	executionFunc func(api *API, args [][]byte) ([][]byte, error)
-	gasFunc       func(api *API) (uint64, error)
+	executionFunc func(env *Env, args [][]byte) ([][]byte, error)
+	gasFunc       func(env *Env, args [][]byte) (uint64, error)
 )
 
 type operation struct {
@@ -86,34 +99,45 @@ type operation struct {
 	dynamicGas  gasFunc
 }
 
-type JumpTable [64]*operation
+type JumpTable [256]*operation
 
-func NewConcreteAPIMethods() JumpTable {
+// TODO: Price operations properly
+// TODO: over/under flows
+
+func NewEnvironmentMethods() JumpTable {
 	tbl := JumpTable{
-		EphemeralLoad_OpCode: {
-			execute:     opEphemeralLoad,
-			constantGas: params.WarmStorageReadCostEIP2929,
+		Keccak256_OpCode: {
+			execute:     opKeccak256,
+			constantGas: params.Keccak256Gas,
+			dynamicGas:  gasKeccak256,
 		},
 		EphemeralStore_OpCode: {
 			execute:     opEphemeralStore,
 			constantGas: params.WarmStorageReadCostEIP2929,
 		},
+		EphemeralLoad_OpCode: {
+			execute:     opEphemeralLoad,
+			constantGas: params.WarmStorageReadCostEIP2929,
+		},
 		PersistentPreimageStore_OpCode: {
-			execute: opPersistentPreimageStore,
+			execute:    opPersistentPreimageStore,
+			dynamicGas: gasPersistentPreimageStore,
 		},
 		PersistentPreimageLoad_OpCode: {
 			execute:     opPersistentPreimageLoad,
-			constantGas: params.ExtcodeCopyBaseEIP150,
+			constantGas: params.ColdSloadCostEIP2929,
 		},
 		PersistentPreimageLoadSize_OpCode: {
 			execute:     opPersistentPreimageLoadSize,
-			constantGas: params.ExtcodeSizeGasEIP150,
+			constantGas: params.ColdSloadCostEIP2929,
 		},
 		EphemeralPreimageStore_OpCode: {
-			execute: opEphemeralPreimageStore,
+			execute:     opEphemeralPreimageStore,
+			constantGas: params.WarmStorageReadCostEIP2929,
 		},
 		EphemeralPreimageLoad_OpCode: {
-			execute: opEphemeralPreimageLoad,
+			execute:     opEphemeralPreimageLoad,
+			constantGas: params.WarmStorageReadCostEIP2929,
 		},
 		EphemeralPreimageLoadSize_OpCode: {
 			execute:     opEphemeralPreimageLoadSize,
@@ -188,8 +212,8 @@ func NewConcreteAPIMethods() JumpTable {
 			constantGas: GasQuickStep,
 		},
 		StorageLoad_OpCode: {
-			execute:     opStorageLoad,
-			constantGas: params.SloadGasEIP150,
+			execute:    opStorageLoad,
+			dynamicGas: gasStorageLoad,
 		},
 		GetCode_OpCode: {
 			execute:     opGetCode,
@@ -203,34 +227,41 @@ func NewConcreteAPIMethods() JumpTable {
 			execute: opUseGas,
 		},
 		StorageStore_OpCode: {
-			execute: opStorageStore,
+			execute:    opStorageStore,
+			dynamicGas: gasStorageStore,
 		},
 		Log_OpCode: {
-			execute: opLog,
+			execute:    opLog,
+			dynamicGas: gasLog,
 		},
 		GetExternalBalance_OpCode: {
 			execute:     opGetExternalBalance,
-			constantGas: params.BalanceGasEIP150,
+			constantGas: params.WarmStorageReadCostEIP2929,
+			dynamicGas:  gasGetExternalBalance,
 		},
 		CallStatic_OpCode: {
 			execute:     opCallStatic,
-			constantGas: params.CallGasEIP150,
+			constantGas: params.WarmStorageReadCostEIP2929,
 		},
 		GetExternalCode_OpCode: {
 			execute:     opGetExternalCode,
-			constantGas: params.ExtcodeCopyBaseEIP150,
+			constantGas: params.WarmStorageReadCostEIP2929,
 		},
 		GetExternalCodeSize_OpCode: {
 			execute:     opGetExternalCodeSize,
-			constantGas: params.ExtcodeSizeGasEIP150,
+			constantGas: params.WarmStorageReadCostEIP2929,
+		},
+		GetExternalCodeHash_OpCode: {
+			execute:     opGetExternalCodeHash,
+			constantGas: params.WarmStorageReadCostEIP2929,
 		},
 		Call_OpCode: {
 			execute:     opCall,
-			constantGas: params.CallGasEIP150,
+			constantGas: params.WarmStorageReadCostEIP2929,
 		},
 		CallDelegate_OpCode: {
 			execute:     opCallDelegate,
-			constantGas: params.CallGasEIP150,
+			constantGas: params.WarmStorageReadCostEIP2929,
 		},
 		Create_OpCode: {
 			execute:     opCreate,
@@ -251,211 +282,356 @@ func NewConcreteAPIMethods() JumpTable {
 	return tbl
 }
 
-func opUndefined(api *API, args [][]byte) ([][]byte, error) {
-	return nil, fmt.Errorf("undefined opcode")
+func opUndefined(env *Env, args [][]byte) ([][]byte, error) {
+	return nil, ErrInvalidOpCode
 }
 
-// Permission checks panic on failure because the imply an error in implementation, not in
-// execution. A functioning VM should never fail a permission check.
+func gasKeccak256(env *Env, args [][]byte) (uint64, error) {
+	wordSize := (len(args[0]) + 31) / 32
+	gas := uint64(wordSize) * params.Keccak256WordGas
+	return gas, nil
+}
 
-func opEphemeralStore(api *API, args [][]byte) ([][]byte, error) {
-	if !api.storageConfig.HasEphemeral || api.storageConfig.EphemeralReadOnly {
-		panic("ephemeral store is disabled or read-only")
+func opKeccak256(env *Env, args [][]byte) ([][]byte, error) {
+	hash := crypto.Keccak256(args[0])
+	return [][]byte{hash}, nil
+}
+
+func opEphemeralStore(env *Env, args [][]byte) ([][]byte, error) {
+	if !env.config.Ephemeral {
+		return nil, ErrFeatureDisabled
+	}
+	if env.config.Static {
+		return nil, ErrWriteProtection
 	}
 	key := common.BytesToHash(args[0])
 	value := common.BytesToHash(args[1])
-	api.statedb.SetEphemeralState(api.address, key, value)
+	env.statedb.SetEphemeralState(env.address, key, value)
 	return nil, nil
 }
 
-func opEphemeralLoad(api *API, args [][]byte) ([][]byte, error) {
-	if !api.storageConfig.HasEphemeral {
-		panic("ephemeral store is disabled")
+func opEphemeralLoad(env *Env, args [][]byte) ([][]byte, error) {
+	if !env.config.Ephemeral {
+		return nil, ErrFeatureDisabled
 	}
 	key := common.BytesToHash(args[0])
-	data := api.statedb.GetEphemeralState(api.address, key)
+	data := env.statedb.GetEphemeralState(env.address, key)
 	return [][]byte{data.Bytes()}, nil
 }
 
-func opPersistentPreimageStore(api *API, args [][]byte) ([][]byte, error) {
-	if !api.preimageConfig.HasPersistent || api.preimageConfig.PersistentReadOnly {
-		panic("persistent store is disabled or read-only")
+func gasPersistentPreimageStore(env *Env, args [][]byte) (uint64, error) {
+	wordSize := (len(args[0]) + 31) / 32
+	gas := uint64(wordSize) * params.CreateDataGas
+	return gas, nil
+}
+
+func opPersistentPreimageStore(env *Env, args [][]byte) ([][]byte, error) {
+	if !env.config.Preimages {
+		return nil, ErrFeatureDisabled
 	}
-	key := common.BytesToHash(args[0])
-	value := args[1]
-	api.statedb.AddPersistentPreimage(key, value)
+	if env.config.Static {
+		return nil, ErrWriteProtection
+	}
+	value := args[0]
+	key := crypto.Keccak256Hash(value)
+	env.statedb.AddPersistentPreimage(key, value)
 	return nil, nil
 }
 
-func opPersistentPreimageLoad(api *API, args [][]byte) ([][]byte, error) {
-	if !api.preimageConfig.HasPersistent {
-		panic("persistent store is disabled")
+func opPersistentPreimageLoad(env *Env, args [][]byte) ([][]byte, error) {
+	if !env.config.Preimages {
+		return nil, ErrFeatureDisabled
 	}
 	key := common.BytesToHash(args[0])
-	data := api.statedb.GetPersistentPreimage(key)
+	data := env.statedb.GetPersistentPreimage(key)
 	return [][]byte{data}, nil
 }
 
-func opPersistentPreimageLoadSize(api *API, args [][]byte) ([][]byte, error) {
-	if !api.preimageConfig.HasPersistent {
-		panic("persistent store is disabled")
+func opPersistentPreimageLoadSize(env *Env, args [][]byte) ([][]byte, error) {
+	if !env.config.Preimages {
+		return nil, ErrFeatureDisabled
 	}
 	key := common.BytesToHash(args[0])
-	size := api.statedb.GetPersistentPreimageSize(key)
+	size := env.statedb.GetPersistentPreimageSize(key)
 	return [][]byte{Uint64ToBytes(uint64(size))}, nil
 }
 
-func opEphemeralPreimageStore(api *API, args [][]byte) ([][]byte, error) {
-	if !api.preimageConfig.HasEphemeral || api.preimageConfig.EphemeralReadOnly {
-		panic("ephemeral store is disabled or read-only")
+func opEphemeralPreimageStore(env *Env, args [][]byte) ([][]byte, error) {
+	if !env.config.Ephemeral || !env.config.Preimages {
+		return nil, ErrFeatureDisabled
+	}
+	if env.config.Static {
+		return nil, ErrWriteProtection
 	}
 	key := common.BytesToHash(args[0])
 	value := args[1]
-	api.statedb.AddEphemeralPreimage(key, value)
+	env.statedb.AddEphemeralPreimage(key, value)
 	return nil, nil
 }
 
-func opEphemeralPreimageLoad(api *API, args [][]byte) ([][]byte, error) {
-	if !api.preimageConfig.HasEphemeral {
-		panic("ephemeral store is disabled")
+func opEphemeralPreimageLoad(env *Env, args [][]byte) ([][]byte, error) {
+	if !env.config.Ephemeral || !env.config.Preimages {
+		return nil, ErrFeatureDisabled
 	}
 	key := common.BytesToHash(args[0])
-	data := api.statedb.GetEphemeralPreimage(key)
+	data := env.statedb.GetEphemeralPreimage(key)
 	return [][]byte{data}, nil
 }
 
-func opEphemeralPreimageLoadSize(api *API, args [][]byte) ([][]byte, error) {
-	if !api.preimageConfig.HasEphemeral {
-		panic("ephemeral store is disabled")
+func opEphemeralPreimageLoadSize(env *Env, args [][]byte) ([][]byte, error) {
+	if !env.config.Ephemeral || !env.config.Preimages {
+		return nil, ErrFeatureDisabled
 	}
 	key := common.BytesToHash(args[0])
-	size := api.statedb.GetEphemeralPreimageSize(key)
+	size := env.statedb.GetEphemeralPreimageSize(key)
 	return [][]byte{Uint64ToBytes(uint64(size))}, nil
 }
 
-func opGetAddress(api *API, args [][]byte) ([][]byte, error) {
-	return [][]byte{api.address.Bytes()}, nil
+func opGetAddress(env *Env, args [][]byte) ([][]byte, error) {
+	return [][]byte{env.address.Bytes()}, nil
 }
 
-func opGetGasLeft(api *API, args [][]byte) ([][]byte, error) {
-	return [][]byte{Uint64ToBytes(api.gas)}, nil
+func opGetGasLeft(env *Env, args [][]byte) ([][]byte, error) {
+	return [][]byte{Uint64ToBytes(env.gas)}, nil
 }
 
-func opGetBlockNumber(api *API, args [][]byte) ([][]byte, error) {
-	return nil, nil
+func opGetBlockNumber(env *Env, args [][]byte) ([][]byte, error) {
+	number := env.block.BlockNumber()
+	return [][]byte{Uint64ToBytes(number)}, nil
 }
 
-func opGetBlockGasLimit(api *API, args [][]byte) ([][]byte, error) {
-	return nil, nil
+func opGetBlockGasLimit(env *Env, args [][]byte) ([][]byte, error) {
+	limit := env.block.GasLimit()
+	return [][]byte{Uint64ToBytes(limit)}, nil
 }
 
-func opGetBlockTimestamp(api *API, args [][]byte) ([][]byte, error) {
-	return nil, nil
+func opGetBlockTimestamp(env *Env, args [][]byte) ([][]byte, error) {
+	timestamp := env.block.Timestamp()
+	return [][]byte{Uint64ToBytes(timestamp)}, nil
 }
 
-func opGetBlockDifficulty(api *API, args [][]byte) ([][]byte, error) {
-	return nil, nil
+func opGetBlockDifficulty(env *Env, args [][]byte) ([][]byte, error) {
+	difficulty := env.block.Difficulty()
+	return [][]byte{difficulty.Bytes()}, nil
 }
 
-func opGetBlockBasefee(api *API, args [][]byte) ([][]byte, error) {
-	return nil, nil
+func opGetBlockBasefee(env *Env, args [][]byte) ([][]byte, error) {
+	basefee := env.block.BaseFee()
+	return [][]byte{basefee.Bytes()}, nil
 }
 
-func opGetBlockCoinbase(api *API, args [][]byte) ([][]byte, error) {
-	return nil, nil
+func opGetBlockCoinbase(env *Env, args [][]byte) ([][]byte, error) {
+	coinbase := env.block.Coinbase()
+	return [][]byte{coinbase.Bytes()}, nil
 }
 
-func opGetPrevRandao(api *API, args [][]byte) ([][]byte, error) {
-	return nil, nil
+func opGetPrevRandao(env *Env, args [][]byte) ([][]byte, error) {
+	randao := env.block.Random()
+	return [][]byte{randao.Bytes()}, nil
 }
 
-func opGetBlockHash(api *API, args [][]byte) ([][]byte, error) {
-	return nil, nil
+func opGetBlockHash(env *Env, args [][]byte) ([][]byte, error) {
+	number := BytesToUint64(args[0])
+	var upper, lower uint64
+	upper = env.block.BlockNumber()
+	if upper < 257 {
+		lower = 0
+	} else {
+		lower = upper - 256
+	}
+	if number < lower || number > upper {
+		return nil, nil
+	}
+	hash := env.block.GetHash(number)
+	return [][]byte{hash.Bytes()}, nil
 }
 
-func opGetBalance(api *API, args [][]byte) ([][]byte, error) {
-	balance := api.statedb.GetBalance(api.address)
+func opGetBalance(env *Env, args [][]byte) ([][]byte, error) {
+	balance := env.statedb.GetBalance(env.address)
 	return [][]byte{balance.Bytes()}, nil
 }
 
-func opGetTxGasPrice(api *API, args [][]byte) ([][]byte, error) {
-	return nil, nil
+func opGetTxGasPrice(env *Env, args [][]byte) ([][]byte, error) {
+	price := env.call.TxGasPrice()
+	return [][]byte{price.Bytes()}, nil
 }
 
-func opGetTxOrigin(api *API, args [][]byte) ([][]byte, error) {
-	return nil, nil
+func opGetTxOrigin(env *Env, args [][]byte) ([][]byte, error) {
+	origin := env.call.TxOrigin()
+	return [][]byte{origin.Bytes()}, nil
 }
 
-func opGetCallData(api *API, args [][]byte) ([][]byte, error) {
-	return nil, nil
+func opGetCallData(env *Env, args [][]byte) ([][]byte, error) {
+	data := env.call.CallData()
+	return [][]byte{data}, nil
 }
 
-func opGetCallDataSize(api *API, args [][]byte) ([][]byte, error) {
-	return nil, nil
+func opGetCallDataSize(env *Env, args [][]byte) ([][]byte, error) {
+	size := env.call.CallDataSize()
+	return [][]byte{Uint64ToBytes(uint64(size))}, nil
 }
 
-func opGetCaller(api *API, args [][]byte) ([][]byte, error) {
-	return nil, nil
+func opGetCaller(env *Env, args [][]byte) ([][]byte, error) {
+	caller := env.call.Caller()
+	return [][]byte{caller.Bytes()}, nil
 }
 
-func opGetCallValue(api *API, args [][]byte) ([][]byte, error) {
-	return nil, nil
+func opGetCallValue(env *Env, args [][]byte) ([][]byte, error) {
+	value := env.call.CallValue()
+	return [][]byte{value.Bytes()}, nil
 }
 
-func opStorageLoad(api *API, args [][]byte) ([][]byte, error) {
-	return nil, nil
+func gasStorageLoad(env *Env, args [][]byte) (uint64, error) {
+	statedb := env.statedb
+	address := env.address
+	key := common.BytesToHash(args[0])
+	if _, slotPresent := statedb.SlotInAccessList(address, key); !slotPresent {
+		env.statedb.AddSlotToAccessList(address, key)
+		return params.ColdSloadCostEIP2929, nil
+	}
+	return params.WarmStorageReadCostEIP2929, nil
 }
 
-func opGetCode(api *API, args [][]byte) ([][]byte, error) {
-	return nil, nil
+func opStorageLoad(env *Env, args [][]byte) ([][]byte, error) {
+	if env.config.Static {
+		return nil, ErrWriteProtection
+	}
+	key := common.BytesToHash(args[0])
+	value := env.statedb.GetPersistentState(env.address, key)
+	return [][]byte{value.Bytes()}, nil
 }
 
-func opGetCodeSize(api *API, args [][]byte) ([][]byte, error) {
-	return nil, nil
+func opGetCode(env *Env, args [][]byte) ([][]byte, error) {
+	code := env.statedb.GetCode(env.address)
+	return [][]byte{code}, nil
 }
 
-func opUseGas(api *API, args [][]byte) ([][]byte, error) {
+func opGetCodeSize(env *Env, args [][]byte) ([][]byte, error) {
+	size := env.statedb.GetCodeSize(env.address)
+	return [][]byte{Uint64ToBytes(uint64(size))}, nil
+}
+
+func opUseGas(env *Env, args [][]byte) ([][]byte, error) {
 	gas := BytesToUint64(args[0])
-	api.gas -= gas
+	env.gas -= gas
 	return nil, nil
 }
 
-func opStorageStore(api *API, args [][]byte) ([][]byte, error) {
+func gasStorageStore(env *Env, args [][]byte) (uint64, error) {
+	return 0, nil
+}
+
+func opStorageStore(env *Env, args [][]byte) ([][]byte, error) {
+	if env.config.Static {
+		return nil, ErrWriteProtection
+	}
+	key := common.BytesToHash(args[0])
+	value := common.BytesToHash(args[1])
+	env.statedb.SetPersistentState(env.address, key, value)
 	return nil, nil
 }
 
-func opLog(api *API, args [][]byte) ([][]byte, error) {
+func gasLog(env *Env, args [][]byte) (uint64, error) {
+	nTopics := len(args) - 1
+	size := len(args[nTopics])
+	return params.LogGas + params.LogTopicGas*uint64(nTopics) + params.LogDataGas*uint64(size), nil
+}
+
+func opLog(env *Env, args [][]byte) ([][]byte, error) {
+	if env.config.Static {
+		return nil, ErrWriteProtection
+	}
+	topics := make([]common.Hash, len(args)-1)
+	for i, arg := range args[1:] {
+		topics[i] = common.BytesToHash(arg)
+	}
+	data := args[len(args)-1]
+	env.statedb.AddLog(&types.Log{
+		Address:     env.address,
+		Topics:      topics,
+		Data:        data,
+		BlockNumber: env.block.BlockNumber(),
+	})
 	return nil, nil
 }
 
-func opGetExternalBalance(api *API, args [][]byte) ([][]byte, error) {
-	return nil, nil
+func gasGetExternalBalance(env *Env, args [][]byte) (uint64, error) {
+	address := common.BytesToAddress(args[0])
+	if !env.statedb.AddressInAccessList(address) {
+		env.statedb.AddAddressToAccessList(address)
+		return params.ColdAccountAccessCostEIP2929 - params.WarmStorageReadCostEIP2929, nil
+	}
+	return 0, nil
 }
 
-func opCallStatic(api *API, args [][]byte) ([][]byte, error) {
-	return nil, nil
+func opGetExternalBalance(env *Env, args [][]byte) ([][]byte, error) {
+	address := common.BytesToAddress(args[0])
+	balance := env.statedb.GetBalance(address)
+	return [][]byte{balance.Bytes()}, nil
 }
 
-func opGetExternalCode(api *API, args [][]byte) ([][]byte, error) {
-	return nil, nil
+func opCallStatic(env *Env, args [][]byte) ([][]byte, error) {
+	address := common.BytesToAddress(args[0])
+	input := args[1]
+	gas := BytesToUint64(args[2])
+	output, gasLeft, err := env.caller.CallStatic(address, input, gas)
+	env.gas += gasLeft
+	return [][]byte{output, EncodeError(err)}, nil
 }
 
-func opGetExternalCodeSize(api *API, args [][]byte) ([][]byte, error) {
-	return nil, nil
+func opGetExternalCode(env *Env, args [][]byte) ([][]byte, error) {
+	address := common.BytesToAddress(args[0])
+	code := env.statedb.GetCode(address)
+	return [][]byte{code}, nil
 }
 
-func opCall(api *API, args [][]byte) ([][]byte, error) {
-	return nil, nil
+func opGetExternalCodeSize(env *Env, args [][]byte) ([][]byte, error) {
+	address := common.BytesToAddress(args[0])
+	size := env.statedb.GetCodeSize(address)
+	return [][]byte{Uint64ToBytes(uint64(size))}, nil
 }
 
-func opCallDelegate(api *API, args [][]byte) ([][]byte, error) {
-	return nil, nil
+func opGetExternalCodeHash(env *Env, args [][]byte) ([][]byte, error) {
+	address := common.BytesToAddress(args[0])
+	hash := env.statedb.GetCodeHash(address)
+	return [][]byte{hash.Bytes()}, nil
 }
 
-func opCreate(api *API, args [][]byte) ([][]byte, error) {
-	return nil, nil
+func opCall(env *Env, args [][]byte) ([][]byte, error) {
+	address := common.BytesToAddress(args[0])
+	input := args[1]
+	gas := BytesToUint64(args[2])
+	value := new(big.Int).SetBytes(args[3])
+	output, gasLeft, err := env.caller.Call(address, input, gas, value)
+	env.gas += gasLeft
+	return [][]byte{output, EncodeError(err)}, nil
 }
 
-func opCreate2(api *API, args [][]byte) ([][]byte, error) {
-	return nil, nil
+func opCallDelegate(env *Env, args [][]byte) ([][]byte, error) {
+	address := common.BytesToAddress(args[0])
+	input := args[1]
+	gas := BytesToUint64(args[2])
+	output, gasLeft, err := env.caller.CallDelegate(address, input, gas)
+	env.gas += gasLeft
+	return [][]byte{output, EncodeError(err)}, nil
+}
+
+func opCreate(env *Env, args [][]byte) ([][]byte, error) {
+	input := args[0]
+	value := new(big.Int).SetBytes(args[1])
+	address, ret, gasLeft, err := env.caller.Create(input, value)
+	env.gas += gasLeft
+	return [][]byte{address.Bytes(), EncodeError(err)}, nil
+}
+
+func opCreate2(env *Env, args [][]byte) ([][]byte, error) {
+	input := args[0]
+	value := new(big.Int).SetBytes(args[1])
+	salt := common.BytesToHash(args[2])
+	address, ret, gasLeft, err := env.caller.Create2(input, salt, value)
+	env.gas += gasLeft
+	if err != nil && ret != nil {
+		err = fmt.Errorf("%w: %s", err, string(ret))
+	}
+	return [][]byte{address.Bytes(), EncodeError(err)}, nil
 }

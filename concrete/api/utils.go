@@ -15,7 +15,10 @@
 
 package api
 
-import "encoding/binary"
+import (
+	"encoding/binary"
+	"errors"
+)
 
 func Uint64ToBytes(value uint64) []byte {
 	data := make([]byte, 8)
@@ -25,4 +28,18 @@ func Uint64ToBytes(value uint64) []byte {
 
 func BytesToUint64(data []byte) uint64 {
 	return binary.LittleEndian.Uint64(data)
+}
+
+func EncodeError(err error) []byte {
+	if err == nil {
+		return nil
+	}
+	return []byte(err.Error())
+}
+
+func DecodeError(data []byte) error {
+	if data == nil {
+		return nil
+	}
+	return errors.New(string(data))
 }

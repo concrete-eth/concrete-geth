@@ -21,43 +21,30 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
-/*
-eth_interface methods not included
-ReturnDataCopy
-GetReturnDataSize
-Finish
-Revert
-CallDataCopy
-CallCode
-ExternalCodeCopy
-SelfDestruct
-
-evm_interface-like methods added
-GetBalance
-*/
-
-type ConcreteAPI interface {
+type Environment interface {
 	// Meta
 	EnableGasMetering(meter bool)
 
 	// Wrappers
 	Persistent() Datastore
 	Ephemeral() Datastore
-	Block() Block
 
 	// Aliases
 	PersistentLoad(key common.Hash) common.Hash
 	PersistentStore(key common.Hash, value common.Hash)
+
+	// Utils
+	Keccak256(data []byte) common.Hash
 
 	// Ephemeral
 	EphemeralLoad(key common.Hash) common.Hash
 	EphemeralStore(key common.Hash, value common.Hash)
 
 	// Preimage oracle
-	PersistentPreimageStore(hash common.Hash, preimage []byte)
+	PersistentPreimageStore(preimage []byte)
 	PersistentPreimageLoad(hash common.Hash) []byte
 	PersistentPreimageLoadSize(hash common.Hash) int
-	EphemeralPreimageStore(hash common.Hash, preimage []byte)
+	EphemeralPreimageStore(preimage []byte)
 	EphemeralPreimageLoad(hash common.Hash) []byte
 	EphemeralPreimageLoadSize(hash common.Hash) int
 
@@ -104,308 +91,380 @@ type ConcreteAPI interface {
 	// Balance
 	GetExternalBalance(address common.Address) *big.Int
 	// Call
-	CallStatic(gas uint64, address common.Address, data []byte) ([]byte, uint64, error)
+	CallStatic(address common.Address, data []byte, gas uint64) ([]byte, error)
 	// Code
 	GetExternalCode(address common.Address) []byte
 	GetExternalCodeSize(address common.Address) int
+	GetExternalCodeHash(address common.Address) common.Hash
 
 	// EXTERNAL - WRITE
 	// Call
-	Call(gas uint64, address common.Address, value *big.Int, data []byte) ([]byte, uint64, error)
-	CallDelegate(gas uint64, address common.Address, data []byte) ([]byte, uint64, error)
+	Call(address common.Address, data []byte, gas uint64, value *big.Int) ([]byte, error)
+	CallDelegate(address common.Address, data []byte, gas uint64) ([]byte, error)
 	// Create
-	Create(value *big.Int, data []byte) common.Address
-	Create2(value *big.Int, data []byte, salt common.Hash) common.Address
+	Create(data []byte, value *big.Int) (common.Address, error)
+	Create2(data []byte, salt common.Hash, value *big.Int) (common.Address, error)
 }
 
-type StoreConfig struct {
-	HasPersistent      bool
-	HasEphemeral       bool
-	PersistentReadOnly bool
-	EphemeralReadOnly  bool
+type EnvConfig struct {
+	Static    bool
+	Ephemeral bool
+	Preimages bool
+	Trusted   bool
 }
 
-type API struct {
-	storageConfig         StoreConfig
-	preimageConfig        StoreConfig
-	meterGas              bool
-	canDisableGasMetering bool
-	address               common.Address
-	statedb               StateDB
-	table                 JumpTable
-	execute               func(op OpCode, api *API, args [][]byte) ([][]byte, error)
+type Env struct {
+	address common.Address
+	config  EnvConfig
 
-	gas uint64
+	statedb StateDB
+	block   BlockContext
+	call    CallContext
+	caller  Caller
+
+	meterGas bool
+	gas      uint64
+
+	table   JumpTable
+	execute func(op OpCode, env *Env, args [][]byte) [][]byte
+
+	envErr error
 }
 
-func NewAPI(address common.Address, statedb StateDB, storageConfig StoreConfig, preimageConfig StoreConfig, meterGas bool, canDisableGasMetering bool) *API {
-	api := &API{
-		storageConfig:         storageConfig,
-		preimageConfig:        preimageConfig,
-		meterGas:              meterGas,
-		canDisableGasMetering: canDisableGasMetering,
-		address:               address,
-		statedb:               statedb,
+func NewEnvironment(
+	address common.Address,
+	config EnvConfig,
+	statedb StateDB,
+	block BlockContext,
+	call CallContext,
+	caller Caller,
+	meterGas bool,
+	gas uint64,
+) *Env {
+	env := &Env{
+		address:  address,
+		config:   config,
+		meterGas: meterGas,
+		statedb:  statedb,
+		gas:      gas,
 	}
-	api.table = NewConcreteAPIMethods()
-	api.execute = func(op OpCode, api *API, args [][]byte) ([][]byte, error) {
-		return api.table[op].execute(api, args)
+	env.table = NewEnvironmentMethods()
+	env.execute = func(op OpCode, env *Env, args [][]byte) [][]byte {
+		operation := env.table[op]
+
+		if env.meterGas {
+			gas := operation.constantGas
+			if operation.dynamicGas != nil {
+				dynamicGas, err := operation.dynamicGas(env, args)
+				if err != nil {
+					env.setError(err)
+					return nil
+				}
+				gas += dynamicGas
+			}
+			env.UseGas(gas)
+		}
+
+		output, err := operation.execute(env, args)
+
+		// Panicking is preferable in trusted execution, as mistakenly using a
+		// disabled feature should be caught during testing.
+		if env.config.Trusted {
+			if err == ErrFeatureDisabled {
+				panic(err)
+			}
+		}
+
+		if err != nil {
+			env.setError(err)
+			return nil
+		}
+		return output
 	}
-	return api
+	return env
 }
 
-func (api *API) EnableGasMetering(meter bool) {
-	if api.meterGas == meter {
+func (env *Env) setError(err error) {
+	if env.envErr == nil {
+		env.envErr = err
+	}
+}
+
+func (env *Env) Config() EnvConfig {
+	return env.config
+}
+
+func (env *Env) Gas() uint64 {
+	return env.gas
+}
+
+func (env *Env) Error() error {
+	return env.envErr
+}
+
+func (env *Env) EnableGasMetering(meter bool) {
+	if env.meterGas == meter {
 		return
 	}
-	if !api.canDisableGasMetering {
+	if !env.config.Trusted {
 		panic("cannot disable gas metering")
 	}
-	api.meterGas = meter
+	env.meterGas = meter
 }
 
-func (api *API) Persistent() Datastore {
-	return nil
+func (env *Env) Persistent() Datastore {
+	return &CoreDatastore{&PersistentStorage{address: env.address, db: env.statedb}}
 }
 
-func (api *API) Ephemeral() Datastore {
-	return nil
+func (env *Env) Ephemeral() Datastore {
+	return &CoreDatastore{&EphemeralStorage{address: env.address, db: env.statedb}}
 }
 
-func (api *API) Block() Block {
-	return &BlockData{api: api}
+func (env *Env) PersistentLoad(key common.Hash) common.Hash {
+	return env.StorageLoad(key)
 }
 
-func (api *API) PersistentLoad(key common.Hash) common.Hash {
-	return api.StorageLoad(key)
+func (env *Env) PersistentStore(key common.Hash, value common.Hash) {
+	env.StorageStore(key, value)
 }
 
-func (api *API) PersistentStore(key common.Hash, value common.Hash) {
-	api.StorageStore(key, value)
-}
-
-func (api *API) EphemeralLoad(key common.Hash) common.Hash {
-	input := [][]byte{key.Bytes()}
-	output, _ := api.execute(EphemeralLoad_OpCode, api, input)
+func (env *Env) Keccak256(data []byte) common.Hash {
+	input := [][]byte{data}
+	output := env.execute(Keccak256_OpCode, env, input)
 	hash := common.BytesToHash(output[0])
 	return hash
 }
 
-func (api *API) EphemeralStore(key common.Hash, value common.Hash) {
-	input := [][]byte{key.Bytes(), value.Bytes()}
-	api.execute(EphemeralStore_OpCode, api, input)
-}
-
-func (api *API) PersistentPreimageStore(hash common.Hash, preimage []byte) {
-	input := [][]byte{hash.Bytes(), preimage}
-	api.execute(PersistentPreimageStore_OpCode, api, input)
-}
-
-func (api *API) PersistentPreimageLoad(hash common.Hash) []byte {
-	input := [][]byte{hash.Bytes()}
-	output, _ := api.execute(PersistentPreimageLoad_OpCode, api, input)
-	return output[0]
-}
-
-func (api *API) PersistentPreimageLoadSize(hash common.Hash) int {
-	input := [][]byte{hash.Bytes()}
-	output, _ := api.execute(PersistentPreimageLoadSize_OpCode, api, input)
-	return int(BytesToUint64(output[0]))
-}
-
-func (api *API) EphemeralPreimageStore(hash common.Hash, preimage []byte) {
-	input := [][]byte{hash.Bytes(), preimage}
-	api.execute(EphemeralPreimageStore_OpCode, api, input)
-}
-
-func (api *API) EphemeralPreimageLoad(hash common.Hash) []byte {
-	input := [][]byte{hash.Bytes()}
-	output, _ := api.execute(EphemeralPreimageLoad_OpCode, api, input)
-	return output[0]
-}
-
-func (api *API) EphemeralPreimageLoadSize(hash common.Hash) int {
-	input := [][]byte{hash.Bytes()}
-	output, _ := api.execute(EphemeralPreimageLoadSize_OpCode, api, input)
-	return int(BytesToUint64(output[0]))
-}
-
-func (api *API) GetAddress() common.Address {
-	output, _ := api.execute(GetAddress_OpCode, api, nil)
-	return common.BytesToAddress(output[0])
-}
-
-func (api *API) GetGasLeft() uint64 {
-	output, _ := api.execute(GetGasLeft_OpCode, api, nil)
-	return BytesToUint64(output[0])
-}
-
-func (api *API) GetBlockNumber() uint64 {
-	output, _ := api.execute(GetBlockNumber_OpCode, api, nil)
-	return BytesToUint64(output[0])
-}
-
-func (api *API) GetBlockGasLimit() uint64 {
-	output, _ := api.execute(GetBlockGasLimit_OpCode, api, nil)
-	return BytesToUint64(output[0])
-}
-
-func (api *API) GetBlockTimestamp() uint64 {
-	output, _ := api.execute(GetBlockTimestamp_OpCode, api, nil)
-	return BytesToUint64(output[0])
-}
-
-func (api *API) GetBlockDifficulty() *big.Int {
-	output, _ := api.execute(GetBlockDifficulty_OpCode, api, nil)
-	return new(big.Int).SetBytes(output[0])
-}
-
-func (api *API) GetBlockBasefee() *big.Int {
-	output, _ := api.execute(GetBlockBasefee_OpCode, api, nil)
-	return new(big.Int).SetBytes(output[0])
-}
-
-func (api *API) GetBlockCoinbase() common.Address {
-	output, _ := api.execute(GetBlockCoinbase_OpCode, api, nil)
-	return common.BytesToAddress(output[0])
-}
-
-func (api *API) GetPrevRandao() common.Hash {
-	output, _ := api.execute(GetPrevRandao_OpCode, api, nil)
-	return common.BytesToHash(output[0])
-}
-
-func (api *API) GetBlockHash(number uint64) common.Hash {
-	input := [][]byte{Uint64ToBytes(number)}
-	output, _ := api.execute(GetBlockHash_OpCode, api, input)
-	return common.BytesToHash(output[0])
-}
-
-func (api *API) GetBalance(address common.Address) *big.Int {
-	input := [][]byte{address.Bytes()}
-	output, _ := api.execute(GetBalance_OpCode, api, input)
-	return new(big.Int).SetBytes(output[0])
-}
-
-func (api *API) GetTxGasPrice() *big.Int {
-	output, _ := api.execute(GetTxGasPrice_OpCode, api, nil)
-	return new(big.Int).SetBytes(output[0])
-}
-
-func (api *API) GetTxOrigin() common.Address {
-	output, _ := api.execute(GetTxOrigin_OpCode, api, nil)
-	return common.BytesToAddress(output[0])
-}
-
-func (api *API) GetCallData() []byte {
-	output, _ := api.execute(GetCallData_OpCode, api, nil)
-	return output[0]
-}
-
-func (api *API) GetCallDataSize() int {
-	output, _ := api.execute(GetCallDataSize_OpCode, api, nil)
-	return int(BytesToUint64(output[0]))
-}
-
-func (api *API) GetCaller() common.Address {
-	output, _ := api.execute(GetCaller_OpCode, api, nil)
-	return common.BytesToAddress(output[0])
-}
-
-func (api *API) GetCallValue() *big.Int {
-	output, _ := api.execute(GetCallValue_OpCode, api, nil)
-	return new(big.Int).SetBytes(output[0])
-}
-
-func (api *API) StorageLoad(key common.Hash) common.Hash {
+func (env *Env) EphemeralLoad(key common.Hash) common.Hash {
 	input := [][]byte{key.Bytes()}
-	output, _ := api.execute(StorageLoad_OpCode, api, input)
-	return common.BytesToHash(output[0])
+	output := env.execute(EphemeralLoad_OpCode, env, input)
+	hash := common.BytesToHash(output[0])
+	return hash
 }
 
-func (api *API) GetCode(address common.Address) []byte {
-	input := [][]byte{address.Bytes()}
-	output, _ := api.execute(GetCode_OpCode, api, input)
+func (env *Env) EphemeralStore(key common.Hash, value common.Hash) {
+	input := [][]byte{key.Bytes(), value.Bytes()}
+	env.execute(EphemeralStore_OpCode, env, input)
+}
+
+func (env *Env) PersistentPreimageStore(preimage []byte) {
+	input := [][]byte{preimage}
+	env.execute(PersistentPreimageStore_OpCode, env, input)
+}
+
+func (env *Env) PersistentPreimageLoad(hash common.Hash) []byte {
+	input := [][]byte{hash.Bytes()}
+	output := env.execute(PersistentPreimageLoad_OpCode, env, input)
 	return output[0]
 }
 
-func (api *API) GetCodeSize() int {
-	output, _ := api.execute(GetCodeSize_OpCode, api, nil)
+func (env *Env) PersistentPreimageLoadSize(hash common.Hash) int {
+	input := [][]byte{hash.Bytes()}
+	output := env.execute(PersistentPreimageLoadSize_OpCode, env, input)
 	return int(BytesToUint64(output[0]))
 }
 
-func (api *API) UseGas(gas uint64) {
+func (env *Env) EphemeralPreimageStore(preimage []byte) {
+	input := [][]byte{preimage}
+	env.execute(EphemeralPreimageStore_OpCode, env, input)
+}
+
+func (env *Env) EphemeralPreimageLoad(hash common.Hash) []byte {
+	input := [][]byte{hash.Bytes()}
+	output := env.execute(EphemeralPreimageLoad_OpCode, env, input)
+	return output[0]
+}
+
+func (env *Env) EphemeralPreimageLoadSize(hash common.Hash) int {
+	input := [][]byte{hash.Bytes()}
+	output := env.execute(EphemeralPreimageLoadSize_OpCode, env, input)
+	return int(BytesToUint64(output[0]))
+}
+
+func (env *Env) GetAddress() common.Address {
+	output := env.execute(GetAddress_OpCode, env, nil)
+	return common.BytesToAddress(output[0])
+}
+
+func (env *Env) GetGasLeft() uint64 {
+	output := env.execute(GetGasLeft_OpCode, env, nil)
+	return BytesToUint64(output[0])
+}
+
+func (env *Env) GetBlockNumber() uint64 {
+	output := env.execute(GetBlockNumber_OpCode, env, nil)
+	return BytesToUint64(output[0])
+}
+
+func (env *Env) GetBlockGasLimit() uint64 {
+	output := env.execute(GetBlockGasLimit_OpCode, env, nil)
+	return BytesToUint64(output[0])
+}
+
+func (env *Env) GetBlockTimestamp() uint64 {
+	output := env.execute(GetBlockTimestamp_OpCode, env, nil)
+	return BytesToUint64(output[0])
+}
+
+func (env *Env) GetBlockDifficulty() *big.Int {
+	output := env.execute(GetBlockDifficulty_OpCode, env, nil)
+	return new(big.Int).SetBytes(output[0])
+}
+
+func (env *Env) GetBlockBasefee() *big.Int {
+	output := env.execute(GetBlockBasefee_OpCode, env, nil)
+	return new(big.Int).SetBytes(output[0])
+}
+
+func (env *Env) GetBlockCoinbase() common.Address {
+	output := env.execute(GetBlockCoinbase_OpCode, env, nil)
+	return common.BytesToAddress(output[0])
+}
+
+func (env *Env) GetPrevRandao() common.Hash {
+	output := env.execute(GetPrevRandao_OpCode, env, nil)
+	return common.BytesToHash(output[0])
+}
+
+func (env *Env) GetBlockHash(number uint64) common.Hash {
+	input := [][]byte{Uint64ToBytes(number)}
+	output := env.execute(GetBlockHash_OpCode, env, input)
+	return common.BytesToHash(output[0])
+}
+
+func (env *Env) GetBalance(address common.Address) *big.Int {
+	input := [][]byte{address.Bytes()}
+	output := env.execute(GetBalance_OpCode, env, input)
+	return new(big.Int).SetBytes(output[0])
+}
+
+func (env *Env) GetTxGasPrice() *big.Int {
+	output := env.execute(GetTxGasPrice_OpCode, env, nil)
+	return new(big.Int).SetBytes(output[0])
+}
+
+func (env *Env) GetTxOrigin() common.Address {
+	output := env.execute(GetTxOrigin_OpCode, env, nil)
+	return common.BytesToAddress(output[0])
+}
+
+func (env *Env) GetCallData() []byte {
+	output := env.execute(GetCallData_OpCode, env, nil)
+	return output[0]
+}
+
+func (env *Env) GetCallDataSize() int {
+	output := env.execute(GetCallDataSize_OpCode, env, nil)
+	return int(BytesToUint64(output[0]))
+}
+
+func (env *Env) GetCaller() common.Address {
+	output := env.execute(GetCaller_OpCode, env, nil)
+	return common.BytesToAddress(output[0])
+}
+
+func (env *Env) GetCallValue() *big.Int {
+	output := env.execute(GetCallValue_OpCode, env, nil)
+	return new(big.Int).SetBytes(output[0])
+}
+
+func (env *Env) StorageLoad(key common.Hash) common.Hash {
+	input := [][]byte{key.Bytes()}
+	output := env.execute(StorageLoad_OpCode, env, input)
+	return common.BytesToHash(output[0])
+}
+
+func (env *Env) GetCode(address common.Address) []byte {
+	input := [][]byte{address.Bytes()}
+	output := env.execute(GetCode_OpCode, env, input)
+	return output[0]
+}
+
+func (env *Env) GetCodeSize() int {
+	output := env.execute(GetCodeSize_OpCode, env, nil)
+	return int(BytesToUint64(output[0]))
+}
+
+func (env *Env) UseGas(gas uint64) {
 	input := [][]byte{Uint64ToBytes(gas)}
-	api.execute(UseGas_OpCode, api, input)
+	env.execute(UseGas_OpCode, env, input)
 }
 
-func (api *API) StorageStore(key common.Hash, value common.Hash) {
+func (env *Env) StorageStore(key common.Hash, value common.Hash) {
 	input := [][]byte{key.Bytes(), value.Bytes()}
-	api.execute(StorageStore_OpCode, api, input)
+	env.execute(StorageStore_OpCode, env, input)
 }
 
-func (api *API) Log(topics []common.Hash, data []byte) {
+func (env *Env) Log(topics []common.Hash, data []byte) {
 	input := make([][]byte, len(topics)+1)
 	for i := 0; i < len(topics); i++ {
 		input[i] = topics[i].Bytes()
 	}
 	input[len(topics)] = data
-	api.execute(Log_OpCode, api, input)
+	env.execute(Log_OpCode, env, input)
 }
 
-func (api *API) GetExternalBalance(address common.Address) *big.Int {
+func (env *Env) GetExternalBalance(address common.Address) *big.Int {
 	input := [][]byte{address.Bytes()}
-	output, _ := api.execute(GetExternalBalance_OpCode, api, input)
+	output := env.execute(GetExternalBalance_OpCode, env, input)
 	return new(big.Int).SetBytes(output[0])
 }
 
-func (api *API) CallStatic(gas uint64, address common.Address, data []byte) ([]byte, uint64, error) {
+// TODO: Call errors
+
+func (env *Env) CallStatic(address common.Address, data []byte, gas uint64) ([]byte, error) {
 	input := [][]byte{Uint64ToBytes(gas), address.Bytes(), data}
-	output, err := api.execute(CallStatic_OpCode, api, input)
-	return output[0], BytesToUint64(output[1]), err
+	output := env.execute(CallStatic_OpCode, env, input)
+	return output[0], DecodeError(output[1])
 }
 
-func (api *API) GetExternalCode(address common.Address) []byte {
+func (env *Env) GetExternalCode(address common.Address) []byte {
 	input := [][]byte{address.Bytes()}
-	output, _ := api.execute(GetExternalCode_OpCode, api, input)
+	output := env.execute(GetExternalCode_OpCode, env, input)
 	return output[0]
 }
 
-func (api *API) GetExternalCodeSize(address common.Address) int {
+func (env *Env) GetExternalCodeSize(address common.Address) int {
 	input := [][]byte{address.Bytes()}
-	output, _ := api.execute(GetExternalCodeSize_OpCode, api, input)
+	output := env.execute(GetExternalCodeSize_OpCode, env, input)
 	return int(BytesToUint64(output[0]))
 }
 
-func (api *API) Call(gas uint64, address common.Address, value *big.Int, data []byte) ([]byte, uint64, error) {
+func (env *Env) GetExternalCodeHash(address common.Address) common.Hash {
+	input := [][]byte{address.Bytes()}
+	output := env.execute(GetExternalCodeHash_OpCode, env, input)
+	return common.BytesToHash(output[0])
+}
+
+func (env *Env) Call(address common.Address, data []byte, gas uint64, value *big.Int) ([]byte, error) {
 	input := [][]byte{Uint64ToBytes(gas), address.Bytes(), value.Bytes(), data}
-	output, err := api.execute(Call_OpCode, api, input)
-	return output[0], BytesToUint64(output[1]), err
+	output := env.execute(Call_OpCode, env, input)
+	return output[0], DecodeError(output[1])
 }
 
-func (api *API) CallDelegate(gas uint64, address common.Address, data []byte) ([]byte, uint64, error) {
+func (env *Env) CallDelegate(address common.Address, data []byte, gas uint64) ([]byte, error) {
 	input := [][]byte{Uint64ToBytes(gas), address.Bytes(), data}
-	output, err := api.execute(CallDelegate_OpCode, api, input)
-	return output[0], BytesToUint64(output[1]), err
+	output := env.execute(CallDelegate_OpCode, env, input)
+	return output[0], DecodeError(output[1])
 }
 
-func (api *API) Create(value *big.Int, data []byte) common.Address {
+func (env *Env) Create(data []byte, value *big.Int) (common.Address, error) {
 	input := [][]byte{value.Bytes(), data}
-	output, _ := api.execute(Create_OpCode, api, input)
-	return common.BytesToAddress(output[0])
+	output := env.execute(Create_OpCode, env, input)
+	return common.BytesToAddress(output[0]), DecodeError(output[1])
 }
 
-func (api *API) Create2(value *big.Int, data []byte, salt common.Hash) common.Address {
+func (env *Env) Create2(data []byte, salt common.Hash, value *big.Int) (common.Address, error) {
 	input := [][]byte{value.Bytes(), data, salt.Bytes()}
-	output, _ := api.execute(Create2_OpCode, api, input)
-	return common.BytesToAddress(output[0])
+	output := env.execute(Create2_OpCode, env, input)
+	return common.BytesToAddress(output[0]), DecodeError(output[1])
 }
 
-var _ ConcreteAPI = (*API)(nil)
+var _ Environment = (*Env)(nil)
 
 type Precompile interface {
-	IsReadOnly(input []byte) bool
-	Finalise(api ConcreteAPI) error
-	Commit(api ConcreteAPI) error
-	Run(api ConcreteAPI, input []byte) ([]byte, error)
+	IsStatic(input []byte) bool
+	Finalise(env Environment) error
+	Commit(env Environment) error
+	Run(env Environment, input []byte) ([]byte, error)
 }

@@ -19,11 +19,24 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 )
 
 type StateDB interface {
+	// Access list
+	AddressInAccessList(addr common.Address) bool
+	SlotInAccessList(addr common.Address, slot common.Hash) (addressOk bool, slotOk bool)
+	AddAddressToAccessList(addr common.Address)
+	AddSlotToAccessList(addr common.Address, slot common.Hash)
+	// Code
+	GetCode(common.Address) []byte
+	GetCodeSize(common.Address) int
+	GetCodeHash(common.Address) common.Hash
+	// Balance
 	GetBalance(addr common.Address) *big.Int
-
+	// Logs
+	AddLog(*types.Log)
+	// Storage
 	SetPersistentState(addr common.Address, key common.Hash, value common.Hash)
 	GetPersistentState(addr common.Address, key common.Hash) common.Hash
 	SetEphemeralState(addr common.Address, key common.Hash, value common.Hash)
@@ -34,4 +47,32 @@ type StateDB interface {
 	AddEphemeralPreimage(hash common.Hash, preimage []byte)
 	GetEphemeralPreimage(hash common.Hash) []byte
 	GetEphemeralPreimageSize(hash common.Hash) int
+}
+
+type BlockContext interface {
+	GetHash(uint64) common.Hash
+	GasLimit() uint64
+	BlockNumber() uint64
+	Timestamp() uint64
+	Difficulty() *big.Int
+	BaseFee() *big.Int
+	Coinbase() common.Address
+	Random() common.Hash
+}
+
+type CallContext interface {
+	TxGasPrice() *big.Int
+	TxOrigin() common.Address
+	CallData() []byte
+	CallDataSize() int
+	Caller() common.Address
+	CallValue() *big.Int
+}
+
+type Caller interface {
+	CallStatic(addr common.Address, input []byte, gas uint64) ([]byte, uint64, error)
+	Call(addr common.Address, input []byte, gas uint64, value *big.Int) ([]byte, uint64, error)
+	CallDelegate(addr common.Address, input []byte, gas uint64) ([]byte, uint64, error)
+	Create(input []byte, value *big.Int) (common.Address, []byte, uint64, error)
+	Create2(input []byte, salt common.Hash, value *big.Int) (common.Address, []byte, uint64, error)
 }
