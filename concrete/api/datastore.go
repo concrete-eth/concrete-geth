@@ -33,67 +33,6 @@ var (
 	EmptyPreimageHash = common.HexToHash("0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470")
 )
 
-type Block interface {
-	Number() uint64
-	GasLimit() uint64
-	Timestamp() uint64
-	Difficulty() *big.Int
-	Basefee() *big.Int
-	Coinbase() common.Address
-}
-
-type BlockData struct {
-	api         ConcreteAPI
-	_number     uint64
-	_gasLimit   uint64
-	_timestamp  uint64
-	_difficulty *big.Int
-	_basefee    *big.Int
-	_coinbase   common.Address
-}
-
-func (b *BlockData) Number() uint64 {
-	if b._number == 0 {
-		b._number = b.api.Block().Number()
-	}
-	return b._number
-}
-
-func (b *BlockData) GasLimit() uint64 {
-	if b._gasLimit == 0 {
-		b._gasLimit = b.api.Block().GasLimit()
-	}
-	return b._gasLimit
-}
-
-func (b *BlockData) Timestamp() uint64 {
-	if b._timestamp == 0 {
-		b._timestamp = b.api.Block().Timestamp()
-	}
-	return b._timestamp
-}
-
-func (b *BlockData) Difficulty() *big.Int {
-	if b._difficulty == nil {
-		b._difficulty = b.api.Block().Difficulty()
-	}
-	return b._difficulty
-}
-
-func (b *BlockData) Basefee() *big.Int {
-	if b._basefee == nil {
-		b._basefee = b.api.Block().Basefee()
-	}
-	return b._basefee
-}
-
-func (b *BlockData) Coinbase() common.Address {
-	if b._coinbase == (common.Address{}) {
-		b._coinbase = b.api.Block().Coinbase()
-	}
-	return b._coinbase
-}
-
 type KeyValueStore interface {
 	Set(key common.Hash, value common.Hash)
 	Get(key common.Hash) common.Hash

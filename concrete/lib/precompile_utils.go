@@ -16,8 +16,6 @@
 package lib
 
 import (
-	"errors"
-
 	"github.com/ethereum/go-ethereum/concrete/api"
 )
 
@@ -25,80 +23,20 @@ var FailGas = uint64(10)
 
 type BlankPrecompile struct{}
 
-func (pc *BlankPrecompile) MutatesStorage(input []byte) bool {
-	return false
+func (pc *BlankPrecompile) IsStatic(input []byte) bool {
+	return true
 }
 
-func (pc *BlankPrecompile) RequiredGas(input []byte) uint64 {
-	return 0
-}
-
-func (pc *BlankPrecompile) Finalise(API api.API) error {
+func (pc *BlankPrecompile) Finalise(API api.Environment) error {
 	return nil
 }
 
-func (pc *BlankPrecompile) Commit(API api.API) error {
+func (pc *BlankPrecompile) Commit(API api.Environment) error {
 	return nil
 }
 
-func (pc *BlankPrecompile) Run(API api.API, input []byte) ([]byte, error) {
+func (pc *BlankPrecompile) Run(API api.Environment, input []byte) ([]byte, error) {
 	return []byte{}, nil
 }
 
 var _ api.Precompile = &BlankPrecompile{}
-
-type PrecompileDemux map[string]api.Precompile
-
-func (d PrecompileDemux) getSelection(input []byte) (api.Precompile, []byte, error) {
-	sel := input[:4]
-	input = input[4:]
-	pc, ok := d[string(sel)]
-	if !ok {
-		return nil, nil, errors.New("invalid select value")
-	}
-	return pc, input, nil
-}
-
-func (d PrecompileDemux) MutatesStorage(input []byte) bool {
-	pc, input, err := d.getSelection(input)
-	if err != nil {
-		return false
-	}
-	return pc.MutatesStorage(input)
-}
-
-func (d PrecompileDemux) RequiredGas(input []byte) uint64 {
-	pc, input, err := d.getSelection(input)
-	if err != nil {
-		return FailGas
-	}
-	return pc.RequiredGas(input)
-}
-
-func (d PrecompileDemux) Finalise(API api.API) error {
-	for _, pc := range d {
-		if err := pc.Finalise(API); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func (d PrecompileDemux) Commit(API api.API) error {
-	for _, pc := range d {
-		if err := pc.Commit(API); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func (d PrecompileDemux) Run(API api.API, input []byte) ([]byte, error) {
-	pc, input, err := d.getSelection(input)
-	if err != nil {
-		return nil, err
-	}
-	return pc.Run(API, input)
-}
-
-var _ api.Precompile = &PrecompileDemux{}
