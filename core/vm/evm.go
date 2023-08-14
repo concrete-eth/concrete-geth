@@ -17,6 +17,7 @@
 package vm
 
 import (
+	"fmt"
 	"math/big"
 	"sync/atomic"
 
@@ -682,6 +683,13 @@ func NewConcreteCaller(evm *EVM, contract *Contract) *concreteCaller {
 	return &concreteCaller{evm: evm, contract: contract}
 }
 
+func addReasonToErr(err error, ret []byte) error {
+	if err == ErrExecutionReverted && ret != nil {
+		return fmt.Errorf("%w: %s", err, string(ret))
+	}
+	return err
+}
+
 func (c *concreteCaller) CallStatic(addr common.Address, input []byte, gas uint64) ([]byte, uint64, error) {
 	ret, gasLeft, err := c.evm.StaticCall(c.contract, addr, input, gas)
 	return ret, gasLeft, err
@@ -697,15 +705,15 @@ func (c *concreteCaller) CallDelegate(addr common.Address, input []byte, gas uin
 	return ret, gasLeft, err
 }
 
-func (c *concreteCaller) Create(input []byte, value *big.Int) (common.Address, []byte, uint64, error) {
+func (c *concreteCaller) Create(input []byte, value *big.Int) (common.Address, uint64, error) {
 	ret, address, gasLeft, err := c.evm.Create(c.contract, input, c.contract.Gas, value)
-	return address, ret, gasLeft, err
+	return address, gasLeft, addReasonToErr(err, ret)
 }
 
-func (c *concreteCaller) Create2(input []byte, salt common.Hash, value *big.Int) (common.Address, []byte, uint64, error) {
+func (c *concreteCaller) Create2(input []byte, salt common.Hash, value *big.Int) (common.Address, uint64, error) {
 	saltUint := new(uint256.Int).SetBytes32(salt.Bytes())
 	ret, address, gasLeft, err := c.evm.Create2(c.contract, input, c.contract.Gas, value, saltUint)
-	return address, ret, gasLeft, err
+	return address, gasLeft, addReasonToErr(err, ret)
 }
 
 var _ cc_api.Caller = (*concreteCaller)(nil)

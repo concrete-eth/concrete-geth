@@ -73,6 +73,6 @@ type Caller interface {
 	CallStatic(addr common.Address, input []byte, gas uint64) ([]byte, uint64, error)
 	Call(addr common.Address, input []byte, gas uint64, value *big.Int) ([]byte, uint64, error)
 	CallDelegate(addr common.Address, input []byte, gas uint64) ([]byte, uint64, error)
-	Create(input []byte, value *big.Int) (common.Address, []byte, uint64, error)
-	Create2(input []byte, salt common.Hash, value *big.Int) (common.Address, []byte, uint64, error)
+	Create(input []byte, value *big.Int) (common.Address, uint64, error)
+	Create2(input []byte, salt common.Hash, value *big.Int) (common.Address, uint64, error)
 }

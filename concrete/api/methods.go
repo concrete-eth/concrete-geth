@@ -17,7 +17,6 @@ package api
 
 import (
 	"errors"
-	"fmt"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -640,7 +639,7 @@ func opCallDelegate(env *Env, args [][]byte) ([][]byte, error) {
 func opCreate(env *Env, args [][]byte) ([][]byte, error) {
 	input := args[0]
 	value := new(big.Int).SetBytes(args[1])
-	address, ret, gasLeft, err := env.caller.Create(input, value)
+	address, gasLeft, err := env.caller.Create(input, value)
 	env.gas += gasLeft
 	return [][]byte{address.Bytes(), EncodeError(err)}, nil
 }
@@ -649,10 +648,7 @@ func opCreate2(env *Env, args [][]byte) ([][]byte, error) {
 	input := args[0]
 	value := new(big.Int).SetBytes(args[1])
 	salt := common.BytesToHash(args[2])
-	address, ret, gasLeft, err := env.caller.Create2(input, salt, value)
+	address, gasLeft, err := env.caller.Create2(input, salt, value)
 	env.gas += gasLeft
-	if err != nil && ret != nil {
-		err = fmt.Errorf("%w: %s", err, string(ret))
-	}
 	return [][]byte{address.Bytes(), EncodeError(err)}, nil
 }
