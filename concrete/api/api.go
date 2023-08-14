@@ -203,9 +203,9 @@ func (env *Env) Error() error {
 }
 
 func (env *Env) EnableGasMetering(meter bool) {
-	var input byte
+	input := [][]byte{{0x00}}
 	if meter {
-		input = byte(0x01)
+		input[0][0] = byte(0x01)
 	}
 	env.execute(EnableGasMetering_OpCode, env, input)
 }
