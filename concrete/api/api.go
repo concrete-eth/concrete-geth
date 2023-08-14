@@ -25,10 +25,6 @@ type Environment interface {
 	// Meta
 	EnableGasMetering(meter bool)
 
-	// Wrappers
-	Persistent() Datastore
-	Ephemeral() Datastore
-
 	// Aliases
 	PersistentLoad(key common.Hash) common.Hash
 	PersistentStore(key common.Hash, value common.Hash)
@@ -37,16 +33,16 @@ type Environment interface {
 	Keccak256(data []byte) common.Hash
 
 	// Ephemeral
-	EphemeralLoad(key common.Hash) common.Hash
-	EphemeralStore(key common.Hash, value common.Hash)
+	EphemeralLoad_Unsafe(key common.Hash) common.Hash
+	EphemeralStore_Unsafe(key common.Hash, value common.Hash)
 
 	// Preimage oracle
-	PersistentPreimageStore(preimage []byte)
-	PersistentPreimageLoad(hash common.Hash) []byte
-	PersistentPreimageLoadSize(hash common.Hash) int
-	EphemeralPreimageStore(preimage []byte)
-	EphemeralPreimageLoad(hash common.Hash) []byte
-	EphemeralPreimageLoadSize(hash common.Hash) int
+	PersistentPreimageStore_Unsafe(preimage []byte)
+	PersistentPreimageLoad_Unsafe(hash common.Hash) []byte
+	PersistentPreimageLoadSize_Unsafe(hash common.Hash) int
+	EphemeralPreimageStore_Unsafe(preimage []byte)
+	EphemeralPreimageLoad_Unsafe(hash common.Hash) []byte
+	EphemeralPreimageLoadSize_Unsafe(hash common.Hash) int
 
 	// INTERNAL - READ
 	// Address
@@ -210,14 +206,6 @@ func (env *Env) EnableGasMetering(meter bool) {
 	env.execute(EnableGasMetering_OpCode, env, input)
 }
 
-func (env *Env) Persistent() Datastore {
-	return &CoreDatastore{&PersistentStorage{address: env.address, db: env.statedb}}
-}
-
-func (env *Env) Ephemeral() Datastore {
-	return &CoreDatastore{&EphemeralStorage{address: env.address, db: env.statedb}}
-}
-
 func (env *Env) PersistentLoad(key common.Hash) common.Hash {
 	return env.StorageLoad(key)
 }
@@ -233,47 +221,47 @@ func (env *Env) Keccak256(data []byte) common.Hash {
 	return hash
 }
 
-func (env *Env) EphemeralLoad(key common.Hash) common.Hash {
+func (env *Env) EphemeralLoad_Unsafe(key common.Hash) common.Hash {
 	input := [][]byte{key.Bytes()}
 	output := env.execute(EphemeralLoad_OpCode, env, input)
 	hash := common.BytesToHash(output[0])
 	return hash
 }
 
-func (env *Env) EphemeralStore(key common.Hash, value common.Hash) {
+func (env *Env) EphemeralStore_Unsafe(key common.Hash, value common.Hash) {
 	input := [][]byte{key.Bytes(), value.Bytes()}
 	env.execute(EphemeralStore_OpCode, env, input)
 }
 
-func (env *Env) PersistentPreimageStore(preimage []byte) {
+func (env *Env) PersistentPreimageStore_Unsafe(preimage []byte) {
 	input := [][]byte{preimage}
 	env.execute(PersistentPreimageStore_OpCode, env, input)
 }
 
-func (env *Env) PersistentPreimageLoad(hash common.Hash) []byte {
+func (env *Env) PersistentPreimageLoad_Unsafe(hash common.Hash) []byte {
 	input := [][]byte{hash.Bytes()}
 	output := env.execute(PersistentPreimageLoad_OpCode, env, input)
 	return output[0]
 }
 
-func (env *Env) PersistentPreimageLoadSize(hash common.Hash) int {
+func (env *Env) PersistentPreimageLoadSize_Unsafe(hash common.Hash) int {
 	input := [][]byte{hash.Bytes()}
 	output := env.execute(PersistentPreimageLoadSize_OpCode, env, input)
 	return int(BytesToUint64(output[0]))
 }
 
-func (env *Env) EphemeralPreimageStore(preimage []byte) {
+func (env *Env) EphemeralPreimageStore_Unsafe(preimage []byte) {
 	input := [][]byte{preimage}
 	env.execute(EphemeralPreimageStore_OpCode, env, input)
 }
 
-func (env *Env) EphemeralPreimageLoad(hash common.Hash) []byte {
+func (env *Env) EphemeralPreimageLoad_Unsafe(hash common.Hash) []byte {
 	input := [][]byte{hash.Bytes()}
 	output := env.execute(EphemeralPreimageLoad_OpCode, env, input)
 	return output[0]
 }
 
-func (env *Env) EphemeralPreimageLoadSize(hash common.Hash) int {
+func (env *Env) EphemeralPreimageLoadSize_Unsafe(hash common.Hash) int {
 	input := [][]byte{hash.Bytes()}
 	output := env.execute(EphemeralPreimageLoadSize_OpCode, env, input)
 	return int(BytesToUint64(output[0]))
