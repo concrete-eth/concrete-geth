@@ -105,22 +105,15 @@ func ActivePrecompiles() []common.Address {
 	return precompiledAddresses
 }
 
-func RunPrecompile(evm api.EVM, addr common.Address, p api.Precompile, input []byte, suppliedGas uint64, readOnly bool) (ret []byte, remainingGas uint64, err error) {
-	gasCost := p.RequiredGas(input)
-	if suppliedGas < gasCost {
-		return nil, 0, errors.New("out of gas")
-	}
-	suppliedGas -= gasCost
+func gasLeft(env api.Environment) uint64 {
+	return env.(*api.Env).Gas()
+}
 
-	if p.MutatesStorage(input) {
-		if readOnly {
-			return nil, suppliedGas, errors.New("write protection")
-		}
-	} else {
-		evm = api.NewReadOnlyEVM(evm)
+func RunPrecompile(p api.Precompile, env api.Environment, input []byte, static bool) (ret []byte, remainingGas uint64, err error) {
+	if p.IsStatic(input) && static {
+		// TODO: error
+		return nil, env.GetGasLeft(), errors.New("write protection")
 	}
-
-	API := api.New(evm, addr)
-	output, err := p.Run(API, input)
-	return output, suppliedGas, err
+	output, err := p.Run(env, input)
+	return output, gasLeft(env), err
 }
