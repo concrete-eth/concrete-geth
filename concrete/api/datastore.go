@@ -22,369 +22,323 @@ import (
 	"github.com/ethereum/go-ethereum/concrete/crypto"
 )
 
-var (
-	PrecompileRegistryAddress  = common.HexToAddress("0xcc00000000000000000000000000000000000000")
-	PreimageRegistryAddress    = common.HexToAddress("0xcc00000000000000000000000000000000000001")
-	BigPreimageRegistryAddress = common.HexToAddress("0xcc00000000000000000000000000000000000002")
-)
+// var (
+// 	PrecompileRegistryAddress  = common.HexToAddress("0xcc00000000000000000000000000000000000000")
+// 	PreimageRegistryAddress    = common.HexToAddress("0xcc00000000000000000000000000000000000001")
+// 	BigPreimageRegistryAddress = common.HexToAddress("0xcc00000000000000000000000000000000000002")
+// )
 
-var (
-	// crypto.Keccak256Hash(nil)
-	EmptyPreimageHash = common.HexToHash("0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470")
-)
+// var (
+// crypto.Keccak256Hash(nil)
+// EmptyPreimageHash = common.HexToHash("0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470")
+// )
+
+/*
+- A way to revert without panic [?] Just return an error [?]
+- A way to store byte arrays -- easy
+- A way to store structs
+*/
+
+type ValueStore interface {
+	Set(value common.Hash)
+	Get() common.Hash
+}
 
 type KeyValueStore interface {
 	Set(key common.Hash, value common.Hash)
 	Get(key common.Hash) common.Hash
 }
 
-type PreimageStore interface {
-	AddPreimage(preimage []byte) common.Hash
-	HasPreimage(hash common.Hash) bool
-	GetPreimage(hash common.Hash) []byte
-	GetPreimageSize(hash common.Hash) int
+type Slot interface {
+	Slot() common.Hash
 }
 
-type AccountStore interface {
-	KeyValueStore
-	PreimageStore
-	Address() common.Address
+type Array interface {
+	Length() int
+	Get(index int) common.Hash
+	Set(index int, value common.Hash)
 }
 
-func preimageRegistryKey(hash common.Hash) common.Hash {
-	return crypto.Keccak256Hash(hash.Bytes(), common.Big0.Bytes())
+type DatastoreModelCreator interface {
+	Reference(slot common.Hash) Reference
+	Mapping(slot common.Hash) Mapping
+	StaticArray(slot common.Hash, itemSize int, length ...int) StaticArray
+	DynamicArray(slot common.Hash, itemSize int) DynamicArray
 }
-
-type PersistentStorage struct {
-	address common.Address
-	db      StateDB
-}
-
-func (s *PersistentStorage) StateDB() StateDB {
-	return s.db
-}
-
-func (s *PersistentStorage) Address() common.Address {
-	return s.address
-}
-
-func (s *PersistentStorage) Set(key common.Hash, value common.Hash) {
-	s.db.SetPersistentState(s.address, key, value)
-}
-
-func (s *PersistentStorage) Get(key common.Hash) common.Hash {
-	return s.db.GetPersistentState(s.address, key)
-}
-
-func (s *PersistentStorage) AddPreimage(preimage []byte) common.Hash {
-	if len(preimage) == 0 {
-		return EmptyPreimageHash
-	}
-	hash := crypto.Keccak256Hash(preimage)
-	s.db.SetPersistentState(PreimageRegistryAddress, preimageRegistryKey(hash), common.BytesToHash(common.Big1.Bytes()))
-	s.db.AddPersistentPreimage(hash, preimage)
-	return hash
-}
-
-func (s *PersistentStorage) HasPreimage(hash common.Hash) bool {
-	if hash == EmptyPreimageHash {
-		return true
-	}
-	return s.db.GetPersistentState(PreimageRegistryAddress, preimageRegistryKey(hash)) == common.BytesToHash(common.Big1.Bytes())
-}
-
-func (s *PersistentStorage) GetPreimage(hash common.Hash) []byte {
-	if hash == EmptyPreimageHash {
-		return []byte{}
-	}
-	if !s.HasPreimage(hash) {
-		return nil
-	}
-	return s.db.GetPersistentPreimage(hash)
-}
-
-func (s *PersistentStorage) GetPreimageSize(hash common.Hash) int {
-	if hash == EmptyPreimageHash {
-		return 0
-	}
-	if !s.HasPreimage(hash) {
-		return -1
-	}
-	return s.db.GetPersistentPreimageSize(hash)
-}
-
-var _ AccountStore = (*PersistentStorage)(nil)
-
-type EphemeralStorage struct {
-	address common.Address
-	db      StateDB
-}
-
-func (s *EphemeralStorage) StateDB() StateDB {
-	return s.db
-}
-
-func (s *EphemeralStorage) Address() common.Address {
-	return s.address
-}
-
-func (s *EphemeralStorage) Set(key common.Hash, value common.Hash) {
-	s.db.SetEphemeralState(s.address, key, value)
-}
-
-func (s *EphemeralStorage) Get(key common.Hash) common.Hash {
-	return s.db.GetEphemeralState(s.address, key)
-}
-
-func (s *EphemeralStorage) AddPreimage(preimage []byte) common.Hash {
-	if len(preimage) == 0 {
-		return EmptyPreimageHash
-	}
-	hash := crypto.Keccak256Hash(preimage)
-	s.db.SetEphemeralState(PreimageRegistryAddress, preimageRegistryKey(hash), common.BytesToHash(common.Big1.Bytes()))
-	s.db.AddEphemeralPreimage(hash, preimage)
-	return hash
-}
-
-func (s *EphemeralStorage) HasPreimage(hash common.Hash) bool {
-	if hash == EmptyPreimageHash {
-		return true
-	}
-	return s.db.GetEphemeralState(PreimageRegistryAddress, preimageRegistryKey(hash)) == common.BytesToHash(common.Big1.Bytes())
-}
-
-func (s *EphemeralStorage) GetPreimage(hash common.Hash) []byte {
-	if hash == EmptyPreimageHash {
-		return []byte{}
-	}
-	if !s.HasPreimage(hash) {
-		return nil
-	}
-	return s.db.GetEphemeralPreimage(hash)
-}
-
-func (s *EphemeralStorage) GetPreimageSize(hash common.Hash) int {
-	if hash == EmptyPreimageHash {
-		return 0
-	}
-	if !s.HasPreimage(hash) {
-		return -1
-	}
-	return s.db.GetEphemeralPreimageSize(hash)
-}
-
-var _ AccountStore = (*EphemeralStorage)(nil)
 
 type Datastore interface {
-	AccountStore
-	NewReference(key common.Hash) Reference
-	NewMap(id common.Hash) Mapping
-	NewArray(id common.Hash) Array
-	NewSet(id common.Hash) Set
+	KeyValueStore
+	DatastoreModelCreator
 }
 
-type CoreDatastore struct {
-	AccountStore
+type datastore struct {
+	KeyValueStore
 }
 
-func (d *CoreDatastore) NewReference(key common.Hash) Reference {
-	return &reference{
-		ds:  d,
-		key: key,
-	}
+func NewDatastore(kv KeyValueStore, slot []byte) Datastore {
+	return &datastore{KeyValueStore: kv}
 }
 
-func (d *CoreDatastore) NewMap(id common.Hash) Mapping {
-	return &mapping{
-		ds: d,
-		id: id,
-	}
+func (ds *datastore) Reference(slot common.Hash) Reference {
+	return NewReference(ds, slot)
 }
 
-func (d *CoreDatastore) NewArray(id common.Hash) Array {
-	return &array{
-		ds: d,
-		id: id,
-	}
+func (ds *datastore) Mapping(slot common.Hash) Mapping {
+	return NewMapping(ds, slot)
 }
 
-func (d *CoreDatastore) NewSet(id common.Hash) Set {
-	return &set{
-		ds: d,
-		id: id,
-	}
+func (ds *datastore) StaticArray(slot common.Hash, itemSize int, length ...int) StaticArray {
+	return NewStaticArray(ds, slot, itemSize, length)
 }
 
-var _ Datastore = (*CoreDatastore)(nil)
+func (ds *datastore) DynamicArray(slot common.Hash, itemSize int) DynamicArray {
+	return NewDynamicArray(ds, slot, itemSize)
+}
 
-// Reference
+var _ Datastore = (*datastore)(nil)
 
 type Reference interface {
-	Datastore() Datastore
-	Key() common.Hash
-	Get() common.Hash
-	Set(value common.Hash)
+	Slot
+	ValueStore
+	// GetBool() bool
+	// SetBool(value bool)
+	// GetAddress() common.Address
+	// SetAddress(value common.Address)
+	// GetBig() *big.Int
+	// SetBig(value *big.Int)
+	// SetInt64(value int64)
+	// GetInt64() int64
+	GetBytes() []byte
+	SetBytes(value []byte)
 }
 
 type reference struct {
-	ds  Datastore
-	key common.Hash
+	ds   Datastore
+	slot common.Hash
 }
 
-func (r *reference) Datastore() Datastore {
-	return r.ds
+func NewReference(ds Datastore, slot common.Hash) Reference {
+	return &reference{ds: ds, slot: slot}
 }
 
-func (r *reference) Key() common.Hash {
-	return r.key
+func (r *reference) Slot() common.Hash {
+	return r.slot
 }
 
 func (r *reference) Get() common.Hash {
-	return r.ds.Get(r.key)
+	return r.ds.Get(r.slot)
 }
 
 func (r *reference) Set(value common.Hash) {
-	r.ds.Set(r.key, value)
+	r.ds.Set(r.slot, value)
+}
+
+// TODO: panic!
+
+func (r *reference) GetBytes() []byte {
+	// TODO: check bounds
+	slotWord := r.ds.Get(r.slot)
+	lsb := slotWord[len(slotWord)-1]
+	isShort := lsb&1 == 0
+	if isShort {
+		length := int(lsb) / 2
+		// TODO: check bounds
+		return slotWord[:length]
+	}
+	// TODO: check bounds
+	// length will always be > 31
+	length := slotWord.Big().Int64()
+	ptr := crypto.Keccak256Hash(r.slot.Bytes()).Big()
+
+	data := make([]byte, length)
+	for ii := 0; ii < len(data); ii += 32 {
+		copy(data[ii:], r.ds.Get(common.BigToHash(ptr)).Bytes())
+		ptr = ptr.Add(ptr, common.Big1)
+	}
+
+	return data
+}
+
+func (r *reference) SetBytes(value []byte) {
+	isShort := len(value) <= 31
+	if isShort {
+		var data [32]byte
+		copy(data[:], value)
+		data[31] = byte(len(value) * 2)
+		r.ds.Set(r.slot, common.BytesToHash(data[:]))
+		return
+	}
+
+	lengthBN := big.NewInt(int64(len(value)))
+	r.ds.Set(r.slot, common.BigToHash(lengthBN))
+
+	// Then store the actual data starting at the keccak256 hash of the slot
+	ptr := crypto.Keccak256Hash(r.slot.Bytes()).Big()
+
+	for ii := 0; ii < len(value); ii += 32 {
+		var data [32]byte
+		copy(data[:], value[ii:])
+		r.ds.Set(common.BigToHash(ptr), common.BytesToHash(data[:]))
+		ptr = ptr.Add(ptr, common.Big1)
+	}
 }
 
 var _ Reference = (*reference)(nil)
 
-// Map
-
 type Mapping interface {
-	Datastore() Datastore
-	Id() common.Hash
-	Get(key common.Hash) common.Hash
-	Set(key common.Hash, value common.Hash)
-	GetReference(key common.Hash) Reference
-	GetMap(key common.Hash) Mapping
-	GetArray(key common.Hash) Array
+	Slot
+	Datastore
 }
 
 type mapping struct {
-	ds Datastore
-	id common.Hash
+	Datastore
+	slot common.Hash
 }
 
-func (m *mapping) key(key common.Hash) common.Hash {
-	return crypto.Keccak256Hash(key.Bytes(), m.id.Bytes())
+func NewMapping(ds Datastore, slot common.Hash) Mapping {
+	return &mapping{Datastore: ds, slot: slot}
 }
 
-func (m *mapping) Datastore() Datastore {
-	return m.ds
+func (m *mapping) valueSlot(key common.Hash) common.Hash {
+	return crypto.Keccak256Hash(key.Bytes(), m.slot.Bytes())
 }
 
-func (m *mapping) Id() common.Hash {
-	return m.id
+func (m *mapping) Slot() common.Hash {
+	return m.slot
 }
 
-func (m *mapping) Get(key common.Hash) common.Hash {
-	return m.ds.Get(m.key(key))
+func (m *mapping) Reference(key common.Hash) Reference {
+	slot := m.valueSlot(key)
+	return NewReference(m, slot)
 }
 
-func (m *mapping) Set(key common.Hash, value common.Hash) {
-	m.ds.Set(m.key(key), value)
+func (m *mapping) Mapping(key common.Hash) Mapping {
+	slot := m.valueSlot(key)
+	return NewMapping(m, slot)
 }
 
-func (m *mapping) GetReference(key common.Hash) Reference {
-	return &reference{
-		key: m.key(key),
-		ds:  m.ds,
-	}
+func (m *mapping) StaticArray(key common.Hash, itemSize int, length ...int) StaticArray {
+	slot := m.valueSlot(key)
+	return NewStaticArray(m, slot, itemSize, length)
 }
 
-func (m *mapping) GetMap(key common.Hash) Mapping {
-	return &mapping{
-		id: m.key(key),
-		ds: m.ds,
-	}
-}
-
-func (m *mapping) GetArray(key common.Hash) Array {
-	return &array{
-		id: m.key(key),
-		ds: m.ds,
-	}
+func (m *mapping) DynamicArray(key common.Hash, itemSize int) DynamicArray {
+	slot := m.valueSlot(key)
+	return NewDynamicArray(m, slot, itemSize)
 }
 
 var _ Mapping = (*mapping)(nil)
 
-// Array
-
-type Array interface {
-	Datastore() Datastore
-	Id() common.Hash
-	Length() int
-	Get(index int) common.Hash
-	Set(index int, value common.Hash)
-	Push(value common.Hash)
-	Pop() common.Hash
-	Swap(i, j int)
-	GetReference(index int) Reference
-	GetMap(index int) Mapping
-	GetArray(index int) Array
+type StaticArray interface {
+	Slot
+	Array
 }
 
-type array struct {
-	ds     Datastore
-	id     common.Hash
-	idHash common.Hash
+type staticArray struct {
+	ds       Datastore
+	slot     common.Hash
+	length   []int
+	itemSize int
 }
 
-func (a *array) getIdHash() common.Hash {
-	if a.idHash == (common.Hash{}) {
-		a.idHash = crypto.Keccak256Hash(a.id.Bytes())
+func NewStaticArray(ds Datastore, slot common.Hash, itemSize int, length []int) StaticArray {
+	if len(length) == 0 {
+		length = []int{0}
 	}
-	return a.idHash
+	return &staticArray{ds: ds, slot: slot, length: length, itemSize: itemSize}
 }
 
-func (a *array) key(index int) common.Hash {
-	a.getIdHash()
-	slot := new(big.Int).Add(a.idHash.Big(), big.NewInt(int64(index)))
-	return common.BigToHash(slot)
+func (a *staticArray) Length() int {
+	return a.length[0]
 }
 
-func (a *array) setLength(length int) {
-	a.ds.Set(a.id, common.BigToHash(big.NewInt(int64(length))))
-}
-
-func (a *array) getLength() int {
-	return int(a.ds.Get(a.id).Big().Int64())
-}
-
-func (a *array) Datastore() Datastore {
-	return a.ds
-}
-
-func (a *array) Id() common.Hash {
-	return a.id
-}
-
-func (a *array) Length() int {
-	return a.getLength()
-}
-
-func (a *array) Get(index int) common.Hash {
+func (a *staticArray) Get(index int) common.Hash {
 	if index >= a.Length() {
 		return common.Hash{}
 	}
+	itemsPerSlot := 32 / a.itemSize
+	slot := new(big.Int).Add(a.slot.Big(), big.NewInt(int64(index/itemsPerSlot)))
+	offset := (index % itemsPerSlot) * a.itemSize
+	word := a.ds.Get(common.BigToHash(slot))
 	return a.ds.Get(a.key(index))
 }
 
-func (a *array) Set(index int, value common.Hash) {
+func (a *staticArray) Set(index int, value common.Hash) {
 	if index >= a.Length() {
 		panic("index out of bounds")
 	}
 	a.ds.Set(a.key(index), value)
 }
 
-func (a *array) Push(value common.Hash) {
+type DynamicArray interface {
+	DatastoreModel
+	DatastoreModelCreator
+	Array
+	Push(value common.Hash)
+	Pop() common.Hash
+	Swap(i, j int)
+}
+
+type dynamicArray struct {
+	ds     Datastore
+	id     common.Hash
+	idHash common.Hash
+}
+
+func NewDynamicArray(ds Datastore, slot common.Hash, itemSize int) DynamicArray {
+	return &dynamicArray{ds: ds, id: id}
+}
+
+func (a *dynamicArray) getIdHash() common.Hash {
+	if a.idHash == (common.Hash{}) {
+		a.idHash = crypto.Keccak256Hash(a.id.Bytes())
+	}
+	return a.idHash
+}
+
+func (a *dynamicArray) key(index int) common.Hash {
+	a.getIdHash()
+	slot := new(big.Int).Add(a.idHash.Big(), big.NewInt(int64(index)))
+	return common.BigToHash(slot)
+}
+
+func (a *dynamicArray) setLength(length int) {
+	a.ds.Set(a.id, common.BigToHash(big.NewInt(int64(length))))
+}
+
+func (a *dynamicArray) getLength() int {
+	return int(a.ds.Get(a.id).Big().Int64())
+}
+
+func (a *dynamicArray) Id() common.Hash {
+	return a.id
+}
+
+func (a *dynamicArray) Length() int {
+	return a.getLength()
+}
+
+func (a *dynamicArray) Get(index int) common.Hash {
+	if index >= a.Length() {
+		return common.Hash{}
+	}
+	return a.ds.Get(a.key(index))
+}
+
+func (a *dynamicArray) Set(index int, value common.Hash) {
+	if index >= a.Length() {
+		panic("index out of bounds")
+	}
+	a.ds.Set(a.key(index), value)
+}
+
+func (a *dynamicArray) Push(value common.Hash) {
 	length := a.Length()
 	a.setLength(length + 1)
 	a.Set(length, value)
 }
 
-func (a *array) Pop() common.Hash {
+func (a *dynamicArray) Pop() common.Hash {
 	length := a.Length()
 	if length == 0 {
 		return common.Hash{}
@@ -394,7 +348,7 @@ func (a *array) Pop() common.Hash {
 	return value
 }
 
-func (a *array) Swap(i, j int) {
+func (a *dynamicArray) Swap(i, j int) {
 	if i >= a.Length() || j >= a.Length() {
 		panic("index out of bounds")
 	}
@@ -403,133 +357,25 @@ func (a *array) Swap(i, j int) {
 	a.Set(j, iVal)
 }
 
-func (a *array) GetReference(index int) Reference {
+func (a *dynamicArray) GetReference(index int) Reference {
 	return &reference{
 		ds:  a.ds,
 		key: a.key(index),
 	}
 }
 
-func (a *array) GetMap(index int) Mapping {
+func (a *dynamicArray) GetMap(index int) Mapping {
 	return &mapping{
 		ds: a.ds,
 		id: a.key(index),
 	}
 }
 
-func (a *array) GetArray(index int) Array {
+func (a *dynamicArray) GetArray(index int) Array {
 	return &array{
 		ds: a.ds,
 		id: a.key(index),
 	}
 }
 
-var _ Array = (*array)(nil)
-
-type Set interface {
-	Datastore() Datastore
-	Id() common.Hash
-	Has(value common.Hash) bool
-	Add(value common.Hash)
-	Remove(value common.Hash)
-	Size() int
-	Values() Array
-}
-
-type set struct {
-	ds      Datastore
-	id      common.Hash
-	idHash  common.Hash
-	array   Array
-	mapping Mapping
-}
-
-func (s *set) getIdHash() common.Hash {
-	if s.idHash == (common.Hash{}) {
-		s.idHash = crypto.Keccak256Hash(s.id.Bytes())
-	}
-	return s.idHash
-}
-
-func (s *set) valueArray() Array {
-	if s.array == nil {
-		s.getIdHash()
-		s.array = s.ds.NewArray(s.idHash)
-	}
-	return s.array
-}
-
-func (s *set) indexMap() Mapping {
-	if s.mapping == nil {
-		s.getIdHash()
-		keyBN := new(big.Int).Add(s.idHash.Big(), common.Big1)
-		s.mapping = s.ds.NewMap(common.BigToHash(keyBN))
-	}
-	return s.mapping
-}
-
-func (s *set) Datastore() Datastore {
-	return s.ds
-}
-
-func (s *set) Id() common.Hash {
-	return s.id
-}
-
-func (s *set) Has(value common.Hash) bool {
-	if s.Size() == 0 {
-		return false
-	}
-	index := s.indexMap().Get(value)
-	if index == (common.Hash{}) {
-		return value == s.valueArray().Get(0)
-	}
-	return index != common.Hash{}
-}
-
-func (s *set) Add(value common.Hash) {
-	if s.Has(value) {
-		return
-	}
-	index := s.valueArray().Length()
-	s.indexMap().Set(value, common.BigToHash(big.NewInt(int64(index))))
-	s.valueArray().Push(value)
-}
-
-func (s *set) Remove(value common.Hash) {
-	if !s.Has(value) {
-		return
-	}
-	index := int(s.indexMap().Get(value).Big().Int64())
-	s.valueArray().Swap(index, s.valueArray().Length()-1)
-	s.valueArray().Pop()
-	s.indexMap().Set(value, common.Hash{})
-}
-
-func (s *set) Size() int {
-	return s.valueArray().Length()
-}
-
-func (s *set) Values() Array {
-	return s.valueArray()
-}
-
-var _ Set = (*set)(nil)
-
-// Constructors for for testing.
-// Testing is done in a separate package as it may introduce dependencies
-// incompatible with tinygo.
-
-func NewPersistentStorage(db StateDB, address common.Address) *PersistentStorage {
-	return &PersistentStorage{
-		db:      db,
-		address: address,
-	}
-}
-
-func NewEphemeralStorage(db StateDB, address common.Address) *EphemeralStorage {
-	return &EphemeralStorage{
-		db:      db,
-		address: address,
-	}
-}
+var _ DynamicArray = (*dynamicArray)(nil)
