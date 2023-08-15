@@ -110,6 +110,9 @@ type EnvConfig struct {
 }
 
 type Env struct {
+	table   JumpTable
+	execute func(op OpCode, env *Env, args [][]byte) [][]byte
+
 	address common.Address
 	config  EnvConfig
 
@@ -120,9 +123,6 @@ type Env struct {
 
 	meterGas bool
 	gas      uint64
-
-	table   JumpTable
-	execute func(op OpCode, env *Env, args [][]byte) [][]byte
 
 	envErr error
 }
@@ -140,8 +140,11 @@ func NewEnvironment(
 	env := &Env{
 		address:  address,
 		config:   config,
-		meterGas: meterGas,
 		statedb:  statedb,
+		block:    block,
+		call:     call,
+		caller:   caller,
+		meterGas: meterGas,
 		gas:      gas,
 	}
 	env.table = NewEnvironmentMethods()
