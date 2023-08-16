@@ -134,7 +134,6 @@ func (r *storedValue) getBytes() []byte {
 	}
 
 	length := slotWord.Big().Int64()
-	// TODO: cache hash [?]
 	ptr := r.getSlotHash().Big()
 
 	data := make([]byte, length)
@@ -298,7 +297,6 @@ type bytesArray struct {
 }
 
 func newBytesArray(ds *datastore, slot common.Hash, length []int, itemSize int) *bytesArray {
-	// TODO: division by zero
 	// TODO: param validation
 	if itemSize == 0 || len(length) == 0 {
 		return nil

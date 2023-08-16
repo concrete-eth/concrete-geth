@@ -36,49 +36,55 @@ var (
 type OpCode byte
 
 const (
-	// TODO: logic to opcodes [?]
-	EnableGasMetering_OpCode          OpCode = 0x01
-	Keccak256_OpCode                  OpCode = 0x10
-	EphemeralStore_OpCode             OpCode = 0x11
-	EphemeralLoad_OpCode              OpCode = 0x12
-	PersistentPreimageStore_OpCode    OpCode = 0x13
-	PersistentPreimageLoad_OpCode     OpCode = 0x14
-	PersistentPreimageLoadSize_OpCode OpCode = 0x15
-	EphemeralPreimageStore_OpCode     OpCode = 0x16
-	EphemeralPreimageLoad_OpCode      OpCode = 0x17
-	EphemeralPreimageLoadSize_OpCode  OpCode = 0x18
-	GetAddress_OpCode                 OpCode = 0x19
-	GetGasLeft_OpCode                 OpCode = 0x1a
-	GetBlockNumber_OpCode             OpCode = 0x1b
-	GetBlockGasLimit_OpCode           OpCode = 0x1c
-	GetBlockTimestamp_OpCode          OpCode = 0x1d
-	GetBlockDifficulty_OpCode         OpCode = 0x1e
-	GetBlockBasefee_OpCode            OpCode = 0x1f
-	GetBlockCoinbase_OpCode           OpCode = 0x20
-	GetPrevRandao_OpCode              OpCode = 0x21
-	GetBlockHash_OpCode               OpCode = 0x22
-	GetBalance_OpCode                 OpCode = 0x23
-	GetTxGasPrice_OpCode              OpCode = 0x24
-	GetTxOrigin_OpCode                OpCode = 0x25
-	GetCallData_OpCode                OpCode = 0x26
-	GetCallDataSize_OpCode            OpCode = 0x27
-	GetCaller_OpCode                  OpCode = 0x28
-	GetCallValue_OpCode               OpCode = 0x29
-	StorageLoad_OpCode                OpCode = 0x2a
-	GetCode_OpCode                    OpCode = 0x2b
-	GetCodeSize_OpCode                OpCode = 0x2c
-	UseGas_OpCode                     OpCode = 0x2d
-	StorageStore_OpCode               OpCode = 0x2e
-	Log_OpCode                        OpCode = 0x2f
-	GetExternalBalance_OpCode         OpCode = 0x30
-	CallStatic_OpCode                 OpCode = 0x31
-	GetExternalCode_OpCode            OpCode = 0x32
-	GetExternalCodeSize_OpCode        OpCode = 0x33
-	GetExternalCodeHash_OpCode        OpCode = 0x34
-	Call_OpCode                       OpCode = 0x35
-	CallDelegate_OpCode               OpCode = 0x36
-	Create_OpCode                     OpCode = 0x37
-	Create2_OpCode                    OpCode = 0x38
+	// Meta
+	EnableGasMetering_OpCode OpCode = 0x08
+	// Utils
+	Keccak256_OpCode OpCode = 0x10
+	// Ephemeral and preimage
+	EphemeralStore_OpCode             OpCode = 0x20
+	EphemeralLoad_OpCode              OpCode = 0x21
+	PersistentPreimageStore_OpCode    OpCode = 0x22
+	PersistentPreimageLoad_OpCode     OpCode = 0x23
+	PersistentPreimageLoadSize_OpCode OpCode = 0x24
+	EphemeralPreimageStore_OpCode     OpCode = 0x25
+	EphemeralPreimageLoad_OpCode      OpCode = 0x26
+	EphemeralPreimageLoadSize_OpCode  OpCode = 0x27
+	// Internal reads
+	GetAddress_OpCode         OpCode = 0x30
+	GetGasLeft_OpCode         OpCode = 0x31
+	GetBlockNumber_OpCode     OpCode = 0x32
+	GetBlockGasLimit_OpCode   OpCode = 0x33
+	GetBlockTimestamp_OpCode  OpCode = 0x34
+	GetBlockDifficulty_OpCode OpCode = 0x35
+	GetBlockBasefee_OpCode    OpCode = 0x36
+	GetBlockCoinbase_OpCode   OpCode = 0x37
+	GetPrevRandao_OpCode      OpCode = 0x38
+	GetBlockHash_OpCode       OpCode = 0x39
+	GetBalance_OpCode         OpCode = 0x3a
+	GetTxGasPrice_OpCode      OpCode = 0x3b
+	GetTxOrigin_OpCode        OpCode = 0x3c
+	GetCallData_OpCode        OpCode = 0x3d
+	GetCallDataSize_OpCode    OpCode = 0x3e
+	GetCaller_OpCode          OpCode = 0x3f
+	GetCallValue_OpCode       OpCode = 0x40
+	StorageLoad_OpCode        OpCode = 0x41
+	GetCode_OpCode            OpCode = 0x42
+	GetCodeSize_OpCode        OpCode = 0x43
+	// Internal writes
+	UseGas_OpCode       OpCode = 0x50
+	StorageStore_OpCode OpCode = 0x51
+	Log_OpCode          OpCode = 0x52
+	// External reads
+	GetExternalBalance_OpCode  OpCode = 0x60
+	CallStatic_OpCode          OpCode = 0x61
+	GetExternalCode_OpCode     OpCode = 0x62
+	GetExternalCodeSize_OpCode OpCode = 0x63
+	GetExternalCodeHash_OpCode OpCode = 0x64
+	// External writes
+	Call_OpCode         OpCode = 0x70
+	CallDelegate_OpCode OpCode = 0x71
+	Create_OpCode       OpCode = 0x72
+	Create2_OpCode      OpCode = 0x73
 )
 
 const (
