@@ -285,12 +285,10 @@ func (r *storedValue) BytesArray(length []int, itemSize int) BytesArray {
 
 var _ StorageSlot = (*storedValue)(nil)
 
-// TODO: why differentiate between nested and non-nested?
-// TODO: StorageValue, Value, Slot, instead of StorageSlot?
-
 type SlotArray interface {
+	Length() int
 	Value(index ...int) StorageSlot
-	// SlotArray(index ...int) SlotArray
+	SlotArray(index ...int) SlotArray
 }
 
 type slotArray struct {
@@ -320,20 +318,40 @@ func (a *slotArray) indexSlot(index []int) common.Hash {
 	return common.BigToHash(absIndex)
 }
 
+func (a *slotArray) getLength() int {
+	return a.length[0]
+}
+
 func (a *slotArray) value(index []int) *storedValue {
 	slot := a.indexSlot(index)
 	return newStorageSlot(a.ds, slot)
+}
+
+func (a *slotArray) slotArray(index []int) *slotArray {
+	// TODO: param validation
+	slot := a.indexSlot(index)
+	length := a.length[len(index):]
+	return newSlotArray(a.ds, slot, length)
+}
+
+func (a *slotArray) Length() int {
+	return a.getLength()
 }
 
 func (a *slotArray) Value(index ...int) StorageSlot {
 	return a.value(index)
 }
 
+func (a *slotArray) SlotArray(index ...int) SlotArray {
+	return a.slotArray(index)
+}
+
 var _ SlotArray = (*slotArray)(nil)
 
 type BytesArray interface {
-	// Length() []int
+	Length() int
 	Value(index ...int) []byte
+	BytesArray(index ...int) BytesArray
 }
 
 type bytesArray struct {
@@ -354,6 +372,10 @@ func newBytesArray(ds *datastore, slot common.Hash, length []int, itemSize int) 
 		length[len(length)-1] *= slotsPerItem
 	}
 	return &bytesArray{arr: slotArray{ds: ds, slot: slot, length: length}, itemSize: itemSize}
+}
+
+func (a *bytesArray) getLength() int {
+	return a.arr.getLength()
 }
 
 func (a *bytesArray) value(index []int) []byte {
@@ -381,8 +403,23 @@ func (a *bytesArray) value(index []int) []byte {
 	return data
 }
 
+func (a *bytesArray) bytesArray(index []int) *bytesArray {
+	// TODO: param validation
+	slot := a.arr.indexSlot(index)
+	length := a.arr.length[len(index):]
+	return newBytesArray(a.arr.ds, slot, length, a.itemSize)
+}
+
+func (a *bytesArray) Length() int {
+	return a.getLength()
+}
+
 func (a *bytesArray) Value(index ...int) []byte {
 	return a.value(index)
+}
+
+func (a *bytesArray) BytesArray(index ...int) BytesArray {
+	return a.bytesArray(index)
 }
 
 var _ BytesArray = (*bytesArray)(nil)

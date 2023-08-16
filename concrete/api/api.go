@@ -166,10 +166,10 @@ func NewEnvironment(
 
 		output, err := operation.execute(env, args)
 
-		// Panicking is preferable in trusted execution, as mistakenly using a
-		// disabled feature should be caught during testing.
 		if env.config.Trusted {
 			if err == ErrFeatureDisabled {
+				// Panicking is preferable in trusted execution, as mistakenly using a
+				// disabled feature should be caught during testing.
 				panic(err)
 			}
 		}
