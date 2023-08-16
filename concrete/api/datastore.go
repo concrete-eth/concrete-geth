@@ -34,6 +34,42 @@ type KeyValueStore interface {
 	Get(key common.Hash) common.Hash
 }
 
+type envPersistentKeyValueStore struct {
+	env Environment
+}
+
+func newEnvPersistentKeyValueStore(env Environment) *envPersistentKeyValueStore {
+	return &envPersistentKeyValueStore{env: env}
+}
+
+func (kv *envPersistentKeyValueStore) Set(key common.Hash, value common.Hash) {
+	kv.env.PersistentStore(key, value)
+}
+
+func (kv *envPersistentKeyValueStore) Get(key common.Hash) common.Hash {
+	return kv.env.PersistentLoad(key)
+}
+
+var _ KeyValueStore = (*envPersistentKeyValueStore)(nil)
+
+type envEphemeralKeyValueStore struct {
+	env Environment
+}
+
+func newEnvEphemeralKeyValueStore(env Environment) *envEphemeralKeyValueStore {
+	return &envEphemeralKeyValueStore{env: env}
+}
+
+func (kv *envEphemeralKeyValueStore) Set(key common.Hash, value common.Hash) {
+	kv.env.EphemeralStore_Unsafe(key, value)
+}
+
+func (kv *envEphemeralKeyValueStore) Get(key common.Hash) common.Hash {
+	return kv.env.EphemeralLoad_Unsafe(key)
+}
+
+var _ KeyValueStore = (*envEphemeralKeyValueStore)(nil)
+
 type Datastore interface {
 	Value(key []byte) StoredValue
 	Mapping(key []byte) Mapping
@@ -63,8 +99,16 @@ func (ds *datastore) array(key []byte) *dynamicArray {
 	return newDynamicArray(ds, slot)
 }
 
-func NewDatastore(kv KeyValueStore) Datastore {
-	return newDatastore(kv)
+func NewPersistentDatastore(env Environment) Datastore {
+	return newDatastore(newEnvPersistentKeyValueStore(env))
+}
+
+func NewEphemeralDatastore(env Environment) Datastore {
+	return newDatastore(newEnvEphemeralKeyValueStore(env))
+}
+
+func NewDatastore(env Environment) Datastore {
+	return NewPersistentDatastore(env)
 }
 
 func (ds *datastore) Value(key []byte) StoredValue {
@@ -286,6 +330,8 @@ func (a *slotArray) Value(index ...int) StoredValue {
 	return a.value(index)
 }
 
+var _ SlotArray = (*slotArray)(nil)
+
 type BytesArray interface {
 	// Length() []int
 	Value(index ...int) []byte
@@ -339,6 +385,8 @@ func (a *bytesArray) value(index []int) []byte {
 func (a *bytesArray) Value(index ...int) []byte {
 	return a.value(index)
 }
+
+var _ BytesArray = (*bytesArray)(nil)
 
 type Mapping interface {
 	Datastore
