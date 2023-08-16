@@ -20,29 +20,22 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/concrete/api"
-	"github.com/ethereum/go-ethereum/concrete/crypto"
 )
 
-func NewKey(name string) common.Hash {
-	// Use /concrete/crypto instead of /crypto because the latter won't compile
-	// in tinygo as it has unsupported dependencies.
-	return crypto.Keccak256Hash([]byte(name))
-}
-
 type Counter struct {
-	api.Reference
+	api.StorageSlot
 }
 
-func NewCounter(ref api.Reference) *Counter {
+func NewCounter(ref api.StorageSlot) *Counter {
 	return &Counter{ref}
 }
 
 func (c *Counter) Get() *big.Int {
-	return c.Reference.Get().Big()
+	return c.StorageSlot.GetBig()
 }
 
 func (c *Counter) Set(value *big.Int) {
-	c.Reference.Set(common.BigToHash(value))
+	c.StorageSlot.SetBig(value)
 }
 
 func (c *Counter) Add(delta *big.Int) {
@@ -63,26 +56,4 @@ func (c *Counter) Inc() {
 
 func (c *Counter) Dec() {
 	c.Sub(common.Big1)
-}
-
-type NestedMap struct {
-	api.Mapping
-}
-
-func NewNestedMap(mapping api.Mapping) *NestedMap {
-	return &NestedMap{mapping}
-}
-
-func (m *NestedMap) GetNested(keys ...common.Hash) common.Hash {
-	lastIdx := len(keys) - 1
-	mapping := m.GetNestedMap(keys[:lastIdx]...)
-	return mapping.Get(keys[lastIdx])
-}
-
-func (m *NestedMap) GetNestedMap(keys ...common.Hash) api.Mapping {
-	next := m.Mapping
-	for _, key := range keys {
-		next = next.GetMap(key)
-	}
-	return next
 }

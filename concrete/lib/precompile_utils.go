@@ -19,8 +19,6 @@ import (
 	"github.com/ethereum/go-ethereum/concrete/api"
 )
 
-var FailGas = uint64(10)
-
 type BlankPrecompile struct{}
 
 func (pc *BlankPrecompile) IsStatic(input []byte) bool {
