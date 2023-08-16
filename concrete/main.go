@@ -28,16 +28,10 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
-type ConcreteConfig struct {
-	PreimageRegistryConfig    precompiles.PreimageRegistryConfig
-	BigPreimageRegistryConfig precompiles.PreimageRegistryConfig
-}
-
 type ConcreteApp interface {
 	RunWithArgs(args []string) error
 	RunWithOsArgs() error
 	Run() error
-	SetConfig(config ConcreteConfig) error
 	AddPrecompile(addr common.Address, pc api.Precompile, args ...interface{}) error
 	AddPrecompileWasm(addr common.Address, code []byte, args ...interface{}) error
 }
@@ -62,12 +56,6 @@ func (a *concreteGeth) Run() error {
 	return a.RunWithOsArgs()
 }
 
-func (a *concreteGeth) SetConfig(config ConcreteConfig) error {
-	precompiles.PreimageRegistry.SetConfig(config.PreimageRegistryConfig)
-	precompiles.BigPreimageRegistry.SetConfig(config.BigPreimageRegistryConfig)
-	return nil
-}
-
 func (a *concreteGeth) validateNewPCAddress(addr common.Address) error {
 	if addr.Big().Cmp(big.NewInt(128)) < 0 {
 		return fmt.Errorf("precompile address cannot be below 0x80")
@@ -75,11 +63,15 @@ func (a *concreteGeth) validateNewPCAddress(addr common.Address) error {
 	return nil
 }
 
-func (a *concreteGeth) AddPrecompile(addr common.Address, pc api.Precompile, args ...interface{}) error {
+func (a *concreteGeth) AddPrecompileWithMetadata(addr common.Address, pc api.Precompile, metadata precompiles.PrecompileMetadata) error {
 	if err := a.validateNewPCAddress(addr); err != nil {
 		return err
 	}
-	return precompiles.AddPrecompile(addr, pc, args...)
+	return precompiles.AddPrecompileWithMetadata(addr, pc, metadata)
+}
+
+func (a *concreteGeth) AddPrecompile(addr common.Address, pc api.Precompile) error {
+	return a.AddPrecompileWithMetadata(addr, pc, precompiles.PrecompileMetadata{})
 }
 
 func (a *concreteGeth) AddPrecompileWasm(addr common.Address, code []byte, args ...interface{}) error {

@@ -16,14 +16,12 @@
 package precompiles
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/concrete/api"
-	"github.com/ethereum/go-ethereum/concrete/lib"
 )
 
 type Version = struct {
@@ -58,31 +56,25 @@ var (
 	metadataByName       = make(map[string]*PrecompileMetadata)
 )
 
-func AddPrecompile(addr common.Address, p api.Precompile, args ...interface{}) error {
-	var metadata PrecompileMetadata
-
-	if len(args) > 0 {
-		if m, ok := args[0].(PrecompileMetadata); ok {
-			metadata = m
-		}
-	}
-
-	if _, ok := metadataByName[metadata.Name]; ok {
-		return fmt.Errorf("precompile already exists with name %s", metadata.Name)
-	}
+func AddPrecompileWithMetadata(addr common.Address, p api.Precompile, metadata PrecompileMetadata) error {
 	if _, ok := precompiles[addr]; ok {
 		return fmt.Errorf("precompile already exists at address %x", addr)
+	}
+	if len(metadata.Name) > 0 {
+		if _, ok := metadataByName[metadata.Name]; ok {
+			return fmt.Errorf("precompile already exists with name %s", metadata.Name)
+		}
 	}
 
 	metadata.Addr = addr
 
-	if pwabi, ok := p.(*lib.PrecompileWithABI); ok {
-		abiJson, err := json.Marshal(pwabi.ABI)
-		if err != nil {
-			return err
-		}
-		metadata.ABI = string(abiJson)
-	}
+	// if pwabi, ok := p.(*lib.PrecompileWithABI); ok {
+	// 	abiJson, err := json.Marshal(pwabi.ABI)
+	// 	if err != nil {
+	// 		return err
+	// 	}
+	// 	metadata.ABI = string(abiJson)
+	// }
 
 	precompiles[addr] = p
 	precompiledAddresses = append(precompiledAddresses, addr)
@@ -94,6 +86,10 @@ func AddPrecompile(addr common.Address, p api.Precompile, args ...interface{}) e
 	}
 
 	return nil
+}
+
+func AddPrecompile(addr common.Address, p api.Precompile) error {
+	return AddPrecompileWithMetadata(addr, p, PrecompileMetadata{})
 }
 
 func GetPrecompile(addr common.Address) (api.Precompile, bool) {
