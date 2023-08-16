@@ -98,12 +98,20 @@ type StoredValue interface {
 }
 
 type storedValue struct {
-	ds   *datastore
-	slot common.Hash
+	ds       *datastore
+	slot     common.Hash
+	slotHash common.Hash
 }
 
 func newStoredValue(ds *datastore, slot common.Hash) *storedValue {
 	return &storedValue{ds: ds, slot: slot}
+}
+
+func (r *storedValue) getSlotHash() common.Hash {
+	if r.slotHash == (common.Hash{}) {
+		r.slotHash = crypto.Keccak256Hash(r.slot.Bytes())
+	}
+	return r.slotHash
 }
 
 func (r *storedValue) getBytes32() common.Hash {
@@ -125,7 +133,7 @@ func (r *storedValue) getBytes() []byte {
 
 	length := slotWord.Big().Int64()
 	// TODO: cache hash [?]
-	ptr := crypto.Keccak256Hash(r.slot.Bytes()).Big()
+	ptr := r.getSlotHash().Big()
 
 	data := make([]byte, length)
 	for ii := 0; ii < len(data); ii += 32 {
@@ -149,7 +157,7 @@ func (r *storedValue) setBytes(value []byte) {
 	lengthBN := big.NewInt(int64(len(value)))
 	r.ds.kv.Set(r.slot, common.BigToHash(lengthBN))
 
-	ptr := crypto.Keccak256Hash(r.slot.Bytes()).Big()
+	ptr := r.getSlotHash().Big()
 	for ii := 0; ii < len(value); ii += 32 {
 		var data common.Hash
 		copy(data[:], value[ii:])
