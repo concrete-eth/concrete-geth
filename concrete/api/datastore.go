@@ -95,6 +95,8 @@ type StoredValue interface {
 	GetInt64() int64
 	GetBytes() []byte
 	SetBytes(value []byte)
+	SlotArray(length []int) SlotArray
+	BytesArray(length []int, itemSize int) BytesArray
 }
 
 type storedValue struct {
@@ -166,6 +168,14 @@ func (r *storedValue) setBytes(value []byte) {
 	}
 }
 
+func (r *storedValue) slotArray(length []int) *slotArray {
+	return newSlotArray(r.ds, r.slot, length)
+}
+
+func (r *storedValue) bytesArray(length []int, itemSize int) *bytesArray {
+	return newBytesArray(r.ds, r.slot, length, itemSize)
+}
+
 func (r *storedValue) Slot() common.Hash {
 	return r.slot
 }
@@ -222,7 +232,115 @@ func (r *storedValue) SetBytes(value []byte) {
 	r.setBytes(value)
 }
 
+func (r *storedValue) SlotArray(length []int) SlotArray {
+	return r.slotArray(length)
+}
+
+func (r *storedValue) BytesArray(length []int, itemSize int) BytesArray {
+	return r.bytesArray(length, itemSize)
+}
+
 var _ StoredValue = (*storedValue)(nil)
+
+// TODO: why differentiate between nested and non-nested?
+// TODO: add nested array and nested mapping?
+// TODO: StorageValue, Value, Slot, instead of StoredValue?
+
+type SlotArray interface {
+	Value(index ...int) StoredValue
+	// SlotArray(index ...int) SlotArray
+}
+
+type slotArray struct {
+	ds     *datastore
+	slot   common.Hash
+	length []int
+}
+
+func newSlotArray(ds *datastore, slot common.Hash, length []int) *slotArray {
+	return &slotArray{ds: ds, slot: slot, length: length}
+}
+
+func (a *slotArray) indexSlot(index []int) common.Hash {
+	if len(index) < len(a.length) {
+		padding := make([]int, len(a.length)-len(index))
+		index = append(index, padding...)
+	} else if len(index) > len(a.length) {
+		index = index[:len(a.length)]
+	}
+	flatLength := 1
+	flatIndex := 0
+	for ii := len(index) - 1; ii >= 0; ii-- {
+		flatLength *= a.length[ii]
+		flatIndex += index[ii] * flatLength
+	}
+	absIndex := new(big.Int).Add(big.NewInt(int64(flatIndex)), a.slot.Big())
+	return common.BigToHash(absIndex)
+}
+
+func (a *slotArray) value(index []int) *storedValue {
+	slot := a.indexSlot(index)
+	return newStoredValue(a.ds, slot)
+}
+
+func (a *slotArray) Value(index ...int) StoredValue {
+	return a.value(index)
+}
+
+type BytesArray interface {
+	// Length() []int
+	Value(index ...int) []byte
+}
+
+type bytesArray struct {
+	arr      slotArray
+	itemSize int
+}
+
+func newBytesArray(ds *datastore, slot common.Hash, length []int, itemSize int) *bytesArray {
+	// TODO: division by zero
+	// TODO: param validation
+	if itemSize == 0 || len(length) == 0 {
+		return nil
+	}
+	itemsPerSlot := 32 / itemSize
+	if itemsPerSlot > 1 {
+		length[len(length)-1] /= itemsPerSlot
+	} else if itemsPerSlot < 1 {
+		slotsPerItem := (itemSize + 31) / 32
+		length[len(length)-1] *= slotsPerItem
+	}
+	return &bytesArray{arr: slotArray{ds: ds, slot: slot, length: length}, itemSize: itemSize}
+}
+
+func (a *bytesArray) value(index []int) []byte {
+	itemsPerSlot := 32 / a.itemSize
+	slotsPerItem := (a.itemSize + 31) / 32
+
+	if itemsPerSlot > 1 {
+		lastIndex := index[len(index)-1]
+		offset := lastIndex % itemsPerSlot
+		relSlot := lastIndex / itemsPerSlot
+		index[len(index)-1] = relSlot
+		data := a.arr.value(index).getBytes32().Bytes()
+		return data[offset*a.itemSize : (offset+1)*a.itemSize]
+	} else if itemsPerSlot < 1 {
+		index[len(index)-1] *= slotsPerItem
+	}
+
+	data := make([]byte, a.itemSize)
+	for ii := 0; ii < a.itemSize; ii += 32 {
+		slotValue := a.arr.value(index).getBytes32().Bytes()
+		copy(data[ii:], slotValue)
+		index[len(index)-1]++
+	}
+
+	return data
+}
+
+func (a *bytesArray) Value(index ...int) []byte {
+	return a.value(index)
+}
 
 type Mapping interface {
 	Datastore
