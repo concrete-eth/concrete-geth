@@ -34,44 +34,44 @@ type KeyValueStore interface {
 	Get(key common.Hash) common.Hash
 }
 
-type envPersistentKeyValueStore struct {
+type envPersistentKV struct {
 	env Environment
 }
 
-func newEnvPersistentKeyValueStore(env Environment) *envPersistentKeyValueStore {
-	return &envPersistentKeyValueStore{env: env}
+func newEnvPersistentKeyValueStore(env Environment) *envPersistentKV {
+	return &envPersistentKV{env: env}
 }
 
-func (kv *envPersistentKeyValueStore) Set(key common.Hash, value common.Hash) {
+func (kv *envPersistentKV) Set(key common.Hash, value common.Hash) {
 	kv.env.PersistentStore(key, value)
 }
 
-func (kv *envPersistentKeyValueStore) Get(key common.Hash) common.Hash {
+func (kv *envPersistentKV) Get(key common.Hash) common.Hash {
 	return kv.env.PersistentLoad(key)
 }
 
-var _ KeyValueStore = (*envPersistentKeyValueStore)(nil)
+var _ KeyValueStore = (*envPersistentKV)(nil)
 
-type envEphemeralKeyValueStore struct {
+type envEphemeralKV struct {
 	env Environment
 }
 
-func newEnvEphemeralKeyValueStore(env Environment) *envEphemeralKeyValueStore {
-	return &envEphemeralKeyValueStore{env: env}
+func newEnvEphemeralKV(env Environment) *envEphemeralKV {
+	return &envEphemeralKV{env: env}
 }
 
-func (kv *envEphemeralKeyValueStore) Set(key common.Hash, value common.Hash) {
+func (kv *envEphemeralKV) Set(key common.Hash, value common.Hash) {
 	kv.env.EphemeralStore_Unsafe(key, value)
 }
 
-func (kv *envEphemeralKeyValueStore) Get(key common.Hash) common.Hash {
+func (kv *envEphemeralKV) Get(key common.Hash) common.Hash {
 	return kv.env.EphemeralLoad_Unsafe(key)
 }
 
-var _ KeyValueStore = (*envEphemeralKeyValueStore)(nil)
+var _ KeyValueStore = (*envEphemeralKV)(nil)
 
 type Datastore interface {
-	Value(key []byte) StoredValue
+	Value(key []byte) StorageSlot
 	Mapping(key []byte) Mapping
 	Array(key []byte) DynamicArray
 }
@@ -86,7 +86,7 @@ func newDatastore(kv KeyValueStore) *datastore {
 
 func (ds *datastore) value(key []byte) *storedValue {
 	slot := keyTohHash(key)
-	return newStoredValue(ds, slot)
+	return newStorageSlot(ds, slot)
 }
 
 func (ds *datastore) mapping(key []byte) *mapping {
@@ -104,14 +104,14 @@ func NewPersistentDatastore(env Environment) Datastore {
 }
 
 func NewEphemeralDatastore(env Environment) Datastore {
-	return newDatastore(newEnvEphemeralKeyValueStore(env))
+	return newDatastore(newEnvEphemeralKV(env))
 }
 
 func NewDatastore(env Environment) Datastore {
 	return NewPersistentDatastore(env)
 }
 
-func (ds *datastore) Value(key []byte) StoredValue {
+func (ds *datastore) Value(key []byte) StorageSlot {
 	return ds.value(key)
 }
 
@@ -125,7 +125,7 @@ func (ds *datastore) Array(key []byte) DynamicArray {
 
 var _ Datastore = (*datastore)(nil)
 
-type StoredValue interface {
+type StorageSlot interface {
 	Slot() common.Hash
 	GetBytes32() common.Hash
 	SetBytes32(value common.Hash)
@@ -149,7 +149,7 @@ type storedValue struct {
 	slotHash common.Hash
 }
 
-func newStoredValue(ds *datastore, slot common.Hash) *storedValue {
+func newStorageSlot(ds *datastore, slot common.Hash) *storedValue {
 	return &storedValue{ds: ds, slot: slot}
 }
 
@@ -283,14 +283,13 @@ func (r *storedValue) BytesArray(length []int, itemSize int) BytesArray {
 	return r.bytesArray(length, itemSize)
 }
 
-var _ StoredValue = (*storedValue)(nil)
+var _ StorageSlot = (*storedValue)(nil)
 
 // TODO: why differentiate between nested and non-nested?
-// TODO: add nested array and nested mapping?
-// TODO: StorageValue, Value, Slot, instead of StoredValue?
+// TODO: StorageValue, Value, Slot, instead of StorageSlot?
 
 type SlotArray interface {
-	Value(index ...int) StoredValue
+	Value(index ...int) StorageSlot
 	// SlotArray(index ...int) SlotArray
 }
 
@@ -323,10 +322,10 @@ func (a *slotArray) indexSlot(index []int) common.Hash {
 
 func (a *slotArray) value(index []int) *storedValue {
 	slot := a.indexSlot(index)
-	return newStoredValue(a.ds, slot)
+	return newStorageSlot(a.ds, slot)
 }
 
-func (a *slotArray) Value(index ...int) StoredValue {
+func (a *slotArray) Value(index ...int) StorageSlot {
 	return a.value(index)
 }
 
@@ -390,7 +389,7 @@ var _ BytesArray = (*bytesArray)(nil)
 
 type Mapping interface {
 	Datastore
-	NestedValue(keys ...[]byte) StoredValue
+	NestedValue(keys ...[]byte) StorageSlot
 }
 
 type mapping struct {
@@ -408,7 +407,7 @@ func (m *mapping) keySlot(key []byte) common.Hash {
 
 func (m *mapping) value(key []byte) *storedValue {
 	slot := m.keySlot(key)
-	return newStoredValue(m.ds, slot)
+	return newStorageSlot(m.ds, slot)
 }
 
 func (m *mapping) nestedValue(keys [][]byte) *storedValue {
@@ -429,11 +428,11 @@ func (m *mapping) array(key []byte) *dynamicArray {
 	return newDynamicArray(m.ds, slot)
 }
 
-func (m *mapping) Value(key []byte) StoredValue {
+func (m *mapping) Value(key []byte) StorageSlot {
 	return m.value(key)
 }
 
-func (m *mapping) NestedValue(keys ...[]byte) StoredValue {
+func (m *mapping) NestedValue(keys ...[]byte) StorageSlot {
 	return m.nestedValue(keys)
 }
 
@@ -449,10 +448,10 @@ var _ Mapping = (*mapping)(nil)
 
 type DynamicArray interface {
 	Length() int
-	Value(index int) StoredValue
-	NestedValue(indexes ...int) StoredValue
-	Push() StoredValue
-	Pop() StoredValue
+	Value(index int) StorageSlot
+	NestedValue(indexes ...int) StorageSlot
+	Push() StorageSlot
+	Pop() StorageSlot
 	Mapping(index int) Mapping
 	Array(index int) DynamicArray
 }
@@ -491,7 +490,7 @@ func (a *dynamicArray) value(index int) *storedValue {
 		return nil
 	}
 	slot := a.indexSlot(index)
-	return newStoredValue(a.ds, slot)
+	return newStorageSlot(a.ds, slot)
 }
 
 func (a *dynamicArray) nestedValue(indexes []int) *storedValue {
@@ -516,11 +515,11 @@ func (a *dynamicArray) Length() int {
 	return a.getLength()
 }
 
-func (a *dynamicArray) Value(index int) StoredValue {
+func (a *dynamicArray) Value(index int) StorageSlot {
 	return a.value(index)
 }
 
-func (a *dynamicArray) NestedValue(indexes ...int) StoredValue {
+func (a *dynamicArray) NestedValue(indexes ...int) StorageSlot {
 	return a.nestedValue(indexes)
 }
 
@@ -532,13 +531,13 @@ func (m *dynamicArray) Array(index int) DynamicArray {
 	return m.array(index)
 }
 
-func (a *dynamicArray) Push() StoredValue {
+func (a *dynamicArray) Push() StorageSlot {
 	length := a.getLength()
 	a.setLength(length + 1)
 	return a.value(length)
 }
 
-func (a *dynamicArray) Pop() StoredValue {
+func (a *dynamicArray) Pop() StorageSlot {
 	length := a.getLength()
 	if length == 0 {
 		return nil
