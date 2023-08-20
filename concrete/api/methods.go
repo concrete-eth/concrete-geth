@@ -111,7 +111,6 @@ type operation struct {
 type JumpTable [256]*operation
 
 // TODO: Price operations properly
-// TODO: over/under flows
 
 func NewEnvironmentMethods() JumpTable {
 	tbl := JumpTable{
@@ -656,7 +655,6 @@ func gasGetExternalBalance(env *Env, args [][]byte) (uint64, error) {
 	address := common.BytesToAddress(args[0])
 	if !env.statedb.AddressInAccessList(address) {
 		env.statedb.AddAddressToAccessList(address)
-		// TODO: gas
 		return params.ColdAccountAccessCostEIP2929 - params.WarmStorageReadCostEIP2929, nil
 	}
 	return 0, nil

@@ -422,8 +422,6 @@ func (env *Env) GetExternalBalance(address common.Address) *big.Int {
 	return new(big.Int).SetBytes(output[0])
 }
 
-// TODO: Call errors
-
 func (env *Env) CallStatic(address common.Address, data []byte, gas uint64) ([]byte, error) {
 	input := [][]byte{Uint64ToBytes(gas), address.Bytes(), data}
 	output := env.execute(CallStatic_OpCode, env, input)

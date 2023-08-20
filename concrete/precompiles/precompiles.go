@@ -16,7 +16,6 @@
 package precompiles
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -96,8 +95,7 @@ func GetPrecompileMetadataByName(name string) *PrecompileMetadata {
 
 func RunPrecompile(p api.Precompile, env *api.Env, input []byte, static bool) (ret []byte, remainingGas uint64, err error) {
 	if p.IsStatic(input) && static {
-		// TODO: error
-		return nil, env.GetGasLeft(), errors.New("write protection")
+		return nil, env.GetGasLeft(), api.ErrWriteProtection
 	}
 	output, err := p.Run(env, input)
 	if err == nil {
