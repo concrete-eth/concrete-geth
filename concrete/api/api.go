@@ -257,8 +257,6 @@ func (env *Env) EphemeralStore_Unsafe(key common.Hash, value common.Hash) {
 	env.execute(EphemeralStore_OpCode, env, input)
 }
 
-// TODO: what if preimage not found?
-// TODO: return hash
 func (env *Env) PersistentPreimageStore_Unsafe(preimage []byte) common.Hash {
 	input := [][]byte{preimage}
 	output := env.execute(PersistentPreimageStore_OpCode, env, input)

@@ -115,5 +115,8 @@ func RunPrecompile(p api.Precompile, env *api.Env, input []byte, static bool) (r
 		return nil, env.GetGasLeft(), errors.New("write protection")
 	}
 	output, err := p.Run(env, input)
+	if err == nil {
+		err = env.Error()
+	}
 	return output, env.Gas(), err
 }

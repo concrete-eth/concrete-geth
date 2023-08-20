@@ -31,8 +31,8 @@ type ConcreteApp interface {
 	RunWithArgs(args []string) error
 	RunWithOsArgs() error
 	Run() error
-	AddPrecompileWithMetadata(addr common.Address, pc api.Precompile, metadata precompiles.PrecompileMetadata) error
-	AddPrecompile(addr common.Address, pc api.Precompile) error
+	AddPrecompileWithMetadata(addr common.Address, pc api.Precompile, metadata precompiles.PrecompileMetadata)
+	AddPrecompile(addr common.Address, pc api.Precompile)
 }
 
 type concreteGeth struct {
@@ -62,13 +62,16 @@ func (a *concreteGeth) validateNewPCAddress(addr common.Address) error {
 	return nil
 }
 
-func (a *concreteGeth) AddPrecompileWithMetadata(addr common.Address, pc api.Precompile, metadata precompiles.PrecompileMetadata) error {
-	if err := a.validateNewPCAddress(addr); err != nil {
-		return err
+func (a *concreteGeth) AddPrecompileWithMetadata(addr common.Address, pc api.Precompile, metadata precompiles.PrecompileMetadata) {
+	var err error
+	if err = a.validateNewPCAddress(addr); err == nil {
+		err = precompiles.AddPrecompileWithMetadata(addr, pc, metadata)
 	}
-	return precompiles.AddPrecompileWithMetadata(addr, pc, metadata)
+	if err != nil {
+		panic(err)
+	}
 }
 
-func (a *concreteGeth) AddPrecompile(addr common.Address, pc api.Precompile) error {
-	return a.AddPrecompileWithMetadata(addr, pc, precompiles.PrecompileMetadata{})
+func (a *concreteGeth) AddPrecompile(addr common.Address, pc api.Precompile) {
+	a.AddPrecompileWithMetadata(addr, pc, precompiles.PrecompileMetadata{})
 }
