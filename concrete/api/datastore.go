@@ -308,6 +308,9 @@ type slotArray struct {
 }
 
 func newSlotArray(ds *datastore, slot common.Hash, length []int) *slotArray {
+	if len(length) == 0 {
+		return nil
+	}
 	return &slotArray{ds: ds, slot: slot, length: length}
 }
 
@@ -333,12 +336,19 @@ func (a *slotArray) getLength() int {
 }
 
 func (a *slotArray) value(index []int) *storedValue {
+	if len(index) != len(a.length) {
+		return nil
+	}
 	slot := a.indexSlot(index)
 	return newStorageSlot(a.ds, slot)
 }
 
 func (a *slotArray) slotArray(index []int) *slotArray {
-	// TODO: param validation
+	if len(index) == 0 {
+		return a
+	} else if len(index) > len(a.length) {
+		return nil
+	}
 	slot := a.indexSlot(index)
 	length := a.length[len(index):]
 	return newSlotArray(a.ds, slot, length)
@@ -370,7 +380,6 @@ type bytesArray struct {
 }
 
 func newBytesArray(ds *datastore, slot common.Hash, length []int, itemSize int) *bytesArray {
-	// TODO: param validation
 	if itemSize == 0 || len(length) == 0 {
 		return nil
 	}
@@ -389,6 +398,10 @@ func (a *bytesArray) getLength() int {
 }
 
 func (a *bytesArray) value(index []int) []byte {
+	if len(index) != len(a.arr.length) {
+		return nil
+	}
+
 	itemsPerSlot := 32 / a.itemSize
 	slotsPerItem := (a.itemSize + 31) / 32
 
@@ -397,7 +410,11 @@ func (a *bytesArray) value(index []int) []byte {
 		offset := lastIndex % itemsPerSlot
 		relSlot := lastIndex / itemsPerSlot
 		index[len(index)-1] = relSlot
-		data := a.arr.value(index).getBytes32().Bytes()
+		word := a.arr.value(index)
+		if word == nil {
+			return nil
+		}
+		data := word.getBytes32().Bytes()
 		return data[offset*a.itemSize : (offset+1)*a.itemSize]
 	} else if itemsPerSlot < 1 {
 		index[len(index)-1] *= slotsPerItem
@@ -405,8 +422,12 @@ func (a *bytesArray) value(index []int) []byte {
 
 	data := make([]byte, a.itemSize)
 	for ii := 0; ii < a.itemSize; ii += 32 {
-		slotValue := a.arr.value(index).getBytes32().Bytes()
-		copy(data[ii:], slotValue)
+		word := a.arr.value(index)
+		if word == nil {
+			return nil
+		}
+		value := word.getBytes32().Bytes()
+		copy(data[ii:], value)
 		index[len(index)-1]++
 	}
 
@@ -414,7 +435,11 @@ func (a *bytesArray) value(index []int) []byte {
 }
 
 func (a *bytesArray) bytesArray(index []int) *bytesArray {
-	// TODO: param validation
+	if len(index) == 0 {
+		return a
+	} else if len(index) > len(a.arr.length) {
+		return nil
+	}
 	slot := a.arr.indexSlot(index)
 	length := a.arr.length[len(index):]
 	return newBytesArray(a.arr.ds, slot, length, a.itemSize)
