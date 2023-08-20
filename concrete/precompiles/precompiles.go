@@ -18,25 +18,10 @@ package precompiles
 import (
 	"errors"
 	"fmt"
-	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/concrete/api"
 )
-
-type Version = struct {
-	Major *big.Int `json:"major"`
-	Minor *big.Int `json:"minor"`
-	Patch *big.Int `json:"patch"`
-}
-
-func NewVersion(major, minor, patch int) Version {
-	return Version{
-		Major: big.NewInt(int64(major)),
-		Minor: big.NewInt(int64(minor)),
-		Patch: big.NewInt(int64(patch)),
-	}
-}
 
 type PrecompileMetadata = struct {
 	Address     common.Address `json:"addr"`

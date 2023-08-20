@@ -13,7 +13,7 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with the concrete library. If not, see <http://www.gnu.org/licenses/>.
 
-package precompiles
+package preimage_registry
 
 import (
 	_ "embed"
@@ -72,11 +72,11 @@ func (p *PreimageRegistry) Run(env api.Environment, input []byte) ([]byte, error
 	methodID, data := lib.SplitInput(input)
 	method, err := ABI.MethodById(methodID)
 	if err != nil {
-		return nil, err // TODO: error
+		return nil, precompiles.ErrMethodNotFound
 	}
 	args, err := method.Inputs.Unpack(data)
 	if err != nil {
-		return nil, err // TODO: error
+		return nil, precompiles.ErrInvalidInput
 	}
 	var result interface{}
 
@@ -124,8 +124,13 @@ func (p *PreimageRegistry) Run(env api.Environment, input []byte) ([]byte, error
 		}
 
 	default:
-		return nil, nil // TODO: error
+		return nil, precompiles.ErrMethodNotFound
 	}
 
-	return method.Outputs.Pack(result)
+	output, err := method.Outputs.Pack(result)
+	if err != nil {
+		// Panic because this is a bug in the precompile.
+		panic(err)
+	}
+	return output, nil
 }
