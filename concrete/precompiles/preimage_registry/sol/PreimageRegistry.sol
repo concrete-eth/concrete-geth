@@ -8,8 +8,5 @@ interface PreimageRegistry {
 
     function getPreimageSize(bytes32 _hash) external view returns (uint256);
 
-    function getPreimage(
-        uint256 size,
-        bytes32 _hash
-    ) external view returns (bytes memory);
+    function getPreimage(bytes32 _hash) external view returns (bytes memory);
 }

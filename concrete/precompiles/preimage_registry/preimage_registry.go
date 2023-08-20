@@ -1,0 +1,131 @@
+// Copyright 2023 The concrete-geth Authors
+//
+// The concrete-geth library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The concrete library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the concrete library. If not, see <http://www.gnu.org/licenses/>.
+
+package precompiles
+
+import (
+	_ "embed"
+	"math/big"
+	"strings"
+
+	"github.com/ethereum/go-ethereum/accounts/abi"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/concrete/api"
+	"github.com/ethereum/go-ethereum/concrete/lib"
+	"github.com/ethereum/go-ethereum/concrete/precompiles"
+)
+
+//go:embed sol/abi/PreimageRegistry.abi
+var abiFile string
+
+var ABI abi.ABI
+
+var PreimageRegistryMetadata = precompiles.PrecompileMetadata{
+	Name:        "PreimageRegistry",
+	Version:     precompiles.Version{common.Big0, common.Big1, common.Big0},
+	Author:      "The concrete-geth Authors",
+	Description: "A registry of stored preimages indexed by their hash.",
+	Source:      "https://github.com/therealbytes/concrete-geth/tree/concrete/concrete/precompiles/preimage_registry.go",
+	ABI:         abiFile,
+}
+
+var (
+	// crypto.Keccak256Hash(nil)
+	EmptyPreimageHash = common.HexToHash("0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470")
+)
+
+func init() {
+	abiReader := strings.NewReader(abiFile)
+	var err error
+	ABI, err = abi.JSON(abiReader)
+	if err != nil {
+		panic(err)
+	}
+}
+
+type PreimageRegistry struct {
+	lib.BlankPrecompile
+}
+
+func (p *PreimageRegistry) IsStatic(input []byte) bool {
+	methodID, _ := lib.SplitInput(input)
+	method, err := ABI.MethodById(methodID)
+	if err != nil {
+		return false
+	}
+	return method.IsConstant()
+}
+
+func (p *PreimageRegistry) Run(env api.Environment, input []byte) ([]byte, error) {
+	methodID, data := lib.SplitInput(input)
+	method, err := ABI.MethodById(methodID)
+	if err != nil {
+		return nil, err // TODO: error
+	}
+	args, err := method.Inputs.Unpack(data)
+	if err != nil {
+		return nil, err // TODO: error
+	}
+	var result interface{}
+
+	preimageMap := api.NewDatastore(env).Mapping([]byte("map.size.v1"))
+
+	switch method.Name {
+
+	case "addPreimage":
+		preimage := args[0].([]byte)
+		length := len(preimage)
+		if length == 0 {
+			result = EmptyPreimageHash
+		} else {
+			hash := env.PersistentPreimageStore_Unsafe(preimage)
+			preimageMap.Value(hash.Bytes()).SetInt64(int64(length))
+			result = hash
+		}
+
+	case "hasPreimage":
+		hash := common.Hash(args[0].([32]byte))
+		if hash == EmptyPreimageHash {
+			result = true
+		} else {
+			result = preimageMap.Value(hash.Bytes()).GetBig().Uint64() > 0
+		}
+
+	case "getPreimageSize":
+		hash := common.Hash(args[0].([32]byte))
+		if hash == EmptyPreimageHash {
+			result = big.NewInt(0)
+		} else {
+			result = preimageMap.Value(hash.Bytes()).GetBig()
+		}
+
+	case "getPreimage":
+		hash := common.Hash(args[0].([32]byte))
+		if hash == EmptyPreimageHash {
+			result = []byte{}
+		} else {
+			size := preimageMap.Value(hash.Bytes()).GetBig().Int64()
+			if size < 0 {
+				result = []byte{}
+			}
+			result = env.PersistentPreimageLoad_Unsafe(hash)
+		}
+
+	default:
+		return nil, nil // TODO: error
+	}
+
+	return method.Outputs.Pack(result)
+}

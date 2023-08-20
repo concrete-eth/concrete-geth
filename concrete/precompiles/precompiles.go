@@ -39,7 +39,7 @@ func NewVersion(major, minor, patch int) Version {
 }
 
 type PrecompileMetadata = struct {
-	Addr        common.Address `json:"addr"`
+	Address     common.Address `json:"addr"`
 	Name        string         `json:"name"`
 	Version     Version        `json:"version"`
 	Author      string         `json:"author"`
@@ -66,15 +66,7 @@ func AddPrecompileWithMetadata(addr common.Address, p api.Precompile, metadata P
 		}
 	}
 
-	metadata.Addr = addr
-
-	// if pwabi, ok := p.(*lib.PrecompileWithABI); ok {
-	// 	abiJson, err := json.Marshal(pwabi.ABI)
-	// 	if err != nil {
-	// 		return err
-	// 	}
-	// 	metadata.ABI = string(abiJson)
-	// }
+	metadata.Address = addr
 
 	precompiles[addr] = p
 	precompiledAddresses = append(precompiledAddresses, addr)
@@ -99,6 +91,22 @@ func GetPrecompile(addr common.Address) (api.Precompile, bool) {
 
 func ActivePrecompiles() []common.Address {
 	return precompiledAddresses
+}
+
+func GetPrecompileMetadataByAddress(addr common.Address) *PrecompileMetadata {
+	pc, ok := metadataByAddress[addr]
+	if !ok {
+		return nil
+	}
+	return pc
+}
+
+func GetPrecompileMetadataByName(name string) *PrecompileMetadata {
+	pc, ok := metadataByName[name]
+	if !ok {
+		return nil
+	}
+	return pc
 }
 
 func RunPrecompile(p api.Precompile, env *api.Env, input []byte, static bool) (ret []byte, remainingGas uint64, err error) {

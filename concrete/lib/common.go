@@ -37,3 +37,7 @@ func SplitData(data []byte, size uint64) ([]byte, []byte) {
 	}
 	return data[:size], data[size:]
 }
+
+func SplitInput(input []byte) ([]byte, []byte) {
+	return SplitData(input, 4)
+}
