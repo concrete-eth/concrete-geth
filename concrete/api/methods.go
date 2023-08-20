@@ -606,6 +606,10 @@ func opGetCodeSize(env *Env, args [][]byte) ([][]byte, error) {
 
 func opUseGas(env *Env, args [][]byte) ([][]byte, error) {
 	gas := BytesToUint64(args[0])
+	if env.gas < gas {
+		env.gas = 0
+		return nil, ErrOutOfGas
+	}
 	env.gas -= gas
 	return nil, nil
 }
@@ -652,6 +656,7 @@ func gasGetExternalBalance(env *Env, args [][]byte) (uint64, error) {
 	address := common.BytesToAddress(args[0])
 	if !env.statedb.AddressInAccessList(address) {
 		env.statedb.AddAddressToAccessList(address)
+		// TODO: gas
 		return params.ColdAccountAccessCostEIP2929 - params.WarmStorageReadCostEIP2929, nil
 	}
 	return 0, nil
