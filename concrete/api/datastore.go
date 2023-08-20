@@ -22,7 +22,7 @@ import (
 	"github.com/ethereum/go-ethereum/concrete/crypto"
 )
 
-func keyTohHash(key []byte) common.Hash {
+func keyToHash(key []byte) common.Hash {
 	if len(key) > 32 {
 		return crypto.Keccak256Hash(key)
 	}
@@ -85,17 +85,17 @@ func newDatastore(kv KeyValueStore) *datastore {
 }
 
 func (ds *datastore) value(key []byte) *storedValue {
-	slot := keyTohHash(key)
+	slot := keyToHash(key)
 	return newStorageSlot(ds, slot)
 }
 
 func (ds *datastore) mapping(key []byte) *mapping {
-	slot := keyTohHash(key)
+	slot := keyToHash(key)
 	return newMapping(ds, slot)
 }
 
 func (ds *datastore) array(key []byte) *dynamicArray {
-	slot := keyTohHash(key)
+	slot := keyToHash(key)
 	return newDynamicArray(ds, slot)
 }
 
@@ -449,7 +449,7 @@ func newMapping(ds *datastore, slot common.Hash) *mapping {
 }
 
 func (m *mapping) keySlot(key []byte) common.Hash {
-	return crypto.Keccak256Hash(keyTohHash(key).Bytes(), m.slot.Bytes())
+	return crypto.Keccak256Hash(keyToHash(key).Bytes(), m.slot.Bytes())
 }
 
 func (m *mapping) value(key []byte) *storedValue {
