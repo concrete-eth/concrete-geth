@@ -330,9 +330,9 @@ func opEphemeralStore(env *Env, args [][]byte) ([][]byte, error) {
 	if !env.config.Ephemeral {
 		return nil, ErrFeatureDisabled
 	}
-	if env.config.Static {
-		return nil, ErrWriteProtection
-	}
+	// if env.config.Static {
+	// 	return nil, ErrWriteProtection
+	// }
 	key := common.BytesToHash(args[0])
 	value := common.BytesToHash(args[1])
 	env.statedb.SetEphemeralState(env.address, key, value)
@@ -364,9 +364,9 @@ func opPersistentPreimageStore(env *Env, args [][]byte) ([][]byte, error) {
 	if !env.config.Preimages {
 		return nil, ErrFeatureDisabled
 	}
-	if env.config.Static {
-		return nil, ErrWriteProtection
-	}
+	// if env.config.Static {
+	// 	return nil, ErrWriteProtection
+	// }
 	preimage := args[0]
 	hash := crypto.Keccak256Hash(preimage)
 	env.statedb.AddPersistentPreimage(hash, preimage)
@@ -404,9 +404,9 @@ func opEphemeralPreimageStore(env *Env, args [][]byte) ([][]byte, error) {
 	if !env.config.Ephemeral || !env.config.Preimages {
 		return nil, ErrFeatureDisabled
 	}
-	if env.config.Static {
-		return nil, ErrWriteProtection
-	}
+	// if env.config.Static {
+	// 	return nil, ErrWriteProtection
+	// }
 	preimage := args[0]
 	hash := crypto.Keccak256Hash(preimage)
 	env.statedb.AddEphemeralPreimage(hash, preimage)
@@ -543,9 +543,6 @@ func gasStorageLoad(env *Env, args [][]byte) (uint64, error) {
 }
 
 func opStorageLoad(env *Env, args [][]byte) ([][]byte, error) {
-	if env.config.Static {
-		return nil, ErrWriteProtection
-	}
 	key := common.BytesToHash(args[0])
 	value := env.statedb.GetPersistentState(env.address, key)
 	return [][]byte{value.Bytes()}, nil
