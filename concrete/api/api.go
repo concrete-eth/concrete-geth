@@ -37,10 +37,10 @@ type Environment interface {
 	EphemeralStore_Unsafe(key common.Hash, value common.Hash)
 
 	// Preimage oracle
-	PersistentPreimageStore_Unsafe(preimage []byte)
+	PersistentPreimageStore_Unsafe(preimage []byte) common.Hash
 	PersistentPreimageLoad_Unsafe(hash common.Hash) []byte
 	PersistentPreimageLoadSize_Unsafe(hash common.Hash) int
-	EphemeralPreimageStore_Unsafe(preimage []byte)
+	EphemeralPreimageStore_Unsafe(preimage []byte) common.Hash
 	EphemeralPreimageLoad_Unsafe(hash common.Hash) []byte
 	EphemeralPreimageLoadSize_Unsafe(hash common.Hash) int
 
@@ -236,9 +236,12 @@ func (env *Env) EphemeralStore_Unsafe(key common.Hash, value common.Hash) {
 	env.execute(EphemeralStore_OpCode, env, input)
 }
 
-func (env *Env) PersistentPreimageStore_Unsafe(preimage []byte) {
+// TODO: what if preimage not found?
+// TODO: return hash
+func (env *Env) PersistentPreimageStore_Unsafe(preimage []byte) common.Hash {
 	input := [][]byte{preimage}
-	env.execute(PersistentPreimageStore_OpCode, env, input)
+	output := env.execute(PersistentPreimageStore_OpCode, env, input)
+	return common.BytesToHash(output[0])
 }
 
 func (env *Env) PersistentPreimageLoad_Unsafe(hash common.Hash) []byte {
@@ -253,9 +256,10 @@ func (env *Env) PersistentPreimageLoadSize_Unsafe(hash common.Hash) int {
 	return int(BytesToUint64(output[0]))
 }
 
-func (env *Env) EphemeralPreimageStore_Unsafe(preimage []byte) {
+func (env *Env) EphemeralPreimageStore_Unsafe(preimage []byte) common.Hash {
 	input := [][]byte{preimage}
-	env.execute(EphemeralPreimageStore_OpCode, env, input)
+	output := env.execute(EphemeralPreimageStore_OpCode, env, input)
+	return common.BytesToHash(output[0])
 }
 
 func (env *Env) EphemeralPreimageLoad_Unsafe(hash common.Hash) []byte {

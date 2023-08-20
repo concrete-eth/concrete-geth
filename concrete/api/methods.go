@@ -367,10 +367,10 @@ func opPersistentPreimageStore(env *Env, args [][]byte) ([][]byte, error) {
 	if env.config.Static {
 		return nil, ErrWriteProtection
 	}
-	value := args[0]
-	key := crypto.Keccak256Hash(value)
-	env.statedb.AddPersistentPreimage(key, value)
-	return nil, nil
+	preimage := args[0]
+	hash := crypto.Keccak256Hash(preimage)
+	env.statedb.AddPersistentPreimage(hash, preimage)
+	return [][]byte{hash.Bytes()}, nil
 }
 
 func opPersistentPreimageLoad(env *Env, args [][]byte) ([][]byte, error) {
@@ -407,10 +407,10 @@ func opEphemeralPreimageStore(env *Env, args [][]byte) ([][]byte, error) {
 	if env.config.Static {
 		return nil, ErrWriteProtection
 	}
-	key := common.BytesToHash(args[0])
-	value := args[1]
-	env.statedb.AddEphemeralPreimage(key, value)
-	return nil, nil
+	preimage := args[0]
+	hash := crypto.Keccak256Hash(preimage)
+	env.statedb.AddEphemeralPreimage(hash, preimage)
+	return [][]byte{hash.Bytes()}, nil
 }
 
 func opEphemeralPreimageLoad(env *Env, args [][]byte) ([][]byte, error) {
