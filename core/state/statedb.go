@@ -399,8 +399,19 @@ func (s *StateDB) GetPersistentState(addr common.Address, key common.Hash) commo
 func (s *StateDB) FinaliseConcretePrecompiles() {
 	for _, addr := range cc_precompiles.ActivePrecompiles() {
 		p, _ := cc_precompiles.GetPrecompile(addr)
-		api := cc_api.NewStateAPI(cc_api.NewCommitSafeStateDB(s), addr)
-		if err := p.Finalise(api); err != nil {
+		env := cc_api.NewNoCallEnvironment(
+			addr,
+			cc_api.EnvConfig{
+				Static:    true,
+				Ephemeral: true,
+				Preimages: true,
+				Trusted:   true,
+			},
+			s,
+			false,
+			0,
+		)
+		if err := p.Finalise(env); err != nil {
 			s.setError(fmt.Errorf("error in concrete precompile %x Finalise(): %v", addr, err))
 		}
 	}
@@ -409,8 +420,19 @@ func (s *StateDB) FinaliseConcretePrecompiles() {
 func (s *StateDB) CommitConcretePrecompiles() {
 	for _, addr := range cc_precompiles.ActivePrecompiles() {
 		p, _ := cc_precompiles.GetPrecompile(addr)
-		api := cc_api.NewStateAPI(cc_api.NewCommitSafeStateDB(s), addr)
-		if err := p.Commit(api); err != nil {
+		env := cc_api.NewNoCallEnvironment(
+			addr,
+			cc_api.EnvConfig{
+				Static:    true,
+				Ephemeral: true,
+				Preimages: true,
+				Trusted:   true,
+			},
+			s,
+			false,
+			0,
+		)
+		if err := p.Commit(env); err != nil {
 			s.setError(fmt.Errorf("error in concrete precompile %x Commit(): %v", addr, err))
 		}
 	}
