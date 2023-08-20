@@ -31,6 +31,7 @@ var (
 	ErrWriteProtection = errors.New("write protection")
 	ErrFeatureDisabled = errors.New("feature disabled")
 	ErrEnvNotTrusted   = errors.New("environment not trusted")
+	ErrNoData          = errors.New("no data")
 )
 
 type OpCode byte
@@ -446,41 +447,65 @@ func opGetGasLeft(env *Env, args [][]byte) ([][]byte, error) {
 }
 
 func opGetBlockNumber(env *Env, args [][]byte) ([][]byte, error) {
+	if env.block == nil {
+		return nil, ErrNoData
+	}
 	number := env.block.BlockNumber()
 	return [][]byte{Uint64ToBytes(number)}, nil
 }
 
 func opGetBlockGasLimit(env *Env, args [][]byte) ([][]byte, error) {
+	if env.block == nil {
+		return nil, ErrNoData
+	}
 	limit := env.block.GasLimit()
 	return [][]byte{Uint64ToBytes(limit)}, nil
 }
 
 func opGetBlockTimestamp(env *Env, args [][]byte) ([][]byte, error) {
+	if env.block == nil {
+		return nil, ErrNoData
+	}
 	timestamp := env.block.Timestamp()
 	return [][]byte{Uint64ToBytes(timestamp)}, nil
 }
 
 func opGetBlockDifficulty(env *Env, args [][]byte) ([][]byte, error) {
+	if env.block == nil {
+		return nil, ErrNoData
+	}
 	difficulty := env.block.Difficulty()
 	return [][]byte{difficulty.Bytes()}, nil
 }
 
 func opGetBlockBasefee(env *Env, args [][]byte) ([][]byte, error) {
+	if env.block == nil {
+		return nil, ErrNoData
+	}
 	basefee := env.block.BaseFee()
 	return [][]byte{basefee.Bytes()}, nil
 }
 
 func opGetBlockCoinbase(env *Env, args [][]byte) ([][]byte, error) {
+	if env.block == nil {
+		return nil, ErrNoData
+	}
 	coinbase := env.block.Coinbase()
 	return [][]byte{coinbase.Bytes()}, nil
 }
 
 func opGetPrevRandao(env *Env, args [][]byte) ([][]byte, error) {
+	if env.block == nil {
+		return nil, ErrNoData
+	}
 	randao := env.block.Random()
 	return [][]byte{randao.Bytes()}, nil
 }
 
 func opGetBlockHash(env *Env, args [][]byte) ([][]byte, error) {
+	if env.block == nil {
+		return nil, ErrNoData
+	}
 	number := BytesToUint64(args[0])
 	var upper, lower uint64
 	upper = env.block.BlockNumber()
@@ -502,31 +527,49 @@ func opGetBalance(env *Env, args [][]byte) ([][]byte, error) {
 }
 
 func opGetTxGasPrice(env *Env, args [][]byte) ([][]byte, error) {
+	if env.call == nil {
+		return nil, ErrNoData
+	}
 	price := env.call.TxGasPrice()
 	return [][]byte{price.Bytes()}, nil
 }
 
 func opGetTxOrigin(env *Env, args [][]byte) ([][]byte, error) {
+	if env.call == nil {
+		return nil, ErrNoData
+	}
 	origin := env.call.TxOrigin()
 	return [][]byte{origin.Bytes()}, nil
 }
 
 func opGetCallData(env *Env, args [][]byte) ([][]byte, error) {
+	if env.call == nil {
+		return nil, ErrNoData
+	}
 	data := env.call.CallData()
 	return [][]byte{data}, nil
 }
 
 func opGetCallDataSize(env *Env, args [][]byte) ([][]byte, error) {
+	if env.call == nil {
+		return nil, ErrNoData
+	}
 	size := env.call.CallDataSize()
 	return [][]byte{Uint64ToBytes(uint64(size))}, nil
 }
 
 func opGetCaller(env *Env, args [][]byte) ([][]byte, error) {
+	if env.call == nil {
+		return nil, ErrNoData
+	}
 	caller := env.call.Caller()
 	return [][]byte{caller.Bytes()}, nil
 }
 
 func opGetCallValue(env *Env, args [][]byte) ([][]byte, error) {
+	if env.call == nil {
+		return nil, ErrNoData
+	}
 	value := env.call.CallValue()
 	return [][]byte{value.Bytes()}, nil
 }
@@ -543,6 +586,9 @@ func gasStorageLoad(env *Env, args [][]byte) (uint64, error) {
 }
 
 func opStorageLoad(env *Env, args [][]byte) ([][]byte, error) {
+	// if env.config.Static {
+	// 	return nil, ErrWriteProtection
+	// }
 	key := common.BytesToHash(args[0])
 	value := env.statedb.GetPersistentState(env.address, key)
 	return [][]byte{value.Bytes()}, nil
@@ -618,6 +664,9 @@ func opGetExternalBalance(env *Env, args [][]byte) ([][]byte, error) {
 }
 
 func opCallStatic(env *Env, args [][]byte) ([][]byte, error) {
+	if env.caller == nil {
+		return nil, ErrNoData
+	}
 	address := common.BytesToAddress(args[0])
 	input := args[1]
 	gas := BytesToUint64(args[2])
@@ -645,6 +694,9 @@ func opGetExternalCodeHash(env *Env, args [][]byte) ([][]byte, error) {
 }
 
 func opCall(env *Env, args [][]byte) ([][]byte, error) {
+	if env.caller == nil {
+		return nil, ErrNoData
+	}
 	address := common.BytesToAddress(args[0])
 	input := args[1]
 	gas := BytesToUint64(args[2])
@@ -655,6 +707,9 @@ func opCall(env *Env, args [][]byte) ([][]byte, error) {
 }
 
 func opCallDelegate(env *Env, args [][]byte) ([][]byte, error) {
+	if env.caller == nil {
+		return nil, ErrNoData
+	}
 	address := common.BytesToAddress(args[0])
 	input := args[1]
 	gas := BytesToUint64(args[2])
@@ -664,6 +719,9 @@ func opCallDelegate(env *Env, args [][]byte) ([][]byte, error) {
 }
 
 func opCreate(env *Env, args [][]byte) ([][]byte, error) {
+	if env.caller == nil {
+		return nil, ErrNoData
+	}
 	input := args[0]
 	value := new(big.Int).SetBytes(args[1])
 	address, gasLeft, err := env.caller.Create(input, value)
@@ -672,6 +730,9 @@ func opCreate(env *Env, args [][]byte) ([][]byte, error) {
 }
 
 func opCreate2(env *Env, args [][]byte) ([][]byte, error) {
+	if env.caller == nil {
+		return nil, ErrNoData
+	}
 	input := args[0]
 	value := new(big.Int).SetBytes(args[1])
 	salt := common.BytesToHash(args[2])

@@ -148,39 +148,60 @@ func NewEnvironment(
 		gas:      gas,
 	}
 	env.table = NewEnvironmentMethods()
-	env.execute = func(op OpCode, env *Env, args [][]byte) [][]byte {
-		operation := env.table[op]
-
-		if env.meterGas {
-			gas := operation.constantGas
-			if operation.dynamicGas != nil {
-				dynamicGas, err := operation.dynamicGas(env, args)
-				if err != nil {
-					env.setError(err)
-					return nil
-				}
-				gas += dynamicGas
-			}
-			env.UseGas(gas)
-		}
-
-		output, err := operation.execute(env, args)
-
-		if env.config.Trusted {
-			if err == ErrFeatureDisabled {
-				// Panicking is preferable in trusted execution, as mistakenly using a
-				// disabled feature should be caught during testing.
-				panic(err)
-			}
-		}
-
-		if err != nil {
-			env.setError(err)
-			return nil
-		}
-		return output
-	}
+	env.execute = execute
 	return env
+}
+
+func NewNoCallEnvironment(
+	address common.Address,
+	config EnvConfig,
+	statedb StateDB,
+	meterGas bool,
+	gas uint64,
+) *Env {
+	env := &Env{
+		address:  address,
+		config:   config,
+		statedb:  statedb,
+		meterGas: meterGas,
+		gas:      gas,
+	}
+	env.table = NewEnvironmentMethods()
+	env.execute = execute
+	return env
+}
+
+func execute(op OpCode, env *Env, args [][]byte) [][]byte {
+	operation := env.table[op]
+
+	if env.meterGas {
+		gas := operation.constantGas
+		if operation.dynamicGas != nil {
+			dynamicGas, err := operation.dynamicGas(env, args)
+			if err != nil {
+				env.setError(err)
+				return nil
+			}
+			gas += dynamicGas
+		}
+		env.UseGas(gas)
+	}
+
+	output, err := operation.execute(env, args)
+
+	if env.config.Trusted {
+		if err == ErrFeatureDisabled {
+			// Panicking is preferable in trusted execution, as mistakenly using a
+			// disabled feature should be caught during testing.
+			panic(err)
+		}
+	}
+
+	if err != nil {
+		env.setError(err)
+		return nil
+	}
+	return output
 }
 
 func (env *Env) setError(err error) {
