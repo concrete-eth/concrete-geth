@@ -135,8 +135,10 @@ type StorageSlot interface {
 	SetAddress(value common.Address)
 	GetBig() *big.Int
 	SetBig(value *big.Int)
-	SetInt64(value int64)
+	GetUint64() uint64
+	SetUint64(value uint64)
 	GetInt64() int64
+	SetInt64(value int64)
 	GetBytes() []byte
 	SetBytes(value []byte)
 	SlotArray(length []int) SlotArray
@@ -257,6 +259,14 @@ func (r *storedValue) GetBig() *big.Int {
 
 func (r *storedValue) SetBig(value *big.Int) {
 	r.setBytes32(common.BigToHash(value))
+}
+
+func (r *storedValue) SetUint64(value uint64) {
+	r.SetBig(new(big.Int).SetUint64(value))
+}
+
+func (r *storedValue) GetUint64() uint64 {
+	return r.GetBig().Uint64()
 }
 
 func (r *storedValue) SetInt64(value int64) {
