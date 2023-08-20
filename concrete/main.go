@@ -24,7 +24,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/concrete/api"
 	"github.com/ethereum/go-ethereum/concrete/precompiles"
-	"github.com/ethereum/go-ethereum/concrete/wasm"
 	"github.com/urfave/cli/v2"
 )
 
@@ -32,8 +31,8 @@ type ConcreteApp interface {
 	RunWithArgs(args []string) error
 	RunWithOsArgs() error
 	Run() error
-	AddPrecompile(addr common.Address, pc api.Precompile, args ...interface{}) error
-	AddPrecompileWasm(addr common.Address, code []byte, args ...interface{}) error
+	AddPrecompileWithMetadata(addr common.Address, pc api.Precompile, metadata precompiles.PrecompileMetadata) error
+	AddPrecompile(addr common.Address, pc api.Precompile) error
 }
 
 type concreteGeth struct {
@@ -72,11 +71,4 @@ func (a *concreteGeth) AddPrecompileWithMetadata(addr common.Address, pc api.Pre
 
 func (a *concreteGeth) AddPrecompile(addr common.Address, pc api.Precompile) error {
 	return a.AddPrecompileWithMetadata(addr, pc, precompiles.PrecompileMetadata{})
-}
-
-func (a *concreteGeth) AddPrecompileWasm(addr common.Address, code []byte, args ...interface{}) error {
-	if err := a.validateNewPCAddress(addr); err != nil {
-		return err
-	}
-	return precompiles.AddPrecompile(addr, wasm.NewWasmPrecompile(code), args...)
 }
