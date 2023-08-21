@@ -112,7 +112,7 @@ type JumpTable [256]*operation
 
 // TODO: Price operations properly
 
-func NewEnvironmentMethods() JumpTable {
+func newEnvironmentMethods() JumpTable {
 	tbl := JumpTable{
 		EnableGasMetering_OpCode: {
 			execute: opEnableGasMetering,

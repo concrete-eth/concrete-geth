@@ -147,7 +147,7 @@ func NewEnvironment(
 		meterGas: meterGas,
 		gas:      gas,
 	}
-	env.table = NewEnvironmentMethods()
+	env.table = newEnvironmentMethods()
 	env.execute = execute
 	return env
 }
@@ -166,7 +166,7 @@ func NewNoCallEnvironment(
 		meterGas: meterGas,
 		gas:      gas,
 	}
-	env.table = NewEnvironmentMethods()
+	env.table = newEnvironmentMethods()
 	env.execute = execute
 	return env
 }
