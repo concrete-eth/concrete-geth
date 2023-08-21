@@ -19,38 +19,10 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
 )
 
 type Logger interface {
 	Debug(msg string)
-}
-
-type StateDB interface {
-	// Access list
-	AddressInAccessList(addr common.Address) bool
-	SlotInAccessList(addr common.Address, slot common.Hash) (addressOk bool, slotOk bool)
-	AddAddressToAccessList(addr common.Address)
-	AddSlotToAccessList(addr common.Address, slot common.Hash)
-	// Code
-	GetCode(common.Address) []byte
-	GetCodeSize(common.Address) int
-	GetCodeHash(common.Address) common.Hash
-	// Balance
-	GetBalance(addr common.Address) *big.Int
-	// Logs
-	AddLog(*types.Log)
-	// Storage
-	SetPersistentState(addr common.Address, key common.Hash, value common.Hash)
-	GetPersistentState(addr common.Address, key common.Hash) common.Hash
-	SetEphemeralState(addr common.Address, key common.Hash, value common.Hash)
-	GetEphemeralState(addr common.Address, key common.Hash) common.Hash
-	AddPersistentPreimage(hash common.Hash, preimage []byte)
-	GetPersistentPreimage(hash common.Hash) []byte
-	GetPersistentPreimageSize(hash common.Hash) int
-	AddEphemeralPreimage(hash common.Hash, preimage []byte)
-	GetEphemeralPreimage(hash common.Hash) []byte
-	GetEphemeralPreimageSize(hash common.Hash) int
 }
 
 type BlockContext interface {

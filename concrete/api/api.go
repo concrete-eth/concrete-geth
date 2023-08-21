@@ -181,7 +181,6 @@ func NewProxyEnvironment(execute func(op OpCode, env *Env, args [][]byte) [][]by
 	env := &Env{
 		_execute: execute,
 	}
-	env.table = newEnvironmentMethods()
 	return env
 }
 
