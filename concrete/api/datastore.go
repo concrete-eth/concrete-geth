@@ -314,7 +314,7 @@ func newSlotArray(ds *datastore, slot common.Hash, length []int) *slotArray {
 	return &slotArray{ds: ds, slot: slot, length: length}
 }
 
-func (a *slotArray) indexSlot(index []int) common.Hash {
+func (a *slotArray) indexSlot(index []int) *common.Hash {
 	if len(index) < len(a.length) {
 		padding := make([]int, len(a.length)-len(index))
 		index = append(index, padding...)
@@ -326,9 +326,13 @@ func (a *slotArray) indexSlot(index []int) common.Hash {
 	for ii := len(index) - 1; ii >= 0; ii-- {
 		flatLength *= a.length[ii]
 		flatIndex += index[ii] * flatLength
+		if flatLength == 0 {
+			return nil
+		}
 	}
 	absIndex := new(big.Int).Add(big.NewInt(int64(flatIndex)), a.slot.Big())
-	return common.BigToHash(absIndex)
+	slot := common.BigToHash(absIndex)
+	return &slot
 }
 
 func (a *slotArray) getLength() int {
@@ -340,18 +344,24 @@ func (a *slotArray) value(index []int) *storedValue {
 		return nil
 	}
 	slot := a.indexSlot(index)
-	return newStorageSlot(a.ds, slot)
+	if slot == nil {
+		return nil
+	}
+	return newStorageSlot(a.ds, *slot)
 }
 
 func (a *slotArray) slotArray(index []int) *slotArray {
 	if len(index) == 0 {
 		return a
-	} else if len(index) > len(a.length) {
+	} else if len(index) >= len(a.length) {
 		return nil
 	}
 	slot := a.indexSlot(index)
+	if slot == nil {
+		return nil
+	}
 	length := a.length[len(index):]
-	return newSlotArray(a.ds, slot, length)
+	return newSlotArray(a.ds, *slot, length)
 }
 
 func (a *slotArray) Length() int {
@@ -380,9 +390,11 @@ type bytesArray struct {
 }
 
 func newBytesArray(ds *datastore, slot common.Hash, length []int, itemSize int) *bytesArray {
-	if itemSize == 0 || len(length) == 0 {
+	// Validate inputs
+	if len(length) == 0 || itemSize == 0 {
 		return nil
 	}
+	// Create underlying slot array
 	itemsPerSlot := 32 / itemSize
 	if itemsPerSlot > 1 {
 		length[len(length)-1] /= itemsPerSlot
@@ -398,10 +410,11 @@ func (a *bytesArray) getLength() int {
 }
 
 func (a *bytesArray) value(index []int) []byte {
+	// Validate inputs
 	if len(index) != len(a.arr.length) {
 		return nil
 	}
-
+	// Map index to underlying slot array
 	itemsPerSlot := 32 / a.itemSize
 	slotsPerItem := (a.itemSize + 31) / 32
 
@@ -420,6 +433,7 @@ func (a *bytesArray) value(index []int) []byte {
 		index[len(index)-1] *= slotsPerItem
 	}
 
+	// Read data from underlying slot array
 	data := make([]byte, a.itemSize)
 	for ii := 0; ii < a.itemSize; ii += 32 {
 		word := a.arr.value(index)
@@ -437,12 +451,15 @@ func (a *bytesArray) value(index []int) []byte {
 func (a *bytesArray) bytesArray(index []int) *bytesArray {
 	if len(index) == 0 {
 		return a
-	} else if len(index) > len(a.arr.length) {
+	} else if len(index) >= len(a.arr.length) {
 		return nil
 	}
 	slot := a.arr.indexSlot(index)
+	if slot == nil {
+		return nil
+	}
 	length := a.arr.length[len(index):]
-	return newBytesArray(a.arr.ds, slot, length, a.itemSize)
+	return newBytesArray(a.arr.ds, *slot, length, a.itemSize)
 }
 
 func (a *bytesArray) Length() int {
