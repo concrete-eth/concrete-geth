@@ -48,7 +48,7 @@ func (opcode *OpCode) Decode(data []byte) {
 
 const (
 	// Meta-ops
-	ManyOps_OpCode OpCode = 0x04 // TODO
+	ManyOps_OpCode OpCode = 0x04
 	// Meta-env
 	EnableGasMetering_OpCode OpCode = 0x08
 	// Debug
