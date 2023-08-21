@@ -37,6 +37,8 @@ const (
 	Run_WasmFuncName      = "concrete_Run"
 )
 
+// Note: For trusted use only. Precompiles can trigger a panic in the host.
+
 func NewWasmPrecompile(code []byte) api.Precompile {
 	return newWasmPrecompile(code)
 }
@@ -104,7 +106,7 @@ func (p *wasmPrecompile) call__Uint64(expFunc wz_api.Function) uint64 {
 	ctx := context.Background()
 	_ret, err := expFunc.Call(ctx)
 	if err != nil {
-		panic(err) // TODO: setErr [?]
+		panic(err)
 	}
 	return _ret[0]
 }
@@ -135,11 +137,18 @@ func (p *wasmPrecompile) call_Bytes_BytesErr(expFunc wz_api.Function, input []by
 }
 
 func (p *wasmPrecompile) before(env api.Environment) {
+	envImpl, ok := env.(*api.Env)
+	if !ok {
+		panic("invalid environment")
+	}
+	if !envImpl.Config().Trusted {
+		panic("untrusted environment")
+	}
 	p.mutex.Lock()
 	p.environment = env
 }
 
-func (p *wasmPrecompile) after(api api.Environment) {
+func (p *wasmPrecompile) after(env api.Environment) {
 	p.environment = nil
 	p.allocator.Prune()
 	p.mutex.Unlock()
