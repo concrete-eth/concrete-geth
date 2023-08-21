@@ -39,6 +39,7 @@ type OpCode byte
 const (
 	// Meta
 	EnableGasMetering_OpCode OpCode = 0x08
+	Debug_OpCode             OpCode = 0x0c
 	// Utils
 	Keccak256_OpCode OpCode = 0x10
 	// Ephemeral and preimage
@@ -114,6 +115,9 @@ type JumpTable [256]*operation
 
 func newEnvironmentMethods() JumpTable {
 	tbl := JumpTable{
+		Debug_OpCode: {
+			execute: opDebug,
+		},
 		EnableGasMetering_OpCode: {
 			execute: opEnableGasMetering,
 		},
@@ -309,6 +313,15 @@ func opEnableGasMetering(env *Env, args [][]byte) ([][]byte, error) {
 		return nil, ErrEnvNotTrusted
 	}
 	env.meterGas = meter
+	return nil, nil
+}
+
+func opDebug(env *Env, args [][]byte) ([][]byte, error) {
+	if !env.config.Trusted {
+		return nil, ErrEnvNotTrusted
+	}
+	msg := string(args[0])
+	env.logger.Debug(msg)
 	return nil, nil
 }
 

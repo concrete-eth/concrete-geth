@@ -22,6 +22,10 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 )
 
+type Logger interface {
+	Debug(msg string)
+}
+
 type StateDB interface {
 	// Access list
 	AddressInAccessList(addr common.Address) bool

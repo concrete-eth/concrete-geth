@@ -19,11 +19,13 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/log"
 )
 
 type Environment interface {
 	// Meta
 	EnableGasMetering(meter bool)
+	Debug(msg string)
 
 	// Aliases
 	PersistentLoad(key common.Hash) common.Hash
@@ -109,6 +111,12 @@ type EnvConfig struct {
 	Trusted   bool
 }
 
+type logger struct{}
+
+func (logger) Debug(msg string) {
+	log.Debug(msg)
+}
+
 type Env struct {
 	table   JumpTable
 	execute func(op OpCode, env *Env, args [][]byte) [][]byte
@@ -116,6 +124,7 @@ type Env struct {
 	address common.Address
 	config  EnvConfig
 
+	logger  Logger
 	statedb StateDB
 	block   BlockContext
 	call    CallContext
@@ -137,18 +146,10 @@ func NewEnvironment(
 	meterGas bool,
 	gas uint64,
 ) *Env {
-	env := &Env{
-		address:  address,
-		config:   config,
-		statedb:  statedb,
-		block:    block,
-		call:     call,
-		caller:   caller,
-		meterGas: meterGas,
-		gas:      gas,
-	}
-	env.table = newEnvironmentMethods()
-	env.execute = execute
+	env := NewNoCallEnvironment(address, config, statedb, meterGas, gas)
+	env.block = block
+	env.call = call
+	env.caller = caller
 	return env
 }
 
@@ -162,6 +163,7 @@ func NewNoCallEnvironment(
 	env := &Env{
 		address:  address,
 		config:   config,
+		logger:   logger{},
 		statedb:  statedb,
 		meterGas: meterGas,
 		gas:      gas,
@@ -228,6 +230,11 @@ func (env *Env) EnableGasMetering(meter bool) {
 		input[0][0] = byte(0x01)
 	}
 	env.execute(EnableGasMetering_OpCode, env, input)
+}
+
+func (env *Env) Debug(msg string) {
+	input := [][]byte{[]byte(msg)}
+	env.execute(Debug_OpCode, env, input)
 }
 
 func (env *Env) PersistentLoad(key common.Hash) common.Hash {
