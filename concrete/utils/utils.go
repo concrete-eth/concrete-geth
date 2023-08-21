@@ -32,18 +32,26 @@ func BytesToUint64(data []byte) uint64 {
 	return binary.LittleEndian.Uint64(data)
 }
 
+const (
+	nil_error    = byte(0)
+	notNil_error = byte(1)
+)
+
 func EncodeError(err error) []byte {
 	if err == nil {
-		return nil
+		return []byte{nil_error}
 	}
-	return []byte(err.Error())
+	return append([]byte{notNil_error}, []byte(err.Error())...)
 }
 
 func DecodeError(data []byte) error {
-	if data == nil {
+	if len(data) == 0 {
 		return nil
 	}
-	return errors.New(string(data))
+	if data[0] == nil_error {
+		return nil
+	}
+	return errors.New(string(data[1:]))
 }
 
 func GetData(data []byte, start uint64, size uint64) []byte {

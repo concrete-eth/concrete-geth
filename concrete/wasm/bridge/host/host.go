@@ -18,26 +18,22 @@ package host
 import (
 	"context"
 	"errors"
-	"fmt"
-	"math/big"
-	"time"
 
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/concrete/api"
 	"github.com/ethereum/go-ethereum/concrete/wasm/bridge"
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/log"
 	wz_api "github.com/tetratelabs/wazero/api"
 )
+
+// TODO: how is wasm panic handled?
 
 var (
 	ErrMemoryReadOutOfRange = errors.New("go: memory read out of range of memory size")
 )
 
 var (
-	WASM_MALLOC = "concrete_Malloc"
-	WASM_FREE   = "concrete_Free"
-	WASM_PRUNE  = "concrete_Prune"
+	Malloc_WasmFuncName = "concrete_Malloc"
+	Free_WasmFuncName   = "concrete_Free"
+	Prune_WasmFuncName  = "concrete_Prune"
 )
 
 type allocator struct {
@@ -57,7 +53,7 @@ func (a *allocator) Malloc(size uint32) bridge.MemPointer {
 		return bridge.NullPointer
 	}
 	if a.expMalloc == nil {
-		a.expMalloc = a.module.ExportedFunction(WASM_MALLOC)
+		a.expMalloc = a.module.ExportedFunction(Malloc_WasmFuncName)
 	}
 	_offset, err := a.expMalloc.Call(a.ctx, uint64(size))
 	if err != nil {
@@ -73,7 +69,7 @@ func (a *allocator) Free(pointer bridge.MemPointer) {
 		return
 	}
 	if a.expFree == nil {
-		a.expFree = a.module.ExportedFunction(WASM_FREE)
+		a.expFree = a.module.ExportedFunction(Free_WasmFuncName)
 	}
 	_, err := a.expFree.Call(a.ctx, uint64(pointer.Offset()))
 	if err != nil {
@@ -83,7 +79,7 @@ func (a *allocator) Free(pointer bridge.MemPointer) {
 
 func (a *allocator) Prune() {
 	if a.expPrune == nil {
-		a.expPrune = a.module.ExportedFunction(WASM_PRUNE)
+		a.expPrune = a.module.ExportedFunction(Prune_WasmFuncName)
 	}
 	_, err := a.expPrune.Call(a.ctx)
 	if err != nil {
@@ -129,178 +125,18 @@ func (m *memory) Read(pointer bridge.MemPointer) []byte {
 
 type HostFunc func(ctx context.Context, module wz_api.Module, pointer uint64) uint64
 
-func NewStateDBHostFunc(apiGetter func() api.API) HostFunc {
+func NewEnvironmentCaller(apiGetter func() api.Environment) HostFunc {
 	return func(ctx context.Context, module wz_api.Module, _pointer uint64) uint64 {
-		statedb := apiGetter().StateDB()
+		pointer := bridge.MemPointer(_pointer)
+		env := apiGetter()
 		mem, _ := NewMemory(ctx, module)
 
-		var handleCall func(pointer bridge.MemPointer) []byte
-		handleCall = func(pointer bridge.MemPointer) []byte {
-			args := bridge.GetArgs(mem, pointer)
-			var opcode bridge.OpCode
-			opcode.Decode(args[0])
-			args = args[1:]
-
-			if opcode == bridge.Op_StateDB_Many {
-				for _, ptr := range bridge.UnpackPointers(args[0]) {
-					handleCall(ptr)
-				}
-				return nil
-			} else {
-				return CallStateDB(statedb, opcode, args)
-			}
-		}
-
-		out := handleCall(bridge.MemPointer(_pointer))
-		return bridge.PutValue(mem, out).Uint64()
-	}
-}
-
-func NewEVMHostFunc(apiGetter func() api.API) HostFunc {
-	return func(ctx context.Context, module wz_api.Module, pointer uint64) uint64 {
-		mem, _ := NewMemory(ctx, module)
-		args := bridge.GetArgs(mem, bridge.MemPointer(pointer))
-		var opcode bridge.OpCode
+		args := bridge.GetArgs(mem, pointer)
+		var opcode api.OpCode
 		opcode.Decode(args[0])
 		args = args[1:]
-		out := CallEVM(apiGetter().EVM(), opcode, args)
-		return bridge.PutValue(mem, out).Uint64()
+
+		out := env.Execute(opcode, args)
+		return bridge.PutValues(mem, out).Uint64()
 	}
-}
-
-func NewAddressHostFunc(apiGetter func() api.API) HostFunc {
-	return func(ctx context.Context, module wz_api.Module, pointer uint64) uint64 {
-		mem, _ := NewMemory(ctx, module)
-		address := apiGetter().Address()
-		return bridge.PutValue(mem, address.Bytes()).Uint64()
-	}
-}
-
-func DisabledHostFunc(ctx context.Context, module wz_api.Module, pointer uint64) uint64 {
-	panic("go: disabled host function -- this likely means you are trying to access the concrete API from a wasm precompile declared as pure")
-}
-
-func LogHostFunc(ctx context.Context, module wz_api.Module, pointer uint64) uint64 {
-	mem, _ := NewMemory(ctx, module)
-	data := bridge.GetArgs(mem, bridge.MemPointer(pointer))
-	opcode := data[0][0]
-	msg := string(data[1])
-	if opcode == bridge.Op_Log_Log {
-		log.Info(msg)
-	} else {
-		fmt.Println(msg)
-	}
-	return bridge.NullPointer.Uint64()
-}
-
-func Keccak256HostFunc(ctx context.Context, module wz_api.Module, pointer uint64) uint64 {
-	mem, _ := NewMemory(ctx, module)
-	data := bridge.GetArgs(mem, bridge.MemPointer(pointer))
-	hash := crypto.Keccak256(data...)
-	return bridge.PutValue(mem, hash).Uint64()
-}
-
-func TimeHostFunc(ctx context.Context, module wz_api.Module, pointer uint64) uint64 {
-	return uint64(time.Now().UnixNano())
-}
-
-func CallStateDB(db api.StateDB, opcode bridge.OpCode, args [][]byte) []byte {
-	switch opcode {
-	case bridge.Op_StateDB_GetPersistentState:
-		addr := common.BytesToAddress(args[0])
-		hash := common.BytesToHash(args[1])
-		state := db.GetPersistentState(addr, hash)
-		return state.Bytes()
-
-	case bridge.Op_StateDB_GetPersistentPreimage:
-		hash := common.BytesToHash(args[0])
-		preimage := db.GetPersistentPreimage(hash)
-		return preimage
-
-	case bridge.Op_StateDB_GetPersistentPreimageSize:
-		hash := common.BytesToHash(args[0])
-		size := db.GetPersistentPreimageSize(hash)
-		return bridge.Uint64ToBytes(uint64(size))
-
-	case bridge.Op_StateDB_GetEphemeralState:
-		addr := common.BytesToAddress(args[0])
-		hash := common.BytesToHash(args[1])
-		state := db.GetEphemeralState(addr, hash)
-		return state.Bytes()
-
-	case bridge.Op_StateDB_GetEphemeralPreimage:
-		hash := common.BytesToHash(args[0])
-		preimage := db.GetEphemeralPreimage(hash)
-		return preimage
-
-	case bridge.Op_StateDB_GetEphemeralPreimageSize:
-		hash := common.BytesToHash(args[0])
-		size := db.GetEphemeralPreimageSize(hash)
-		return bridge.Uint64ToBytes(uint64(size))
-
-	case bridge.Op_StateDB_SetPersistentState:
-		addr := common.BytesToAddress(args[0])
-		key := common.BytesToHash(args[1])
-		value := common.BytesToHash(args[2])
-		db.SetPersistentState(addr, key, value)
-
-	case bridge.Op_StateDB_AddPersistentPreimage:
-		hash := common.BytesToHash(args[0])
-		preimage := args[1]
-		db.AddPersistentPreimage(hash, preimage)
-
-	case bridge.Op_StateDB_SetEphemeralState:
-		addr := common.BytesToAddress(args[0])
-		key := common.BytesToHash(args[1])
-		value := common.BytesToHash(args[2])
-		db.SetEphemeralState(addr, key, value)
-
-	case bridge.Op_StateDB_AddEphemeralPreimage:
-		hash := common.BytesToHash(args[0])
-		preimage := args[1]
-		db.AddEphemeralPreimage(hash, preimage)
-	}
-
-	return nil
-}
-
-func CallEVM(evm api.EVM, opcode bridge.OpCode, args [][]byte) []byte {
-	switch opcode {
-	case bridge.Op_EVM_BlockHash:
-		block := new(big.Int).SetBytes(args[0])
-		hash := evm.BlockHash(block)
-		return hash.Bytes()
-
-	case bridge.Op_EVM_BlockTimestamp:
-		timestamp := evm.BlockTimestamp()
-		return bridge.Uint64ToBytes(timestamp)
-
-	case bridge.Op_EVM_BlockGasLimit:
-		gasLimit := evm.BlockGasLimit()
-		return bridge.Uint64ToBytes(gasLimit)
-
-	case bridge.Op_EVM_BlockNumber:
-		number := evm.BlockNumber()
-		return number.Bytes()
-
-	case bridge.Op_EVM_BlockDifficulty:
-		difficulty := evm.BlockDifficulty()
-		return difficulty.Bytes()
-
-	case bridge.Op_EVM_BlockCoinbase:
-		coinbase := evm.BlockCoinbase()
-		return coinbase.Bytes()
-
-	case bridge.Op_EVM_Block:
-		block := bridge.BlockData{
-			Timestamp:  evm.BlockTimestamp(),
-			GasLimit:   evm.BlockGasLimit(),
-			Number:     evm.BlockNumber(),
-			Difficulty: evm.BlockDifficulty(),
-			Coinbase:   evm.BlockCoinbase(),
-		}
-		return block.Encode()
-	}
-
-	return nil
 }

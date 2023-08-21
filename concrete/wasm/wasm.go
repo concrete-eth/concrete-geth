@@ -27,64 +27,28 @@ import (
 	"github.com/tetratelabs/wazero/imports/wasi_snapshot_preview1"
 )
 
-var (
-	// WASM functions
-	WASM_IS_PURE         = "concrete_IsPure"
-	WASM_MUTATES_STORAGE = "concrete_MutatesStorage"
-	WASM_REQUIRED_GAS    = "concrete_RequiredGas"
-	WASM_FINALISE        = "concrete_Finalise"
-	WASM_COMMIT          = "concrete_Commit"
-	WASM_RUN             = "concrete_Run"
+const (
 	// Host functions
-	WASM_EVM_CALLER       = "concrete_EvmCaller"
-	WASM_STATEDB_CALLER   = "concrete_StateDBCaller"
-	WASM_ADDRESS_CALLER   = "concrete_AddressCaller"
-	WASM_LOG_CALLER       = "concrete_LogCaller"
-	WASM_KECCAK256_CALLER = "concrete_Keccak256Caller"
-	WASM_TIME_CALLER      = "concrete_TimeCaller"
+	Environment_WasmFuncName = "concrete_Environment"
+	// WASM functions
+	IsStatic_WasmFuncName = "concrete_IsStatic" // TODO: why is this IsStatic and not IsView
+	Finalise_WasmFuncName = "concrete_Finalise"
+	Commit_WasmFuncName   = "concrete_Commit"
+	Run_WasmFuncName      = "concrete_Run"
 )
 
 func NewWasmPrecompile(code []byte) api.Precompile {
-	pc := newWasmPrecompile(code)
-	if pc.isPure() {
-		return &statelessWasmPrecompile{pc}
-	}
-	return pc
+	return newWasmPrecompile(code)
 }
 
-type hostConfig struct {
-	evm       host.HostFunc
-	statedb   host.HostFunc
-	address   host.HostFunc
-	log       host.HostFunc
-	keccak256 host.HostFunc
-	time      host.HostFunc
-}
-
-func newHostConfig() *hostConfig {
-	return &hostConfig{
-		evm:       host.DisabledHostFunc,
-		statedb:   host.DisabledHostFunc,
-		address:   host.DisabledHostFunc,
-		log:       host.LogHostFunc,
-		keccak256: host.Keccak256HostFunc,
-		time:      host.TimeHostFunc,
-	}
-}
-
-func newModule(config *hostConfig, code []byte) (wz_api.Module, wazero.Runtime, error) {
+func newModule(envCall host.HostFunc, code []byte) (wz_api.Module, wazero.Runtime, error) {
 	ctx := context.Background()
 	runtimeConfig := wazero.NewRuntimeConfigCompiler().
 		WithMemoryCapacityFromMax(true).
 		WithMemoryLimitPages(128)
 	r := wazero.NewRuntimeWithConfig(ctx, runtimeConfig)
 	_, err := r.NewHostModuleBuilder("env").
-		NewFunctionBuilder().WithFunc(config.evm).Export(WASM_EVM_CALLER).
-		NewFunctionBuilder().WithFunc(config.statedb).Export(WASM_STATEDB_CALLER).
-		NewFunctionBuilder().WithFunc(config.address).Export(WASM_ADDRESS_CALLER).
-		NewFunctionBuilder().WithFunc(config.log).Export(WASM_LOG_CALLER).
-		NewFunctionBuilder().WithFunc(config.keccak256).Export(WASM_KECCAK256_CALLER).
-		NewFunctionBuilder().WithFunc(config.time).Export(WASM_TIME_CALLER).
+		NewFunctionBuilder().WithFunc(envCall).Export(Environment_WasmFuncName).
 		Instantiate(ctx)
 	if err != nil {
 		return nil, nil, err
@@ -98,30 +62,23 @@ func newModule(config *hostConfig, code []byte) (wz_api.Module, wazero.Runtime, 
 }
 
 type wasmPrecompile struct {
-	runtime           wazero.Runtime
-	module            wz_api.Module
-	mutex             sync.Mutex
-	memory            bridge.Memory
-	allocator         bridge.Allocator
-	API               api.API
-	expIsPure         wz_api.Function
-	expMutatesStorage wz_api.Function
-	expRequiredGas    wz_api.Function
-	expFinalise       wz_api.Function
-	expCommit         wz_api.Function
-	expRun            wz_api.Function
+	runtime     wazero.Runtime
+	module      wz_api.Module
+	mutex       sync.Mutex
+	memory      bridge.Memory
+	allocator   bridge.Allocator
+	environment api.Environment
+	expIsStatic wz_api.Function
+	expFinalise wz_api.Function
+	expCommit   wz_api.Function
+	expRun      wz_api.Function
 }
 
 func newWasmPrecompile(code []byte) *wasmPrecompile {
 	pc := &wasmPrecompile{}
 
-	hostConfig := newHostConfig()
-	apiGetter := func() api.API { return pc.API }
-	hostConfig.evm = host.NewEVMHostFunc(apiGetter)
-	hostConfig.statedb = host.NewStateDBHostFunc(apiGetter)
-	hostConfig.address = host.NewAddressHostFunc(apiGetter)
-
-	mod, r, err := newModule(hostConfig, code)
+	envCall := host.NewEnvironmentCaller(func() api.Environment { return pc.environment })
+	mod, r, err := newModule(envCall, code)
 	if err != nil {
 		panic(err)
 	}
@@ -130,12 +87,10 @@ func newWasmPrecompile(code []byte) *wasmPrecompile {
 	pc.module = mod
 	pc.memory, pc.allocator = host.NewMemory(context.Background(), mod)
 
-	pc.expIsPure = mod.ExportedFunction(WASM_IS_PURE)
-	pc.expMutatesStorage = mod.ExportedFunction(WASM_MUTATES_STORAGE)
-	pc.expRequiredGas = mod.ExportedFunction(WASM_REQUIRED_GAS)
-	pc.expFinalise = mod.ExportedFunction(WASM_FINALISE)
-	pc.expCommit = mod.ExportedFunction(WASM_COMMIT)
-	pc.expRun = mod.ExportedFunction(WASM_RUN)
+	pc.expIsStatic = mod.ExportedFunction(IsStatic_WasmFuncName)
+	pc.expFinalise = mod.ExportedFunction(Finalise_WasmFuncName)
+	pc.expCommit = mod.ExportedFunction(Commit_WasmFuncName)
+	pc.expRun = mod.ExportedFunction(Run_WasmFuncName)
 
 	return pc
 }
@@ -149,7 +104,7 @@ func (p *wasmPrecompile) call__Uint64(expFunc wz_api.Function) uint64 {
 	ctx := context.Background()
 	_ret, err := expFunc.Call(ctx)
 	if err != nil {
-		panic(err)
+		panic(err) // TODO: setErr [?]
 	}
 	return _ret[0]
 }
@@ -179,67 +134,39 @@ func (p *wasmPrecompile) call_Bytes_BytesErr(expFunc wz_api.Function, input []by
 	return retValues[0], retErr
 }
 
-func (p *wasmPrecompile) before(api api.API) {
+func (p *wasmPrecompile) before(env api.Environment) {
 	p.mutex.Lock()
-	p.API = api
+	p.environment = env
 }
 
-func (p *wasmPrecompile) after(api api.API) {
-	p.API = nil
+func (p *wasmPrecompile) after(api api.Environment) {
+	p.environment = nil
 	p.allocator.Prune()
 	p.mutex.Unlock()
 }
 
-func (p *wasmPrecompile) isPure() bool {
+func (p *wasmPrecompile) IsStatic(input []byte) bool {
 	p.before(nil)
 	defer p.after(nil)
-	return p.call__Uint64(p.expIsPure) != 0
+	return p.call_Bytes_Uint64(p.expIsStatic, input) != 0
 }
 
-func (p *wasmPrecompile) RequiredGas(input []byte) uint64 {
-	p.before(nil)
-	defer p.after(nil)
-	return p.call_Bytes_Uint64(p.expRequiredGas, input)
-}
-
-func (p *wasmPrecompile) MutatesStorage(input []byte) bool {
-	p.before(nil)
-	defer p.after(nil)
-	return p.call_Bytes_Uint64(p.expMutatesStorage, input) != 0
-}
-
-func (p *wasmPrecompile) Finalise(API api.API) error {
-	p.before(API)
-	defer p.after(API)
+func (p *wasmPrecompile) Finalise(env api.Environment) error {
+	p.before(env)
+	defer p.after(env)
 	return p.call__Err(p.expFinalise)
 }
 
-func (p *wasmPrecompile) Commit(API api.API) error {
-	p.before(API)
-	defer p.after(API)
+func (p *wasmPrecompile) Commit(env api.Environment) error {
+	p.before(env)
+	defer p.after(env)
 	return p.call__Err(p.expCommit)
 }
 
-func (p *wasmPrecompile) Run(API api.API, input []byte) ([]byte, error) {
-	p.before(API)
-	defer p.after(API)
+func (p *wasmPrecompile) Run(env api.Environment, input []byte) ([]byte, error) {
+	p.before(env)
+	defer p.after(env)
 	return p.call_Bytes_BytesErr(p.expRun, input)
 }
 
 var _ api.Precompile = (*wasmPrecompile)(nil)
-
-type statelessWasmPrecompile struct {
-	*wasmPrecompile
-}
-
-func (p *statelessWasmPrecompile) MutatesStorage(input []byte) bool {
-	return false
-}
-
-func (p *statelessWasmPrecompile) Finalise(API api.API) error {
-	return nil
-}
-
-func (p *statelessWasmPrecompile) Commit(API api.API) error {
-	return nil
-}

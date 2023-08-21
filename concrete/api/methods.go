@@ -38,11 +38,22 @@ var (
 
 type OpCode byte
 
+func (opcode OpCode) Encode() []byte {
+	return []byte{byte(opcode)}
+}
+
+func (opcode *OpCode) Decode(data []byte) {
+	*opcode = OpCode(data[0])
+}
+
 const (
-	// Meta
+	// Meta-ops
+	ManyOps_OpCode OpCode = 0x04 // TODO
+	// Meta-env
 	EnableGasMetering_OpCode OpCode = 0x08
-	Debug_OpCode             OpCode = 0x0c
-	TimeNow_OpCode           OpCode = 0x0d
+	// Debug
+	Debug_OpCode   OpCode = 0x0c
+	TimeNow_OpCode OpCode = 0x0d
 	// Utils
 	Keccak256_OpCode OpCode = 0x10
 	// Ephemeral and preimage

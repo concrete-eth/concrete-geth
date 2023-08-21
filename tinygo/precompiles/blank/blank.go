@@ -21,10 +21,8 @@ import (
 )
 
 func init() {
-	config := tinygo.DefaultConfig
-	config.IsPure = true
-	tinygo.WasmWrapWithConfig(&lib.BlankPrecompile{}, config)
+	tinygo.WasmWrap(&lib.BlankPrecompile{})
 }
 
-// main is REQUIRED for TinyGo to compile to Wasm
+// main is REQUIRED for TinyGo to compile to WASM
 func main() {}

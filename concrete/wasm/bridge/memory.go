@@ -16,7 +16,7 @@
 package bridge
 
 import (
-	"errors"
+	"github.com/ethereum/go-ethereum/concrete/utils"
 )
 
 type MemPointer uint64
@@ -50,11 +50,11 @@ func (pointer MemPointer) Unpack() (uint32, uint32) {
 }
 
 func (pointer MemPointer) Encode() []byte {
-	return Uint64ToBytes(uint64(pointer))
+	return utils.Uint64ToBytes(uint64(pointer))
 }
 
 func (pointer *MemPointer) Decode(data []byte) {
-	*pointer = MemPointer(BytesToUint64(data))
+	*pointer = MemPointer(utils.BytesToUint64(data))
 }
 
 func PackPointers(pointers []MemPointer) []byte {
@@ -135,25 +135,12 @@ func GetReturn(memory Memory, retPointer MemPointer) [][]byte {
 }
 
 func PutReturnWithError(memory Memory, retValues [][]byte, retErr error) MemPointer {
-	if retErr == nil {
-		errFlag := []byte{Err_Success}
-		retValues = append([][]byte{errFlag}, retValues...)
-	} else {
-		errFlag := []byte{Err_Error}
-		errMsg := []byte(retErr.Error())
-		retValues = append([][]byte{errFlag, errMsg}, retValues...)
-	}
+	retValues = append(retValues, utils.EncodeError(retErr))
 	return PutReturn(memory, retValues)
 }
 
 func GetReturnWithError(memory Memory, retPointer MemPointer) ([][]byte, error) {
 	retValues := GetReturn(memory, retPointer)
-	if len(retValues) == 0 {
-		return nil, nil
-	}
-	if retValues[0][0] == Err_Success {
-		return retValues[1:], nil
-	} else {
-		return retValues[2:], errors.New(string(retValues[1]))
-	}
+	err := utils.DecodeError(retValues[len(retValues)-1])
+	return retValues[:len(retValues)-1], err
 }
