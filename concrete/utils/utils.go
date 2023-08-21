@@ -13,11 +13,38 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with the concrete library. If not, see <http://www.gnu.org/licenses/>.
 
-package lib
+package utils
 
 import (
+	"encoding/binary"
+	"errors"
+
 	"github.com/ethereum/go-ethereum/common"
 )
+
+func Uint64ToBytes(value uint64) []byte {
+	data := make([]byte, 8)
+	binary.LittleEndian.PutUint64(data, value)
+	return data
+}
+
+func BytesToUint64(data []byte) uint64 {
+	return binary.LittleEndian.Uint64(data)
+}
+
+func EncodeError(err error) []byte {
+	if err == nil {
+		return nil
+	}
+	return []byte(err.Error())
+}
+
+func DecodeError(data []byte) error {
+	if data == nil {
+		return nil
+	}
+	return errors.New(string(data))
+}
 
 func GetData(data []byte, start uint64, size uint64) []byte {
 	length := uint64(len(data))

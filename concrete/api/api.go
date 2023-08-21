@@ -19,6 +19,7 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/concrete/utils"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -26,6 +27,7 @@ type Environment interface {
 	// Meta
 	EnableGasMetering(meter bool)
 	Debug(msg string)
+	TimeNow() uint64
 
 	// Aliases
 	PersistentLoad(key common.Hash) common.Hash
@@ -173,6 +175,18 @@ func NewNoCallEnvironment(
 	return env
 }
 
+func NewProxyEnvironment(
+	address common.Address,
+	execute func(op OpCode, env *Env, args [][]byte) [][]byte,
+) *Env {
+	env := &Env{
+		address: address,
+		execute: execute,
+	}
+	env.table = newEnvironmentMethods()
+	return env
+}
+
 func execute(op OpCode, env *Env, args [][]byte) [][]byte {
 	operation := env.table[op]
 
@@ -237,6 +251,11 @@ func (env *Env) Debug(msg string) {
 	env.execute(Debug_OpCode, env, input)
 }
 
+func (env *Env) TimeNow() uint64 {
+	output := env.execute(TimeNow_OpCode, env, nil)
+	return utils.BytesToUint64(output[0])
+}
+
 func (env *Env) PersistentLoad(key common.Hash) common.Hash {
 	return env.StorageLoad(key)
 }
@@ -279,7 +298,7 @@ func (env *Env) PersistentPreimageLoad_Unsafe(hash common.Hash) []byte {
 func (env *Env) PersistentPreimageLoadSize_Unsafe(hash common.Hash) int {
 	input := [][]byte{hash.Bytes()}
 	output := env.execute(PersistentPreimageLoadSize_OpCode, env, input)
-	return int(BytesToUint64(output[0]))
+	return int(utils.BytesToUint64(output[0]))
 }
 
 func (env *Env) EphemeralPreimageStore_Unsafe(preimage []byte) common.Hash {
@@ -297,7 +316,7 @@ func (env *Env) EphemeralPreimageLoad_Unsafe(hash common.Hash) []byte {
 func (env *Env) EphemeralPreimageLoadSize_Unsafe(hash common.Hash) int {
 	input := [][]byte{hash.Bytes()}
 	output := env.execute(EphemeralPreimageLoadSize_OpCode, env, input)
-	return int(BytesToUint64(output[0]))
+	return int(utils.BytesToUint64(output[0]))
 }
 
 func (env *Env) GetAddress() common.Address {
@@ -307,22 +326,22 @@ func (env *Env) GetAddress() common.Address {
 
 func (env *Env) GetGasLeft() uint64 {
 	output := env.execute(GetGasLeft_OpCode, env, nil)
-	return BytesToUint64(output[0])
+	return utils.BytesToUint64(output[0])
 }
 
 func (env *Env) GetBlockNumber() uint64 {
 	output := env.execute(GetBlockNumber_OpCode, env, nil)
-	return BytesToUint64(output[0])
+	return utils.BytesToUint64(output[0])
 }
 
 func (env *Env) GetBlockGasLimit() uint64 {
 	output := env.execute(GetBlockGasLimit_OpCode, env, nil)
-	return BytesToUint64(output[0])
+	return utils.BytesToUint64(output[0])
 }
 
 func (env *Env) GetBlockTimestamp() uint64 {
 	output := env.execute(GetBlockTimestamp_OpCode, env, nil)
-	return BytesToUint64(output[0])
+	return utils.BytesToUint64(output[0])
 }
 
 func (env *Env) GetBlockDifficulty() *big.Int {
@@ -346,7 +365,7 @@ func (env *Env) GetPrevRandao() common.Hash {
 }
 
 func (env *Env) GetBlockHash(number uint64) common.Hash {
-	input := [][]byte{Uint64ToBytes(number)}
+	input := [][]byte{utils.Uint64ToBytes(number)}
 	output := env.execute(GetBlockHash_OpCode, env, input)
 	return common.BytesToHash(output[0])
 }
@@ -374,7 +393,7 @@ func (env *Env) GetCallData() []byte {
 
 func (env *Env) GetCallDataSize() int {
 	output := env.execute(GetCallDataSize_OpCode, env, nil)
-	return int(BytesToUint64(output[0]))
+	return int(utils.BytesToUint64(output[0]))
 }
 
 func (env *Env) GetCaller() common.Address {
@@ -401,11 +420,11 @@ func (env *Env) GetCode(address common.Address) []byte {
 
 func (env *Env) GetCodeSize() int {
 	output := env.execute(GetCodeSize_OpCode, env, nil)
-	return int(BytesToUint64(output[0]))
+	return int(utils.BytesToUint64(output[0]))
 }
 
 func (env *Env) UseGas(gas uint64) {
-	input := [][]byte{Uint64ToBytes(gas)}
+	input := [][]byte{utils.Uint64ToBytes(gas)}
 	env.execute(UseGas_OpCode, env, input)
 }
 
@@ -430,9 +449,9 @@ func (env *Env) GetExternalBalance(address common.Address) *big.Int {
 }
 
 func (env *Env) CallStatic(address common.Address, data []byte, gas uint64) ([]byte, error) {
-	input := [][]byte{Uint64ToBytes(gas), address.Bytes(), data}
+	input := [][]byte{utils.Uint64ToBytes(gas), address.Bytes(), data}
 	output := env.execute(CallStatic_OpCode, env, input)
-	return output[0], DecodeError(output[1])
+	return output[0], utils.DecodeError(output[1])
 }
 
 func (env *Env) GetExternalCode(address common.Address) []byte {
@@ -444,7 +463,7 @@ func (env *Env) GetExternalCode(address common.Address) []byte {
 func (env *Env) GetExternalCodeSize(address common.Address) int {
 	input := [][]byte{address.Bytes()}
 	output := env.execute(GetExternalCodeSize_OpCode, env, input)
-	return int(BytesToUint64(output[0]))
+	return int(utils.BytesToUint64(output[0]))
 }
 
 func (env *Env) GetExternalCodeHash(address common.Address) common.Hash {
@@ -454,27 +473,27 @@ func (env *Env) GetExternalCodeHash(address common.Address) common.Hash {
 }
 
 func (env *Env) Call(address common.Address, data []byte, gas uint64, value *big.Int) ([]byte, error) {
-	input := [][]byte{Uint64ToBytes(gas), address.Bytes(), value.Bytes(), data}
+	input := [][]byte{utils.Uint64ToBytes(gas), address.Bytes(), value.Bytes(), data}
 	output := env.execute(Call_OpCode, env, input)
-	return output[0], DecodeError(output[1])
+	return output[0], utils.DecodeError(output[1])
 }
 
 func (env *Env) CallDelegate(address common.Address, data []byte, gas uint64) ([]byte, error) {
-	input := [][]byte{Uint64ToBytes(gas), address.Bytes(), data}
+	input := [][]byte{utils.Uint64ToBytes(gas), address.Bytes(), data}
 	output := env.execute(CallDelegate_OpCode, env, input)
-	return output[0], DecodeError(output[1])
+	return output[0], utils.DecodeError(output[1])
 }
 
 func (env *Env) Create(data []byte, value *big.Int) (common.Address, error) {
 	input := [][]byte{value.Bytes(), data}
 	output := env.execute(Create_OpCode, env, input)
-	return common.BytesToAddress(output[0]), DecodeError(output[1])
+	return common.BytesToAddress(output[0]), utils.DecodeError(output[1])
 }
 
 func (env *Env) Create2(data []byte, salt common.Hash, value *big.Int) (common.Address, error) {
 	input := [][]byte{value.Bytes(), data, salt.Bytes()}
 	output := env.execute(Create2_OpCode, env, input)
-	return common.BytesToAddress(output[0]), DecodeError(output[1])
+	return common.BytesToAddress(output[0]), utils.DecodeError(output[1])
 }
 
 var _ Environment = (*Env)(nil)

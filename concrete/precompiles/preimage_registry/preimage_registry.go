@@ -25,6 +25,7 @@ import (
 	"github.com/ethereum/go-ethereum/concrete/api"
 	"github.com/ethereum/go-ethereum/concrete/lib"
 	"github.com/ethereum/go-ethereum/concrete/precompiles"
+	"github.com/ethereum/go-ethereum/concrete/utils"
 )
 
 //go:embed sol/abi/PreimageRegistry.abi
@@ -60,7 +61,7 @@ type PreimageRegistry struct {
 }
 
 func (p *PreimageRegistry) IsStatic(input []byte) bool {
-	methodID, _ := lib.SplitInput(input)
+	methodID, _ := utils.SplitInput(input)
 	method, err := ABI.MethodById(methodID)
 	if err != nil {
 		return false
@@ -69,7 +70,7 @@ func (p *PreimageRegistry) IsStatic(input []byte) bool {
 }
 
 func (p *PreimageRegistry) Run(env api.Environment, input []byte) ([]byte, error) {
-	methodID, data := lib.SplitInput(input)
+	methodID, data := utils.SplitInput(input)
 	method, err := ABI.MethodById(methodID)
 	if err != nil {
 		return nil, precompiles.ErrMethodNotFound

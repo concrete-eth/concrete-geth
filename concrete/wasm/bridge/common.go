@@ -16,21 +16,10 @@
 package bridge
 
 import (
-	"encoding/binary"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
 )
-
-func Uint64ToBytes(value uint64) []byte {
-	data := make([]byte, 8)
-	binary.LittleEndian.PutUint64(data, value)
-	return data
-}
-
-func BytesToUint64(data []byte) uint64 {
-	return binary.LittleEndian.Uint64(data)
-}
 
 const (
 	Err_Success byte = iota
