@@ -185,10 +185,37 @@ func NewProxyEnvironment(execute func(op OpCode, env *Env, args [][]byte) [][]by
 }
 
 func execute(op OpCode, env *Env, args [][]byte) [][]byte {
+	if env.envErr != nil {
+		return nil
+	}
+
+	defer func() {
+		err := env.Error()
+		if err == nil {
+			return
+		}
+		// Panicking is preferable in trusted execution, as mistakenly using a
+		// disabled feature should be caught during testing.
+		switch err {
+		case ErrFeatureDisabled:
+			if env.config.Trusted {
+				panic(err)
+			}
+		case ErrInvalidOpCode:
+			if env.config.Trusted {
+				panic(err)
+			}
+		case ErrNoData:
+			if env.config.Trusted {
+				panic(err)
+			}
+		}
+	}()
+
 	operation := env.table[op]
 
 	if !env.config.Trusted && operation.trusted {
-		env.setError(ErrEnvNotTrusted)
+		env.setError(ErrFeatureDisabled)
 		return nil
 	}
 
@@ -202,9 +229,7 @@ func execute(op OpCode, env *Env, args [][]byte) [][]byte {
 		if ok := env.useGas(gasConst); !ok {
 			env.setError(ErrOutOfGas)
 			return nil
-			// TODO: halt wasm execution when error is set [?] (untrusted)
 		}
-
 		if operation.dynamicGas != nil {
 			gasDyn, err := operation.dynamicGas(env, args)
 			if err != nil {
@@ -220,18 +245,11 @@ func execute(op OpCode, env *Env, args [][]byte) [][]byte {
 
 	output, err := operation.execute(env, args)
 
-	if env.config.Trusted {
-		if err == ErrFeatureDisabled {
-			// Panicking is preferable in trusted execution, as mistakenly using a
-			// disabled feature should be caught during testing.
-			panic(err)
-		}
-	}
-
 	if err != nil {
 		env.setError(err)
 		return nil
 	}
+
 	return output
 }
 
