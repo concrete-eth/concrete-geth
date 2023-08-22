@@ -13,12 +13,13 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with the concrete library. If not, see <http://www.gnu.org/licenses/>.
 
-package api
+package lib
 
 import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/concrete/api"
 	"github.com/ethereum/go-ethereum/concrete/crypto"
 )
 
@@ -35,10 +36,10 @@ type KeyValueStore interface {
 }
 
 type envPersistentKV struct {
-	env Environment
+	env api.Environment
 }
 
-func newEnvPersistentKeyValueStore(env Environment) *envPersistentKV {
+func newEnvPersistentKeyValueStore(env api.Environment) *envPersistentKV {
 	return &envPersistentKV{env: env}
 }
 
@@ -53,10 +54,10 @@ func (kv *envPersistentKV) Get(key common.Hash) common.Hash {
 var _ KeyValueStore = (*envPersistentKV)(nil)
 
 type envEphemeralKV struct {
-	env Environment
+	env api.Environment
 }
 
-func newEnvEphemeralKV(env Environment) *envEphemeralKV {
+func newEnvEphemeralKV(env api.Environment) *envEphemeralKV {
 	return &envEphemeralKV{env: env}
 }
 
@@ -99,15 +100,15 @@ func (ds *datastore) array(key []byte) *dynamicArray {
 	return newDynamicArray(ds, slot)
 }
 
-func NewPersistentDatastore(env Environment) Datastore {
+func NewPersistentDatastore(env api.Environment) Datastore {
 	return newDatastore(newEnvPersistentKeyValueStore(env))
 }
 
-func NewEphemeralDatastore(env Environment) Datastore {
+func NewEphemeralDatastore(env api.Environment) Datastore {
 	return newDatastore(newEnvEphemeralKV(env))
 }
 
-func NewDatastore(env Environment) Datastore {
+func NewDatastore(env api.Environment) Datastore {
 	return NewPersistentDatastore(env)
 }
 
