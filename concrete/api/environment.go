@@ -215,7 +215,7 @@ func execute(op OpCode, env *Env, args [][]byte) [][]byte {
 	operation := env.table[op]
 
 	if !env.config.Trusted && operation.trusted {
-		env.setError(ErrFeatureDisabled)
+		env.setError(ErrEnvNotTrusted)
 		return nil
 	}
 
