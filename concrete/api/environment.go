@@ -502,10 +502,3 @@ func (env *Env) Create2(data []byte, salt common.Hash, value *big.Int) (common.A
 }
 
 var _ Environment = (*Env)(nil)
-
-type Precompile interface {
-	IsStatic(input []byte) bool
-	Finalise(env Environment) error
-	Commit(env Environment) error
-	Run(env Environment, input []byte) ([]byte, error)
-}

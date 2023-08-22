@@ -17,6 +17,7 @@ package lib
 
 import (
 	"github.com/ethereum/go-ethereum/concrete/api"
+	"github.com/ethereum/go-ethereum/concrete/precompiles"
 )
 
 type BlankPrecompile struct{}
@@ -37,4 +38,4 @@ func (pc *BlankPrecompile) Run(API api.Environment, input []byte) ([]byte, error
 	return []byte{}, nil
 }
 
-var _ api.Precompile = &BlankPrecompile{}
+var _ precompiles.Precompile = &BlankPrecompile{}

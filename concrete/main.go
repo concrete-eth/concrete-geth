@@ -22,7 +22,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/cmd/geth"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/concrete/api"
 	"github.com/ethereum/go-ethereum/concrete/precompiles"
 	"github.com/urfave/cli/v2"
 )
@@ -31,8 +30,8 @@ type ConcreteApp interface {
 	RunWithArgs(args []string) error
 	RunWithOsArgs() error
 	Run() error
-	AddPrecompileWithMetadata(addr common.Address, pc api.Precompile, metadata precompiles.PrecompileMetadata)
-	AddPrecompile(addr common.Address, pc api.Precompile)
+	AddPrecompileWithMetadata(addr common.Address, pc precompiles.Precompile, metadata precompiles.PrecompileMetadata)
+	AddPrecompile(addr common.Address, pc precompiles.Precompile)
 }
 
 type concreteGeth struct {
@@ -62,7 +61,7 @@ func (a *concreteGeth) validateNewPCAddress(addr common.Address) error {
 	return nil
 }
 
-func (a *concreteGeth) AddPrecompileWithMetadata(addr common.Address, pc api.Precompile, metadata precompiles.PrecompileMetadata) {
+func (a *concreteGeth) AddPrecompileWithMetadata(addr common.Address, pc precompiles.Precompile, metadata precompiles.PrecompileMetadata) {
 	var err error
 	if err = a.validateNewPCAddress(addr); err == nil {
 		err = precompiles.AddPrecompileWithMetadata(addr, pc, metadata)
@@ -72,6 +71,6 @@ func (a *concreteGeth) AddPrecompileWithMetadata(addr common.Address, pc api.Pre
 	}
 }
 
-func (a *concreteGeth) AddPrecompile(addr common.Address, pc api.Precompile) {
+func (a *concreteGeth) AddPrecompile(addr common.Address, pc precompiles.Precompile) {
 	a.AddPrecompileWithMetadata(addr, pc, precompiles.PrecompileMetadata{})
 }

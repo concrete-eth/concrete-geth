@@ -22,6 +22,13 @@ import (
 	"github.com/ethereum/go-ethereum/concrete/api"
 )
 
+type Precompile interface {
+	IsStatic(input []byte) bool
+	Finalise(env api.Environment) error
+	Commit(env api.Environment) error
+	Run(env api.Environment, input []byte) ([]byte, error)
+}
+
 type PrecompileMetadata = struct {
 	Address     common.Address `json:"addr"`
 	Name        string         `json:"name"`
@@ -33,14 +40,14 @@ type PrecompileMetadata = struct {
 }
 
 var (
-	precompiles          = make(map[common.Address]api.Precompile)
+	precompiles          = make(map[common.Address]Precompile)
 	precompiledAddresses = make([]common.Address, 0)
 	precompileMetadata   = make([]PrecompileMetadata, 0)
 	metadataByAddress    = make(map[common.Address]*PrecompileMetadata)
 	metadataByName       = make(map[string]*PrecompileMetadata)
 )
 
-func AddPrecompileWithMetadata(addr common.Address, p api.Precompile, metadata PrecompileMetadata) error {
+func AddPrecompileWithMetadata(addr common.Address, p Precompile, metadata PrecompileMetadata) error {
 	if _, ok := precompiles[addr]; ok {
 		return fmt.Errorf("precompile already exists at address %x", addr)
 	}
@@ -64,11 +71,11 @@ func AddPrecompileWithMetadata(addr common.Address, p api.Precompile, metadata P
 	return nil
 }
 
-func AddPrecompile(addr common.Address, p api.Precompile) error {
+func AddPrecompile(addr common.Address, p Precompile) error {
 	return AddPrecompileWithMetadata(addr, p, PrecompileMetadata{})
 }
 
-func GetPrecompile(addr common.Address) (api.Precompile, bool) {
+func GetPrecompile(addr common.Address) (Precompile, bool) {
 	pc, ok := precompiles[addr]
 	return pc, ok
 }
@@ -93,7 +100,7 @@ func GetPrecompileMetadataByName(name string) *PrecompileMetadata {
 	return pc
 }
 
-func RunPrecompile(p api.Precompile, env *api.Env, input []byte, static bool) (ret []byte, remainingGas uint64, err error) {
+func RunPrecompile(p Precompile, env *api.Env, input []byte, static bool) (ret []byte, remainingGas uint64, err error) {
 	if p.IsStatic(input) && static {
 		return nil, env.GetGasLeft(), api.ErrWriteProtection
 	}
