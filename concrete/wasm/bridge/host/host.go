@@ -137,6 +137,9 @@ func NewEnvironmentCaller(apiGetter func() api.Environment) HostFunc {
 		args = args[1:]
 
 		out := env.Execute(opcode, args)
+
+		// TODO: halt execution on error [?]
+
 		return bridge.PutValues(mem, out).Uint64()
 	}
 }
