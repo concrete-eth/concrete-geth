@@ -27,14 +27,14 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 )
 
-func newMockEnv(addr common.Address, config EnvConfig, meterGas bool, gas uint64) *Env {
+func NewMockEnv(addr common.Address, config EnvConfig, meterGas bool, gas uint64) *Env {
 	return NewEnvironment(
 		addr,
 		config,
-		newMockStateDB(),
-		newMockBlockContext(),
-		newMockCallContext(),
-		newMockCaller(),
+		NewMockStateDB(),
+		NewMockBlockContext(),
+		NewMockCallContext(),
+		NewMockCaller(),
 		meterGas,
 		gas,
 	)
@@ -42,7 +42,7 @@ func newMockEnv(addr common.Address, config EnvConfig, meterGas bool, gas uint64
 
 type mockStateDB struct{}
 
-func newMockStateDB() *mockStateDB { return &mockStateDB{} }
+func NewMockStateDB() *mockStateDB { return &mockStateDB{} }
 
 func (m *mockStateDB) AddressInAccessList(addr common.Address) bool { return false }
 func (m *mockStateDB) SlotInAccessList(addr common.Address, slot common.Hash) (bool, bool) {
@@ -72,7 +72,7 @@ func (m *mockStateDB) GetEphemeralPreimageSize(hash common.Hash) int           {
 
 type mockBlockContext struct{}
 
-func newMockBlockContext() *mockBlockContext { return &mockBlockContext{} }
+func NewMockBlockContext() *mockBlockContext { return &mockBlockContext{} }
 
 func (m *mockBlockContext) GetHash(uint64) common.Hash { return common.Hash{} }
 func (m *mockBlockContext) GasLimit() uint64           { return 0 }
@@ -85,7 +85,7 @@ func (m *mockBlockContext) Random() common.Hash        { return common.Hash{} }
 
 type mockCallContext struct{}
 
-func newMockCallContext() *mockCallContext { return &mockCallContext{} }
+func NewMockCallContext() *mockCallContext { return &mockCallContext{} }
 
 func (m *mockCallContext) TxGasPrice() *big.Int     { return big.NewInt(0) }
 func (m *mockCallContext) TxOrigin() common.Address { return common.Address{} }
@@ -96,7 +96,7 @@ func (m *mockCallContext) CallValue() *big.Int      { return big.NewInt(0) }
 
 type mockCaller struct{}
 
-func newMockCaller() *mockCaller { return &mockCaller{} }
+func NewMockCaller() *mockCaller { return &mockCaller{} }
 
 func (m *mockCaller) CallStatic(common.Address, []byte, uint64) ([]byte, uint64, error) {
 	return []byte{}, 0, nil
