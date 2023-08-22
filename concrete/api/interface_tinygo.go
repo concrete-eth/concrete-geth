@@ -15,6 +15,9 @@
 
 //go:build tinygo
 
+// This file will replace interface_go.go when building with tinygo to prevent
+// compatibility issues.
+
 package api
 
 type StateDB interface{}

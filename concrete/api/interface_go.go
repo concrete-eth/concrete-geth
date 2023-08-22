@@ -15,6 +15,9 @@
 
 //go:build !tinygo
 
+// This file will be replaced by interface_tinygo.go when building with tinygo
+// to prevent compatibility issues.
+
 package api
 
 import (

@@ -15,6 +15,9 @@
 
 //go:build tinygo
 
+// This file will replace methods_go.go when building with tinygo to prevent
+// compatibility issues.
+
 package api
 
 func newEnvironmentMethods() JumpTable {

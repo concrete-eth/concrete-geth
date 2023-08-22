@@ -15,6 +15,9 @@
 
 //go:build tinygo
 
+// This file will replace crypto_go.go when building with tinygo to prevent
+// compatibility issues.
+
 package crypto
 
 var Keccak256 = ReimplementedKeccak256
