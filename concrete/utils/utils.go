@@ -33,8 +33,8 @@ func BytesToUint64(data []byte) uint64 {
 }
 
 const (
-	nil_error    = byte(0)
-	notNil_error = byte(1)
+	nil_error    = byte(0x00)
+	notNil_error = byte(0x01)
 )
 
 func EncodeError(err error) []byte {
