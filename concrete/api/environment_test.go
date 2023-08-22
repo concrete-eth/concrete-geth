@@ -33,9 +33,9 @@ func TestGas(t *testing.T) {
 		address = common.HexToAddress("0xc0ffee0001")
 		config  = EnvConfig{
 			Static:    false,
-			Ephemeral: true,
-			Preimages: true,
-			Trusted:   true,
+			Ephemeral: false,
+			Preimages: false,
+			Trusted:   false,
 		}
 		meterGas = true
 		gas      = uint64(1e6)
@@ -51,4 +51,54 @@ func TestGas(t *testing.T) {
 	gas -= getGasLeftOpCost
 	r.Equal(gas, env.GetGasLeft())
 	r.Equal(gas, env.Gas())
+}
+
+func TestBlockOps_Minimal(t *testing.T) {
+	var (
+		r       = require.New(t)
+		address = common.HexToAddress("0xc0ffee0001")
+		config  = EnvConfig{
+			Static:    true,
+			Ephemeral: false,
+			Preimages: false,
+			Trusted:   false,
+		}
+		meterGas = true
+		gas      = uint64(1e6)
+	)
+
+	env := newMockEnv(address, config, meterGas, gas)
+
+	r.Equal(env.block.GetHash(0), env.GetBlockHash(0))
+	r.Equal(env.block.GasLimit(), env.GetBlockGasLimit())
+	r.Equal(env.block.BlockNumber(), env.GetBlockNumber())
+	r.Equal(env.block.Timestamp(), env.GetBlockTimestamp())
+	r.Equal(env.block.Difficulty(), env.GetBlockDifficulty())
+	r.Equal(env.block.BaseFee(), env.GetBlockBaseFee())
+	r.Equal(env.block.Coinbase(), env.GetBlockCoinbase())
+	r.Equal(env.block.Random(), env.GetPrevRandom())
+}
+
+func TestCallOps_Minimal(t *testing.T) {
+	var (
+		r       = require.New(t)
+		address = common.HexToAddress("0xc0ffee0001")
+		config  = EnvConfig{
+			Static:    true,
+			Ephemeral: false,
+			Preimages: false,
+			Trusted:   false,
+		}
+		meterGas = true
+		gas      = uint64(1e6)
+	)
+
+	env := newMockEnv(address, config, meterGas, gas)
+
+	r.Equal(env.call.TxGasPrice(), env.GetTxGasPrice())
+	r.Equal(env.call.TxOrigin(), env.GetTxOrigin())
+	r.Equal(env.call.CallData(), env.GetCallData())
+	r.Equal(env.call.CallDataSize(), env.GetCallDataSize())
+	r.Equal(env.call.Caller(), env.GetCaller())
+	r.Equal(env.call.CallValue(), env.GetCallValue())
 }
