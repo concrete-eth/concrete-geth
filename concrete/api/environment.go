@@ -332,6 +332,9 @@ func (env *Env) Keccak256(data []byte) common.Hash {
 func (env *Env) EphemeralLoad_Unsafe(key common.Hash) common.Hash {
 	input := [][]byte{key.Bytes()}
 	output, err := env.execute(EphemeralLoad_OpCode, input)
+	if err != nil {
+		return common.Hash{}
+	}
 	hash := common.BytesToHash(output[0])
 	return hash
 }
