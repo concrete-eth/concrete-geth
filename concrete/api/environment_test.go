@@ -51,6 +51,7 @@ func TestGas(t *testing.T) {
 	gas -= getGasLeftOpCost
 	r.Equal(gas, env.GetGasLeft())
 	r.Equal(gas, env.Gas())
+	r.Nil(env.Error())
 }
 
 func TestBlockOps_Minimal(t *testing.T) {
@@ -77,6 +78,7 @@ func TestBlockOps_Minimal(t *testing.T) {
 	r.Equal(env.block.BaseFee(), env.GetBlockBaseFee())
 	r.Equal(env.block.Coinbase(), env.GetBlockCoinbase())
 	r.Equal(env.block.Random(), env.GetPrevRandom())
+	r.Nil(env.Error())
 }
 
 func TestCallOps_Minimal(t *testing.T) {
@@ -101,4 +103,37 @@ func TestCallOps_Minimal(t *testing.T) {
 	r.Equal(env.call.CallDataSize(), env.GetCallDataSize())
 	r.Equal(env.call.Caller(), env.GetCaller())
 	r.Equal(env.call.CallValue(), env.GetCallValue())
+	r.Nil(env.Error())
+}
+
+func TestTrustAndWriteProtection(t *testing.T) {
+	var (
+		r       = require.New(t)
+		address = common.HexToAddress("0xc0ffee0001")
+		config  = EnvConfig{
+			Static:    true,
+			Ephemeral: true,
+			Preimages: true,
+			Trusted:   false,
+		}
+		meterGas = true
+		gas      = uint64(1e6)
+	)
+
+	env := newMockEnv(address, config, meterGas, gas)
+	env.EnableGasMetering(false)
+
+	table := newEnvironmentMethods()
+	for opcode, method := range table {
+		env.envErr = nil
+		env.execute(OpCode(opcode), nil)
+		if method.trusted {
+			r.Equal(ErrEnvNotTrusted, env.Error())
+		} else if !method.static {
+			r.Equal(ErrWriteProtection, env.Error())
+		} else {
+			r.NotEqual(ErrEnvNotTrusted, env.Error())
+			r.NotEqual(ErrWriteProtection, env.Error())
+		}
+	}
 }

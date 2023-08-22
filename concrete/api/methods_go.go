@@ -278,6 +278,8 @@ func newEnvironmentMethods() JumpTable {
 	return tbl
 }
 
+// TODO: handle invalid args
+
 func opUndefined(env *Env, args [][]byte) ([][]byte, error) {
 	return nil, ErrInvalidOpCode
 }
