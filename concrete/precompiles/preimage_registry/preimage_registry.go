@@ -81,7 +81,7 @@ func (p *PreimageRegistry) Run(env api.Environment, input []byte) ([]byte, error
 	}
 	var result interface{}
 
-	preimageMap := api.NewDatastore(env).Mapping([]byte("map.size.v1"))
+	preimageMap := lib.NewDatastore(env).Mapping([]byte("map.size.v1"))
 
 	switch method.Name {
 
