@@ -188,16 +188,24 @@ func execute(op OpCode, env *Env, args [][]byte) [][]byte {
 	operation := env.table[op]
 
 	if env.meterGas {
-		gas := operation.constantGas
+		gasConst := operation.constantGas
+		if ok := env.useGas(gasConst); !ok {
+			env.setError(ErrOutOfGas)
+			return nil
+			// TODO: halt wasm execution when error is set [?] (untrusted)
+		}
+
 		if operation.dynamicGas != nil {
-			dynamicGas, err := operation.dynamicGas(env, args)
+			gasDyn, err := operation.dynamicGas(env, args)
 			if err != nil {
 				env.setError(err)
 				return nil
 			}
-			gas += dynamicGas
+			if ok := env.useGas(gasDyn); !ok {
+				env.setError(ErrOutOfGas)
+				return nil
+			}
 		}
-		env.UseGas(gas)
 	}
 
 	output, err := operation.execute(env, args)
@@ -225,6 +233,15 @@ func (env *Env) setError(err error) {
 
 func (env *Env) execute(op OpCode, args [][]byte) [][]byte {
 	return env._execute(op, env, args)
+}
+
+func (env *Env) useGas(gas uint64) bool {
+	if env.gas < gas {
+		env.gas = 0
+		return false
+	}
+	env.gas -= gas
+	return true
 }
 
 func (env *Env) Config() EnvConfig {

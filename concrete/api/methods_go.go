@@ -549,11 +549,9 @@ func opGetCodeSize(env *Env, args [][]byte) ([][]byte, error) {
 
 func opUseGas(env *Env, args [][]byte) ([][]byte, error) {
 	gas := utils.BytesToUint64(args[0])
-	if env.gas < gas {
-		env.gas = 0
+	if ok := env.useGas(gas); !ok {
 		return nil, ErrOutOfGas
 	}
-	env.gas -= gas
 	return nil, nil
 }
 
