@@ -268,7 +268,10 @@ func newEnvironmentMethods() JumpTable {
 
 	for i, entry := range tbl {
 		if entry == nil {
-			tbl[i] = &operation{execute: opUndefined}
+			tbl[i] = &operation{
+				execute: opUndefined,
+				static:  true,
+			}
 		}
 	}
 
