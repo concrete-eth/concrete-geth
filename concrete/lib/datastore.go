@@ -57,7 +57,7 @@ type envEphemeralKV struct {
 	env api.Environment
 }
 
-func newEnvEphemeralKV(env api.Environment) *envEphemeralKV {
+func newEnvEphemeralKeyValueStore(env api.Environment) *envEphemeralKV {
 	return &envEphemeralKV{env: env}
 }
 
@@ -105,7 +105,7 @@ func NewPersistentDatastore(env api.Environment) Datastore {
 }
 
 func NewEphemeralDatastore(env api.Environment) Datastore {
-	return newDatastore(newEnvEphemeralKV(env))
+	return newDatastore(newEnvEphemeralKeyValueStore(env))
 }
 
 func NewDatastore(env api.Environment) Datastore {
