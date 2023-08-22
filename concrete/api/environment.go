@@ -60,9 +60,9 @@ type Environment interface {
 	GetBlockGasLimit() uint64
 	GetBlockTimestamp() uint64
 	GetBlockDifficulty() *big.Int
-	GetBlockBasefee() *big.Int
+	GetBlockBaseFee() *big.Int
 	GetBlockCoinbase() common.Address
-	GetPrevRandao() common.Hash
+	GetPrevRandom() common.Hash
 	// Block hash
 	GetBlockHash(block uint64) common.Hash
 	// Balance
@@ -371,8 +371,8 @@ func (env *Env) GetBlockDifficulty() *big.Int {
 	return new(big.Int).SetBytes(output[0])
 }
 
-func (env *Env) GetBlockBasefee() *big.Int {
-	output := env.execute(GetBlockBasefee_OpCode, nil)
+func (env *Env) GetBlockBaseFee() *big.Int {
+	output := env.execute(GetBlockBaseFee_OpCode, nil)
 	return new(big.Int).SetBytes(output[0])
 }
 
@@ -381,8 +381,8 @@ func (env *Env) GetBlockCoinbase() common.Address {
 	return common.BytesToAddress(output[0])
 }
 
-func (env *Env) GetPrevRandao() common.Hash {
-	output := env.execute(GetPrevRandao_OpCode, nil)
+func (env *Env) GetPrevRandom() common.Hash {
+	output := env.execute(GetPrevRandom_OpCode, nil)
 	return common.BytesToHash(output[0])
 }
 

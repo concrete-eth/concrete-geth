@@ -51,9 +51,9 @@ const (
 	GetBlockGasLimit_OpCode   OpCode = 0x33
 	GetBlockTimestamp_OpCode  OpCode = 0x34
 	GetBlockDifficulty_OpCode OpCode = 0x35
-	GetBlockBasefee_OpCode    OpCode = 0x36
+	GetBlockBaseFee_OpCode    OpCode = 0x36
 	GetBlockCoinbase_OpCode   OpCode = 0x37
-	GetPrevRandao_OpCode      OpCode = 0x38
+	GetPrevRandom_OpCode      OpCode = 0x38
 	GetBlockHash_OpCode       OpCode = 0x39
 	GetBalance_OpCode         OpCode = 0x3a
 	GetTxGasPrice_OpCode      OpCode = 0x3b

@@ -105,16 +105,16 @@ func newEnvironmentMethods() JumpTable {
 			execute:     opGetBlockDifficulty,
 			constantGas: GasQuickStep,
 		},
-		GetBlockBasefee_OpCode: {
-			execute:     opGetBlockBasefee,
+		GetBlockBaseFee_OpCode: {
+			execute:     opGetBlockBaseFee,
 			constantGas: GasQuickStep,
 		},
 		GetBlockCoinbase_OpCode: {
 			execute:     opGetBlockCoinbase,
 			constantGas: GasQuickStep,
 		},
-		GetPrevRandao_OpCode: {
-			execute:     opGetPrevRandao,
+		GetPrevRandom_OpCode: {
+			execute:     opGetPrevRandom,
 			constantGas: GasQuickStep,
 		},
 		GetBlockHash_OpCode: {
@@ -421,12 +421,12 @@ func opGetBlockDifficulty(env *Env, args [][]byte) ([][]byte, error) {
 	return [][]byte{difficulty.Bytes()}, nil
 }
 
-func opGetBlockBasefee(env *Env, args [][]byte) ([][]byte, error) {
+func opGetBlockBaseFee(env *Env, args [][]byte) ([][]byte, error) {
 	if env.block == nil {
 		return nil, ErrNoData
 	}
-	basefee := env.block.BaseFee()
-	return [][]byte{basefee.Bytes()}, nil
+	baseFee := env.block.BaseFee()
+	return [][]byte{baseFee.Bytes()}, nil
 }
 
 func opGetBlockCoinbase(env *Env, args [][]byte) ([][]byte, error) {
@@ -437,12 +437,12 @@ func opGetBlockCoinbase(env *Env, args [][]byte) ([][]byte, error) {
 	return [][]byte{coinbase.Bytes()}, nil
 }
 
-func opGetPrevRandao(env *Env, args [][]byte) ([][]byte, error) {
+func opGetPrevRandom(env *Env, args [][]byte) ([][]byte, error) {
 	if env.block == nil {
 		return nil, ErrNoData
 	}
-	randao := env.block.Random()
-	return [][]byte{randao.Bytes()}, nil
+	random := env.block.Random()
+	return [][]byte{random.Bytes()}, nil
 }
 
 func opGetBlockHash(env *Env, args [][]byte) ([][]byte, error) {
