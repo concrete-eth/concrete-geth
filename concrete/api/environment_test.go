@@ -132,8 +132,10 @@ func TestTrustAndWriteProtection(t *testing.T) {
 		} else if !method.static {
 			r.Equal(ErrWriteProtection, env.Error())
 		} else {
-			r.NotEqual(ErrEnvNotTrusted, env.Error())
-			r.NotEqual(ErrWriteProtection, env.Error())
+			err := env.Error()
+			if err != nil && err != ErrInvalidOpCode {
+				r.Equal(ErrInvalidInput, err)
+			}
 		}
 	}
 }

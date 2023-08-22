@@ -23,6 +23,7 @@ var (
 	ErrOutOfGas        = errors.New("out of gas")
 	ErrFeatureDisabled = errors.New("feature disabled")
 	ErrInvalidOpCode   = errors.New("invalid opcode")
+	ErrInvalidInput    = errors.New("invalid input")
 	ErrNoData          = errors.New("no data")
 )
 

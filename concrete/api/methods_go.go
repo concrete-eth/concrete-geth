@@ -285,8 +285,11 @@ func opUndefined(env *Env, args [][]byte) ([][]byte, error) {
 }
 
 func opEnableGasMetering(env *Env, args [][]byte) ([][]byte, error) {
+	if len(args) != 1 || len(args[0]) != 1 {
+		return nil, ErrInvalidInput
+	}
 	var meter bool
-	if args[0][0] == byte(0x01) {
+	if args[0][0]&1 == byte(0x01) {
 		meter = true
 	}
 	if env.meterGas == meter {
@@ -297,17 +300,26 @@ func opEnableGasMetering(env *Env, args [][]byte) ([][]byte, error) {
 }
 
 func opDebug(env *Env, args [][]byte) ([][]byte, error) {
+	if len(args) != 1 {
+		return nil, ErrInvalidInput
+	}
 	msg := string(args[0])
 	env.logger.Debug(msg)
 	return nil, nil
 }
 
 func opTimeNow(env *Env, args [][]byte) ([][]byte, error) {
+	if len(args) != 0 {
+		return nil, ErrInvalidInput
+	}
 	now := uint64(time.Now().UnixNano())
 	return [][]byte{utils.Uint64ToBytes(now)}, nil
 }
 
 func gasKeccak256(env *Env, args [][]byte) (uint64, error) {
+	if len(args) != 1 {
+		return 0, ErrInvalidInput
+	}
 	wordSize := (len(args[0]) + 31) / 32
 	gas := uint64(wordSize) * params.Keccak256WordGas
 	return gas, nil
@@ -319,6 +331,9 @@ func opKeccak256(env *Env, args [][]byte) ([][]byte, error) {
 }
 
 func opEphemeralStore(env *Env, args [][]byte) ([][]byte, error) {
+	if len(args) != 2 {
+		return nil, ErrInvalidInput
+	}
 	if !env.config.Ephemeral {
 		return nil, ErrFeatureDisabled
 	}
@@ -329,6 +344,9 @@ func opEphemeralStore(env *Env, args [][]byte) ([][]byte, error) {
 }
 
 func opEphemeralLoad(env *Env, args [][]byte) ([][]byte, error) {
+	if len(args) != 1 {
+		return nil, ErrInvalidInput
+	}
 	if !env.config.Ephemeral {
 		return nil, ErrFeatureDisabled
 	}
@@ -338,6 +356,9 @@ func opEphemeralLoad(env *Env, args [][]byte) ([][]byte, error) {
 }
 
 func gasPersistentPreimageStore(env *Env, args [][]byte) (uint64, error) {
+	if len(args) != 1 {
+		return 0, ErrInvalidInput
+	}
 	wordSize := (len(args[0]) + 31) / 32
 	gas := uint64(wordSize) * params.CreateDataGas
 	return gas, nil
@@ -354,6 +375,9 @@ func opPersistentPreimageStore(env *Env, args [][]byte) ([][]byte, error) {
 }
 
 func opPersistentPreimageLoad(env *Env, args [][]byte) ([][]byte, error) {
+	if len(args) != 1 {
+		return nil, ErrInvalidInput
+	}
 	if !env.config.Preimages {
 		return nil, ErrFeatureDisabled
 	}
@@ -363,6 +387,9 @@ func opPersistentPreimageLoad(env *Env, args [][]byte) ([][]byte, error) {
 }
 
 func opPersistentPreimageLoadSize(env *Env, args [][]byte) ([][]byte, error) {
+	if len(args) != 1 {
+		return nil, ErrInvalidInput
+	}
 	if !env.config.Preimages {
 		return nil, ErrFeatureDisabled
 	}
@@ -372,6 +399,9 @@ func opPersistentPreimageLoadSize(env *Env, args [][]byte) ([][]byte, error) {
 }
 
 func opEphemeralPreimageStore(env *Env, args [][]byte) ([][]byte, error) {
+	if len(args) != 1 {
+		return nil, ErrInvalidInput
+	}
 	if !env.config.Ephemeral || !env.config.Preimages {
 		return nil, ErrFeatureDisabled
 	}
@@ -382,6 +412,9 @@ func opEphemeralPreimageStore(env *Env, args [][]byte) ([][]byte, error) {
 }
 
 func opEphemeralPreimageLoad(env *Env, args [][]byte) ([][]byte, error) {
+	if len(args) != 1 {
+		return nil, ErrInvalidInput
+	}
 	if !env.config.Ephemeral || !env.config.Preimages {
 		return nil, ErrFeatureDisabled
 	}
@@ -391,6 +424,9 @@ func opEphemeralPreimageLoad(env *Env, args [][]byte) ([][]byte, error) {
 }
 
 func opEphemeralPreimageLoadSize(env *Env, args [][]byte) ([][]byte, error) {
+	if len(args) != 1 {
+		return nil, ErrInvalidInput
+	}
 	if !env.config.Ephemeral || !env.config.Preimages {
 		return nil, ErrFeatureDisabled
 	}
@@ -400,14 +436,23 @@ func opEphemeralPreimageLoadSize(env *Env, args [][]byte) ([][]byte, error) {
 }
 
 func opGetAddress(env *Env, args [][]byte) ([][]byte, error) {
+	if len(args) != 0 {
+		return nil, ErrInvalidInput
+	}
 	return [][]byte{env.address.Bytes()}, nil
 }
 
 func opGetGasLeft(env *Env, args [][]byte) ([][]byte, error) {
+	if len(args) != 0 {
+		return nil, ErrInvalidInput
+	}
 	return [][]byte{utils.Uint64ToBytes(env.gas)}, nil
 }
 
 func opGetBlockNumber(env *Env, args [][]byte) ([][]byte, error) {
+	if len(args) != 1 {
+		return nil, ErrInvalidInput
+	}
 	if env.block == nil {
 		return nil, ErrNoData
 	}
@@ -416,6 +461,9 @@ func opGetBlockNumber(env *Env, args [][]byte) ([][]byte, error) {
 }
 
 func opGetBlockGasLimit(env *Env, args [][]byte) ([][]byte, error) {
+	if len(args) != 0 {
+		return nil, ErrInvalidInput
+	}
 	if env.block == nil {
 		return nil, ErrNoData
 	}
@@ -424,6 +472,9 @@ func opGetBlockGasLimit(env *Env, args [][]byte) ([][]byte, error) {
 }
 
 func opGetBlockTimestamp(env *Env, args [][]byte) ([][]byte, error) {
+	if len(args) != 0 {
+		return nil, ErrInvalidInput
+	}
 	if env.block == nil {
 		return nil, ErrNoData
 	}
@@ -432,6 +483,9 @@ func opGetBlockTimestamp(env *Env, args [][]byte) ([][]byte, error) {
 }
 
 func opGetBlockDifficulty(env *Env, args [][]byte) ([][]byte, error) {
+	if len(args) != 0 {
+		return nil, ErrInvalidInput
+	}
 	if env.block == nil {
 		return nil, ErrNoData
 	}
@@ -440,6 +494,9 @@ func opGetBlockDifficulty(env *Env, args [][]byte) ([][]byte, error) {
 }
 
 func opGetBlockBaseFee(env *Env, args [][]byte) ([][]byte, error) {
+	if len(args) != 0 {
+		return nil, ErrInvalidInput
+	}
 	if env.block == nil {
 		return nil, ErrNoData
 	}
@@ -448,6 +505,9 @@ func opGetBlockBaseFee(env *Env, args [][]byte) ([][]byte, error) {
 }
 
 func opGetBlockCoinbase(env *Env, args [][]byte) ([][]byte, error) {
+	if len(args) != 0 {
+		return nil, ErrInvalidInput
+	}
 	if env.block == nil {
 		return nil, ErrNoData
 	}
@@ -456,6 +516,9 @@ func opGetBlockCoinbase(env *Env, args [][]byte) ([][]byte, error) {
 }
 
 func opGetPrevRandom(env *Env, args [][]byte) ([][]byte, error) {
+	if len(args) != 0 {
+		return nil, ErrInvalidInput
+	}
 	if env.block == nil {
 		return nil, ErrNoData
 	}
@@ -464,6 +527,9 @@ func opGetPrevRandom(env *Env, args [][]byte) ([][]byte, error) {
 }
 
 func opGetBlockHash(env *Env, args [][]byte) ([][]byte, error) {
+	if len(args) != 1 {
+		return nil, ErrInvalidInput
+	}
 	if env.block == nil {
 		return nil, ErrNoData
 	}
@@ -483,11 +549,17 @@ func opGetBlockHash(env *Env, args [][]byte) ([][]byte, error) {
 }
 
 func opGetBalance(env *Env, args [][]byte) ([][]byte, error) {
+	if len(args) != 0 {
+		return nil, ErrInvalidInput
+	}
 	balance := env.statedb.GetBalance(env.address)
 	return [][]byte{balance.Bytes()}, nil
 }
 
 func opGetTxGasPrice(env *Env, args [][]byte) ([][]byte, error) {
+	if len(args) != 0 {
+		return nil, ErrInvalidInput
+	}
 	if env.call == nil {
 		return nil, ErrNoData
 	}
@@ -496,6 +568,9 @@ func opGetTxGasPrice(env *Env, args [][]byte) ([][]byte, error) {
 }
 
 func opGetTxOrigin(env *Env, args [][]byte) ([][]byte, error) {
+	if len(args) != 0 {
+		return nil, ErrInvalidInput
+	}
 	if env.call == nil {
 		return nil, ErrNoData
 	}
@@ -504,6 +579,9 @@ func opGetTxOrigin(env *Env, args [][]byte) ([][]byte, error) {
 }
 
 func opGetCallData(env *Env, args [][]byte) ([][]byte, error) {
+	if len(args) != 0 {
+		return nil, ErrInvalidInput
+	}
 	if env.call == nil {
 		return nil, ErrNoData
 	}
@@ -512,6 +590,9 @@ func opGetCallData(env *Env, args [][]byte) ([][]byte, error) {
 }
 
 func opGetCallDataSize(env *Env, args [][]byte) ([][]byte, error) {
+	if len(args) != 0 {
+		return nil, ErrInvalidInput
+	}
 	if env.call == nil {
 		return nil, ErrNoData
 	}
@@ -520,6 +601,9 @@ func opGetCallDataSize(env *Env, args [][]byte) ([][]byte, error) {
 }
 
 func opGetCaller(env *Env, args [][]byte) ([][]byte, error) {
+	if len(args) != 0 {
+		return nil, ErrInvalidInput
+	}
 	if env.call == nil {
 		return nil, ErrNoData
 	}
@@ -528,6 +612,9 @@ func opGetCaller(env *Env, args [][]byte) ([][]byte, error) {
 }
 
 func opGetCallValue(env *Env, args [][]byte) ([][]byte, error) {
+	if len(args) != 0 {
+		return nil, ErrInvalidInput
+	}
 	if env.call == nil {
 		return nil, ErrNoData
 	}
@@ -536,6 +623,9 @@ func opGetCallValue(env *Env, args [][]byte) ([][]byte, error) {
 }
 
 func gasStorageLoad(env *Env, args [][]byte) (uint64, error) {
+	if len(args) != 1 {
+		return 0, ErrInvalidInput
+	}
 	statedb := env.statedb
 	address := env.address
 	key := common.BytesToHash(args[0])
@@ -553,16 +643,25 @@ func opStorageLoad(env *Env, args [][]byte) ([][]byte, error) {
 }
 
 func opGetCode(env *Env, args [][]byte) ([][]byte, error) {
+	if len(args) != 0 {
+		return nil, ErrInvalidInput
+	}
 	code := env.statedb.GetCode(env.address)
 	return [][]byte{code}, nil
 }
 
 func opGetCodeSize(env *Env, args [][]byte) ([][]byte, error) {
+	if len(args) != 0 {
+		return nil, ErrInvalidInput
+	}
 	size := env.statedb.GetCodeSize(env.address)
 	return [][]byte{utils.Uint64ToBytes(uint64(size))}, nil
 }
 
 func opUseGas(env *Env, args [][]byte) ([][]byte, error) {
+	if len(args) != 1 {
+		return nil, ErrInvalidInput
+	}
 	gas := utils.BytesToUint64(args[0])
 	if ok := env.useGas(gas); !ok {
 		return nil, ErrOutOfGas
@@ -571,13 +670,13 @@ func opUseGas(env *Env, args [][]byte) ([][]byte, error) {
 }
 
 func gasStorageStore(env *Env, args [][]byte) (uint64, error) {
+	if len(args) != 2 {
+		return 0, ErrInvalidInput
+	}
 	return 0, nil
 }
 
 func opStorageStore(env *Env, args [][]byte) ([][]byte, error) {
-	if env.config.Static {
-		return nil, ErrWriteProtection
-	}
 	key := common.BytesToHash(args[0])
 	value := common.BytesToHash(args[1])
 	env.statedb.SetPersistentState(env.address, key, value)
@@ -585,15 +684,15 @@ func opStorageStore(env *Env, args [][]byte) ([][]byte, error) {
 }
 
 func gasLog(env *Env, args [][]byte) (uint64, error) {
+	if len(args) == 0 || len(args) > 5 {
+		return 0, ErrInvalidInput
+	}
 	nTopics := len(args) - 1
 	size := len(args[nTopics])
 	return params.LogGas + params.LogTopicGas*uint64(nTopics) + params.LogDataGas*uint64(size), nil
 }
 
 func opLog(env *Env, args [][]byte) ([][]byte, error) {
-	if env.config.Static {
-		return nil, ErrWriteProtection
-	}
 	topics := make([]common.Hash, len(args)-1)
 	for i, arg := range args[1:] {
 		topics[i] = common.BytesToHash(arg)
@@ -609,6 +708,9 @@ func opLog(env *Env, args [][]byte) ([][]byte, error) {
 }
 
 func gasGetExternalBalance(env *Env, args [][]byte) (uint64, error) {
+	if len(args) != 1 {
+		return 0, ErrInvalidInput
+	}
 	address := common.BytesToAddress(args[0])
 	if !env.statedb.AddressInAccessList(address) {
 		env.statedb.AddAddressToAccessList(address)
@@ -624,6 +726,9 @@ func opGetExternalBalance(env *Env, args [][]byte) ([][]byte, error) {
 }
 
 func opCallStatic(env *Env, args [][]byte) ([][]byte, error) {
+	if len(args) != 3 {
+		return nil, ErrInvalidInput
+	}
 	if env.caller == nil {
 		return nil, ErrNoData
 	}
@@ -636,24 +741,36 @@ func opCallStatic(env *Env, args [][]byte) ([][]byte, error) {
 }
 
 func opGetExternalCode(env *Env, args [][]byte) ([][]byte, error) {
+	if len(args) != 1 {
+		return nil, ErrInvalidInput
+	}
 	address := common.BytesToAddress(args[0])
 	code := env.statedb.GetCode(address)
 	return [][]byte{code}, nil
 }
 
 func opGetExternalCodeSize(env *Env, args [][]byte) ([][]byte, error) {
+	if len(args) != 1 {
+		return nil, ErrInvalidInput
+	}
 	address := common.BytesToAddress(args[0])
 	size := env.statedb.GetCodeSize(address)
 	return [][]byte{utils.Uint64ToBytes(uint64(size))}, nil
 }
 
 func opGetExternalCodeHash(env *Env, args [][]byte) ([][]byte, error) {
+	if len(args) != 1 {
+		return nil, ErrInvalidInput
+	}
 	address := common.BytesToAddress(args[0])
 	hash := env.statedb.GetCodeHash(address)
 	return [][]byte{hash.Bytes()}, nil
 }
 
 func opCall(env *Env, args [][]byte) ([][]byte, error) {
+	if len(args) != 4 {
+		return nil, ErrInvalidInput
+	}
 	if env.caller == nil {
 		return nil, ErrNoData
 	}
@@ -667,6 +784,9 @@ func opCall(env *Env, args [][]byte) ([][]byte, error) {
 }
 
 func opCallDelegate(env *Env, args [][]byte) ([][]byte, error) {
+	if len(args) != 3 {
+		return nil, ErrInvalidInput
+	}
 	if env.caller == nil {
 		return nil, ErrNoData
 	}
@@ -679,6 +799,9 @@ func opCallDelegate(env *Env, args [][]byte) ([][]byte, error) {
 }
 
 func opCreate(env *Env, args [][]byte) ([][]byte, error) {
+	if len(args) != 2 {
+		return nil, ErrInvalidInput
+	}
 	if env.caller == nil {
 		return nil, ErrNoData
 	}
@@ -690,6 +813,9 @@ func opCreate(env *Env, args [][]byte) ([][]byte, error) {
 }
 
 func opCreate2(env *Env, args [][]byte) ([][]byte, error) {
+	if len(args) != 3 {
+		return nil, ErrInvalidInput
+	}
 	if env.caller == nil {
 		return nil, ErrNoData
 	}
