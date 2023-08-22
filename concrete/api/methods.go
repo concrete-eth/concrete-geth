@@ -18,11 +18,11 @@ package api
 import "errors"
 
 var (
-	ErrInvalidOpCode   = errors.New("invalid opcode")
-	ErrOutOfGas        = errors.New("out of gas")
-	ErrWriteProtection = errors.New("write protection")
-	ErrFeatureDisabled = errors.New("feature disabled")
 	ErrEnvNotTrusted   = errors.New("environment not trusted")
+	ErrWriteProtection = errors.New("write protection")
+	ErrOutOfGas        = errors.New("out of gas")
+	ErrFeatureDisabled = errors.New("feature disabled")
+	ErrInvalidOpCode   = errors.New("invalid opcode")
 	ErrNoData          = errors.New("no data")
 )
 
