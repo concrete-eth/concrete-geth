@@ -24,12 +24,12 @@ import (
 
 func Uint64ToBytes(value uint64) []byte {
 	data := make([]byte, 8)
-	binary.LittleEndian.PutUint64(data, value)
+	binary.BigEndian.PutUint64(data, value)
 	return data
 }
 
 func BytesToUint64(data []byte) uint64 {
-	return binary.LittleEndian.Uint64(data)
+	return binary.BigEndian.Uint64(data)
 }
 
 const (
