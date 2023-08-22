@@ -19,14 +19,13 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/concrete/api"
 )
 
 type Counter struct {
-	api.StorageSlot
+	StorageSlot
 }
 
-func NewCounter(ref api.StorageSlot) *Counter {
+func NewCounter(ref StorageSlot) *Counter {
 	return &Counter{ref}
 }
 
