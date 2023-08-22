@@ -187,6 +187,16 @@ func NewProxyEnvironment(execute func(op OpCode, env *Env, args [][]byte) [][]by
 func execute(op OpCode, env *Env, args [][]byte) [][]byte {
 	operation := env.table[op]
 
+	if !env.config.Trusted && operation.trusted {
+		env.setError(ErrEnvNotTrusted)
+		return nil
+	}
+
+	if env.config.Static && !operation.static {
+		env.setError(ErrWriteProtection)
+		return nil
+	}
+
 	if env.meterGas {
 		gasConst := operation.constantGas
 		if ok := env.useGas(gasConst); !ok {

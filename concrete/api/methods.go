@@ -44,6 +44,8 @@ type operation struct {
 	execute     executionFunc
 	constantGas uint64
 	dynamicGas  gasFunc
+	trusted     bool
+	static      bool
 }
 
 type JumpTable [256]*operation

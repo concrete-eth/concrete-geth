@@ -37,177 +37,232 @@ func newEnvironmentMethods() JumpTable {
 	tbl := JumpTable{
 		EnableGasMetering_OpCode: {
 			execute: opEnableGasMetering,
+			trusted: true,
+			static:  true,
 		},
 		Debug_OpCode: {
 			execute: opDebug,
+			trusted: true,
+			static:  true,
 		},
 		TimeNow_OpCode: {
 			execute: opTimeNow,
+			trusted: true,
+			static:  true,
 		},
 		Keccak256_OpCode: {
 			execute:     opKeccak256,
 			constantGas: params.Keccak256Gas,
 			dynamicGas:  gasKeccak256,
+			static:      true,
 		},
 		EphemeralStore_OpCode: {
 			execute:     opEphemeralStore,
 			constantGas: params.WarmStorageReadCostEIP2929,
+			trusted:     true,
+			static:      false,
 		},
 		EphemeralLoad_OpCode: {
 			execute:     opEphemeralLoad,
 			constantGas: params.WarmStorageReadCostEIP2929,
+			trusted:     true,
+			static:      true,
 		},
 		PersistentPreimageStore_OpCode: {
 			execute:    opPersistentPreimageStore,
 			dynamicGas: gasPersistentPreimageStore,
+			trusted:    true,
+			static:     false,
 		},
 		PersistentPreimageLoad_OpCode: {
 			execute:     opPersistentPreimageLoad,
 			constantGas: params.ColdSloadCostEIP2929,
+			trusted:     true,
+			static:      true,
 		},
 		PersistentPreimageLoadSize_OpCode: {
 			execute:     opPersistentPreimageLoadSize,
 			constantGas: params.ColdSloadCostEIP2929,
+			trusted:     true,
+			static:      true,
 		},
 		EphemeralPreimageStore_OpCode: {
 			execute:     opEphemeralPreimageStore,
 			constantGas: params.WarmStorageReadCostEIP2929,
+			trusted:     true,
+			static:      false,
 		},
 		EphemeralPreimageLoad_OpCode: {
 			execute:     opEphemeralPreimageLoad,
 			constantGas: params.WarmStorageReadCostEIP2929,
+			trusted:     true,
+			static:      true,
 		},
 		EphemeralPreimageLoadSize_OpCode: {
 			execute:     opEphemeralPreimageLoadSize,
 			constantGas: params.WarmStorageReadCostEIP2929,
+			trusted:     true,
+			static:      true,
 		},
 		GetAddress_OpCode: {
 			execute:     opGetAddress,
 			constantGas: GasQuickStep,
+			static:      true,
 		},
 		GetGasLeft_OpCode: {
 			execute:     opGetGasLeft,
 			constantGas: GasQuickStep,
+			static:      true,
 		},
 		GetBlockNumber_OpCode: {
 			execute:     opGetBlockNumber,
 			constantGas: GasQuickStep,
+			static:      true,
 		},
 		GetBlockGasLimit_OpCode: {
 			execute:     opGetBlockGasLimit,
 			constantGas: GasQuickStep,
+			static:      true,
 		},
 		GetBlockTimestamp_OpCode: {
 			execute:     opGetBlockTimestamp,
 			constantGas: GasQuickStep,
+			static:      true,
 		},
 		GetBlockDifficulty_OpCode: {
 			execute:     opGetBlockDifficulty,
 			constantGas: GasQuickStep,
+			static:      true,
 		},
 		GetBlockBaseFee_OpCode: {
 			execute:     opGetBlockBaseFee,
 			constantGas: GasQuickStep,
+			static:      true,
 		},
 		GetBlockCoinbase_OpCode: {
 			execute:     opGetBlockCoinbase,
 			constantGas: GasQuickStep,
+			static:      true,
 		},
 		GetPrevRandom_OpCode: {
 			execute:     opGetPrevRandom,
 			constantGas: GasQuickStep,
+			static:      true,
 		},
 		GetBlockHash_OpCode: {
 			execute:     opGetBlockHash,
 			constantGas: GasExtStep,
+			static:      true,
 		},
 		GetBalance_OpCode: {
 			execute:     opGetBalance,
 			constantGas: GasFastStep,
+			static:      true,
 		},
 		GetTxGasPrice_OpCode: {
 			execute:     opGetTxGasPrice,
 			constantGas: GasQuickStep,
+			static:      true,
 		},
 		GetTxOrigin_OpCode: {
 			execute:     opGetTxOrigin,
 			constantGas: GasQuickStep,
+			static:      true,
 		},
 		GetCallData_OpCode: {
 			execute:     opGetCallData,
 			constantGas: GasFastestStep,
+			static:      true,
 		},
 		GetCallDataSize_OpCode: {
 			execute:     opGetCallDataSize,
 			constantGas: GasQuickStep,
+			static:      true,
 		},
 		GetCaller_OpCode: {
 			execute:     opGetCaller,
 			constantGas: GasQuickStep,
+			static:      true,
 		},
 		GetCallValue_OpCode: {
 			execute:     opGetCallValue,
 			constantGas: GasQuickStep,
+			static:      true,
 		},
 		StorageLoad_OpCode: {
 			execute:    opStorageLoad,
 			dynamicGas: gasStorageLoad,
+			static:     true,
 		},
 		GetCode_OpCode: {
 			execute:     opGetCode,
 			constantGas: GasFastestStep,
+			static:      true,
 		},
 		GetCodeSize_OpCode: {
 			execute:     opGetCodeSize,
 			constantGas: GasQuickStep,
+			static:      true,
 		},
 		UseGas_OpCode: {
 			execute: opUseGas,
+			static:  true,
 		},
 		StorageStore_OpCode: {
 			execute:    opStorageStore,
 			dynamicGas: gasStorageStore,
+			static:     false,
 		},
 		Log_OpCode: {
 			execute:    opLog,
 			dynamicGas: gasLog,
+			static:     false,
 		},
 		GetExternalBalance_OpCode: {
 			execute:     opGetExternalBalance,
 			constantGas: params.WarmStorageReadCostEIP2929,
+			static:      true,
 			dynamicGas:  gasGetExternalBalance,
 		},
 		CallStatic_OpCode: {
 			execute:     opCallStatic,
 			constantGas: params.WarmStorageReadCostEIP2929,
+			static:      true,
 		},
 		GetExternalCode_OpCode: {
 			execute:     opGetExternalCode,
 			constantGas: params.WarmStorageReadCostEIP2929,
+			static:      true,
 		},
 		GetExternalCodeSize_OpCode: {
 			execute:     opGetExternalCodeSize,
 			constantGas: params.WarmStorageReadCostEIP2929,
+			static:      true,
 		},
 		GetExternalCodeHash_OpCode: {
 			execute:     opGetExternalCodeHash,
 			constantGas: params.WarmStorageReadCostEIP2929,
+			static:      true,
 		},
 		Call_OpCode: {
 			execute:     opCall,
 			constantGas: params.WarmStorageReadCostEIP2929,
+			static:      false,
 		},
 		CallDelegate_OpCode: {
 			execute:     opCallDelegate,
 			constantGas: params.WarmStorageReadCostEIP2929,
+			static:      false,
 		},
 		Create_OpCode: {
 			execute:     opCreate,
 			constantGas: params.CreateGas,
+			static:      false,
 		},
 		Create2_OpCode: {
 			execute:     opCreate2,
 			constantGas: params.Create2Gas,
+			static:      false,
 		},
 	}
 
@@ -232,26 +287,17 @@ func opEnableGasMetering(env *Env, args [][]byte) ([][]byte, error) {
 	if env.meterGas == meter {
 		return nil, nil
 	}
-	if !env.config.Trusted {
-		return nil, ErrEnvNotTrusted
-	}
 	env.meterGas = meter
 	return nil, nil
 }
 
 func opDebug(env *Env, args [][]byte) ([][]byte, error) {
-	if !env.config.Trusted {
-		return nil, ErrEnvNotTrusted
-	}
 	msg := string(args[0])
 	env.logger.Debug(msg)
 	return nil, nil
 }
 
 func opTimeNow(env *Env, args [][]byte) ([][]byte, error) {
-	if !env.config.Trusted {
-		return nil, ErrEnvNotTrusted
-	}
 	now := uint64(time.Now().UnixNano())
 	return [][]byte{utils.Uint64ToBytes(now)}, nil
 }
@@ -268,15 +314,9 @@ func opKeccak256(env *Env, args [][]byte) ([][]byte, error) {
 }
 
 func opEphemeralStore(env *Env, args [][]byte) ([][]byte, error) {
-	if !env.config.Trusted {
-		return nil, ErrEnvNotTrusted
-	}
 	if !env.config.Ephemeral {
 		return nil, ErrFeatureDisabled
 	}
-	// if env.config.Static {
-	// 	return nil, ErrWriteProtection
-	// }
 	key := common.BytesToHash(args[0])
 	value := common.BytesToHash(args[1])
 	env.statedb.SetEphemeralState(env.address, key, value)
@@ -284,9 +324,6 @@ func opEphemeralStore(env *Env, args [][]byte) ([][]byte, error) {
 }
 
 func opEphemeralLoad(env *Env, args [][]byte) ([][]byte, error) {
-	if !env.config.Trusted {
-		return nil, ErrEnvNotTrusted
-	}
 	if !env.config.Ephemeral {
 		return nil, ErrFeatureDisabled
 	}
@@ -302,15 +339,9 @@ func gasPersistentPreimageStore(env *Env, args [][]byte) (uint64, error) {
 }
 
 func opPersistentPreimageStore(env *Env, args [][]byte) ([][]byte, error) {
-	if !env.config.Trusted {
-		return nil, ErrEnvNotTrusted
-	}
 	if !env.config.Preimages {
 		return nil, ErrFeatureDisabled
 	}
-	// if env.config.Static {
-	// 	return nil, ErrWriteProtection
-	// }
 	preimage := args[0]
 	hash := crypto.Keccak256Hash(preimage)
 	env.statedb.AddPersistentPreimage(hash, preimage)
@@ -318,9 +349,6 @@ func opPersistentPreimageStore(env *Env, args [][]byte) ([][]byte, error) {
 }
 
 func opPersistentPreimageLoad(env *Env, args [][]byte) ([][]byte, error) {
-	if !env.config.Trusted {
-		return nil, ErrEnvNotTrusted
-	}
 	if !env.config.Preimages {
 		return nil, ErrFeatureDisabled
 	}
@@ -330,9 +358,6 @@ func opPersistentPreimageLoad(env *Env, args [][]byte) ([][]byte, error) {
 }
 
 func opPersistentPreimageLoadSize(env *Env, args [][]byte) ([][]byte, error) {
-	if !env.config.Trusted {
-		return nil, ErrEnvNotTrusted
-	}
 	if !env.config.Preimages {
 		return nil, ErrFeatureDisabled
 	}
@@ -342,15 +367,9 @@ func opPersistentPreimageLoadSize(env *Env, args [][]byte) ([][]byte, error) {
 }
 
 func opEphemeralPreimageStore(env *Env, args [][]byte) ([][]byte, error) {
-	if !env.config.Trusted {
-		return nil, ErrEnvNotTrusted
-	}
 	if !env.config.Ephemeral || !env.config.Preimages {
 		return nil, ErrFeatureDisabled
 	}
-	// if env.config.Static {
-	// 	return nil, ErrWriteProtection
-	// }
 	preimage := args[0]
 	hash := crypto.Keccak256Hash(preimage)
 	env.statedb.AddEphemeralPreimage(hash, preimage)
@@ -358,9 +377,6 @@ func opEphemeralPreimageStore(env *Env, args [][]byte) ([][]byte, error) {
 }
 
 func opEphemeralPreimageLoad(env *Env, args [][]byte) ([][]byte, error) {
-	if !env.config.Trusted {
-		return nil, ErrEnvNotTrusted
-	}
 	if !env.config.Ephemeral || !env.config.Preimages {
 		return nil, ErrFeatureDisabled
 	}
@@ -370,9 +386,6 @@ func opEphemeralPreimageLoad(env *Env, args [][]byte) ([][]byte, error) {
 }
 
 func opEphemeralPreimageLoadSize(env *Env, args [][]byte) ([][]byte, error) {
-	if !env.config.Trusted {
-		return nil, ErrEnvNotTrusted
-	}
 	if !env.config.Ephemeral || !env.config.Preimages {
 		return nil, ErrFeatureDisabled
 	}
@@ -529,9 +542,6 @@ func gasStorageLoad(env *Env, args [][]byte) (uint64, error) {
 }
 
 func opStorageLoad(env *Env, args [][]byte) ([][]byte, error) {
-	// if env.config.Static {
-	// 	return nil, ErrWriteProtection
-	// }
 	key := common.BytesToHash(args[0])
 	value := env.statedb.GetPersistentState(env.address, key)
 	return [][]byte{value.Bytes()}, nil
