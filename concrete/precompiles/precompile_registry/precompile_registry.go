@@ -130,3 +130,5 @@ func (p *PrecompileRegistry) Run(env api.Environment, input []byte) ([]byte, err
 	}
 	return output, nil
 }
+
+var _ precompiles.Precompile = (*PrecompileRegistry)(nil)

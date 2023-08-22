@@ -121,6 +121,8 @@ func (logger) Debug(msg string) {
 	log.Debug(msg)
 }
 
+var _ Logger = logger{}
+
 type Env struct {
 	table    JumpTable
 	_execute func(op OpCode, env *Env, args [][]byte) ([][]byte, error)

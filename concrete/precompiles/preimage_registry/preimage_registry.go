@@ -135,3 +135,5 @@ func (p *PreimageRegistry) Run(env api.Environment, input []byte) ([]byte, error
 	}
 	return output, nil
 }
+
+var _ precompiles.Precompile = (*PreimageRegistry)(nil)

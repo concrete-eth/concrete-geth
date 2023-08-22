@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/concrete/api"
 	cc_api "github.com/ethereum/go-ethereum/concrete/api"
 	cc_precompiles "github.com/ethereum/go-ethereum/concrete/precompiles"
 	"github.com/ethereum/go-ethereum/core/rawdb"
@@ -1455,3 +1456,5 @@ func (s *StateDB) convertAccountSet(set map[common.Address]struct{}) map[common.
 	}
 	return ret
 }
+
+var _ api.StateDB = (*StateDB)(nil)

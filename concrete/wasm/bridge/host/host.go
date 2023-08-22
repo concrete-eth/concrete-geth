@@ -87,6 +87,8 @@ func (a *allocator) Prune() {
 	}
 }
 
+var _ bridge.Allocator = (*allocator)(nil)
+
 type memory struct {
 	allocator
 }
@@ -122,6 +124,8 @@ func (m *memory) Read(pointer bridge.MemPointer) []byte {
 	}
 	return output
 }
+
+var _ bridge.Memory = (*memory)(nil)
 
 type HostFunc func(ctx context.Context, module wz_api.Module, pointer uint64) uint64
 

@@ -70,6 +70,8 @@ func (m *mockStateDB) AddEphemeralPreimage(hash common.Hash, preimage []byte)  {
 func (m *mockStateDB) GetEphemeralPreimage(hash common.Hash) []byte            { return []byte{} }
 func (m *mockStateDB) GetEphemeralPreimageSize(hash common.Hash) int           { return 0 }
 
+var _ StateDB = (*mockStateDB)(nil)
+
 type mockBlockContext struct{}
 
 func NewMockBlockContext() *mockBlockContext { return &mockBlockContext{} }
@@ -83,6 +85,8 @@ func (m *mockBlockContext) BaseFee() *big.Int          { return big.NewInt(0) }
 func (m *mockBlockContext) Coinbase() common.Address   { return common.Address{} }
 func (m *mockBlockContext) Random() common.Hash        { return common.Hash{} }
 
+var _ BlockContext = (*mockBlockContext)(nil)
+
 type mockCallContext struct{}
 
 func NewMockCallContext() *mockCallContext { return &mockCallContext{} }
@@ -93,6 +97,8 @@ func (m *mockCallContext) CallData() []byte         { return []byte{} }
 func (m *mockCallContext) CallDataSize() int        { return 0 }
 func (m *mockCallContext) Caller() common.Address   { return common.Address{} }
 func (m *mockCallContext) CallValue() *big.Int      { return big.NewInt(0) }
+
+var _ CallContext = (*mockCallContext)(nil)
 
 type mockCaller struct{}
 
@@ -113,3 +119,5 @@ func (m *mockCaller) Create([]byte, *big.Int) (common.Address, uint64, error) {
 func (m *mockCaller) Create2([]byte, common.Hash, *big.Int) (common.Address, uint64, error) {
 	return common.Address{}, 0, nil
 }
+
+var _ Caller = (*mockCaller)(nil)
