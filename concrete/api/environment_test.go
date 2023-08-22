@@ -45,7 +45,10 @@ func TestGas(t *testing.T) {
 
 	r.Equal(gas, env.Gas())
 
-	gasOpCost := env.table[GetGasLeft_OpCode].constantGas
-
-	r.Equal(gas-gasOpCost, env.GetGasLeft())
+	// GetGasLeft() costs gas, so the cost of that operation must be subtracted
+	// from the total gas.
+	getGasLeftOpCost := env.table[GetGasLeft_OpCode].constantGas
+	gas -= getGasLeftOpCost
+	r.Equal(gas, env.GetGasLeft())
+	r.Equal(gas, env.Gas())
 }
