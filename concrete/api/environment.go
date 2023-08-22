@@ -24,7 +24,7 @@ import (
 )
 
 type Environment interface {
-	Execute(op OpCode, args [][]byte) [][]byte
+	Execute(op OpCode, args [][]byte) ([][]byte, error)
 
 	// Meta
 	EnableGasMetering(meter bool)
@@ -123,7 +123,7 @@ func (logger) Debug(msg string) {
 
 type Env struct {
 	table    JumpTable
-	_execute func(op OpCode, env *Env, args [][]byte) [][]byte
+	_execute func(op OpCode, env *Env, args [][]byte) ([][]byte, error)
 
 	address common.Address
 	config  EnvConfig
@@ -177,16 +177,17 @@ func NewNoCallEnvironment(
 	return env
 }
 
-func NewProxyEnvironment(execute func(op OpCode, env *Env, args [][]byte) [][]byte) *Env {
+func NewProxyEnvironment(execute func(op OpCode, env *Env, args [][]byte) ([][]byte, error)) *Env {
 	env := &Env{
 		_execute: execute,
 	}
 	return env
 }
 
-func execute(op OpCode, env *Env, args [][]byte) [][]byte {
-	if env.envErr != nil {
-		return nil
+func execute(op OpCode, env *Env, args [][]byte) (output [][]byte, retErr error) {
+	err := env.Error()
+	if err != nil {
+		return nil, err
 	}
 
 	defer func() {
@@ -210,47 +211,48 @@ func execute(op OpCode, env *Env, args [][]byte) [][]byte {
 				panic(err)
 			}
 		}
+		retErr = err
 	}()
 
 	operation := env.table[op]
 
 	if !env.config.Trusted && operation.trusted {
 		env.setError(ErrEnvNotTrusted)
-		return nil
+		return nil, nil
 	}
 
 	if env.config.Static && !operation.static {
 		env.setError(ErrWriteProtection)
-		return nil
+		return nil, nil
 	}
 
 	if env.meterGas {
 		gasConst := operation.constantGas
 		if ok := env.useGas(gasConst); !ok {
 			env.setError(ErrOutOfGas)
-			return nil
+			return nil, nil
 		}
 		if operation.dynamicGas != nil {
 			gasDyn, err := operation.dynamicGas(env, args)
 			if err != nil {
 				env.setError(err)
-				return nil
+				return nil, nil
 			}
 			if ok := env.useGas(gasDyn); !ok {
 				env.setError(ErrOutOfGas)
-				return nil
+				return nil, nil
 			}
 		}
 	}
 
-	output, err := operation.execute(env, args)
+	output, err = operation.execute(env, args)
 
 	if err != nil {
 		env.setError(err)
-		return nil
+		return nil, nil
 	}
 
-	return output
+	return output, nil
 }
 
 func (env *Env) setError(err error) {
@@ -259,7 +261,7 @@ func (env *Env) setError(err error) {
 	}
 }
 
-func (env *Env) execute(op OpCode, args [][]byte) [][]byte {
+func (env *Env) execute(op OpCode, args [][]byte) ([][]byte, error) {
 	return env._execute(op, env, args)
 }
 
@@ -284,7 +286,7 @@ func (env *Env) Error() error {
 	return env.envErr
 }
 
-func (env *Env) Execute(op OpCode, args [][]byte) [][]byte {
+func (env *Env) Execute(op OpCode, args [][]byte) ([][]byte, error) {
 	return env.execute(op, args)
 }
 
@@ -302,7 +304,10 @@ func (env *Env) Debug(msg string) {
 }
 
 func (env *Env) TimeNow() uint64 {
-	output := env.execute(TimeNow_OpCode, nil)
+	output, err := env.execute(TimeNow_OpCode, nil)
+	if err != nil {
+		return 0
+	}
 	return utils.BytesToUint64(output[0])
 }
 
@@ -316,14 +321,17 @@ func (env *Env) PersistentStore(key common.Hash, value common.Hash) {
 
 func (env *Env) Keccak256(data []byte) common.Hash {
 	input := [][]byte{data}
-	output := env.execute(Keccak256_OpCode, input)
+	output, err := env.execute(Keccak256_OpCode, input)
+	if err != nil {
+		return common.Hash{}
+	}
 	hash := common.BytesToHash(output[0])
 	return hash
 }
 
 func (env *Env) EphemeralLoad_Unsafe(key common.Hash) common.Hash {
 	input := [][]byte{key.Bytes()}
-	output := env.execute(EphemeralLoad_OpCode, input)
+	output, err := env.execute(EphemeralLoad_OpCode, input)
 	hash := common.BytesToHash(output[0])
 	return hash
 }
@@ -335,141 +343,219 @@ func (env *Env) EphemeralStore_Unsafe(key common.Hash, value common.Hash) {
 
 func (env *Env) PersistentPreimageStore_Unsafe(preimage []byte) common.Hash {
 	input := [][]byte{preimage}
-	output := env.execute(PersistentPreimageStore_OpCode, input)
+	output, err := env.execute(PersistentPreimageStore_OpCode, input)
+	if err != nil {
+		return common.Hash{}
+	}
 	return common.BytesToHash(output[0])
 }
 
 func (env *Env) PersistentPreimageLoad_Unsafe(hash common.Hash) []byte {
 	input := [][]byte{hash.Bytes()}
-	output := env.execute(PersistentPreimageLoad_OpCode, input)
+	output, err := env.execute(PersistentPreimageLoad_OpCode, input)
+	if err != nil {
+		return nil
+	}
 	return output[0]
 }
 
 func (env *Env) PersistentPreimageLoadSize_Unsafe(hash common.Hash) int {
 	input := [][]byte{hash.Bytes()}
-	output := env.execute(PersistentPreimageLoadSize_OpCode, input)
+	output, err := env.execute(PersistentPreimageLoadSize_OpCode, input)
+	if err != nil {
+		return 0
+	}
 	return int(utils.BytesToUint64(output[0]))
 }
 
 func (env *Env) EphemeralPreimageStore_Unsafe(preimage []byte) common.Hash {
 	input := [][]byte{preimage}
-	output := env.execute(EphemeralPreimageStore_OpCode, input)
+	output, err := env.execute(EphemeralPreimageStore_OpCode, input)
+	if err != nil {
+		return common.Hash{}
+	}
 	return common.BytesToHash(output[0])
 }
 
 func (env *Env) EphemeralPreimageLoad_Unsafe(hash common.Hash) []byte {
 	input := [][]byte{hash.Bytes()}
-	output := env.execute(EphemeralPreimageLoad_OpCode, input)
+	output, err := env.execute(EphemeralPreimageLoad_OpCode, input)
+	if err != nil {
+		return nil
+	}
 	return output[0]
 }
 
 func (env *Env) EphemeralPreimageLoadSize_Unsafe(hash common.Hash) int {
 	input := [][]byte{hash.Bytes()}
-	output := env.execute(EphemeralPreimageLoadSize_OpCode, input)
+	output, err := env.execute(EphemeralPreimageLoadSize_OpCode, input)
+	if err != nil {
+		return 0
+	}
 	return int(utils.BytesToUint64(output[0]))
 }
 
 func (env *Env) GetAddress() common.Address {
-	output := env.execute(GetAddress_OpCode, nil)
+	output, err := env.execute(GetAddress_OpCode, nil)
+	if err != nil {
+		return common.Address{}
+	}
 	return common.BytesToAddress(output[0])
 }
 
 func (env *Env) GetGasLeft() uint64 {
-	output := env.execute(GetGasLeft_OpCode, nil)
+	output, err := env.execute(GetGasLeft_OpCode, nil)
+	if err != nil {
+		return 0
+	}
 	return utils.BytesToUint64(output[0])
 }
 
 func (env *Env) GetBlockNumber() uint64 {
-	output := env.execute(GetBlockNumber_OpCode, nil)
+	output, err := env.execute(GetBlockNumber_OpCode, nil)
+	if err != nil {
+		return 0
+	}
 	return utils.BytesToUint64(output[0])
 }
 
 func (env *Env) GetBlockGasLimit() uint64 {
-	output := env.execute(GetBlockGasLimit_OpCode, nil)
+	output, err := env.execute(GetBlockGasLimit_OpCode, nil)
+	if err != nil {
+		return 0
+	}
 	return utils.BytesToUint64(output[0])
 }
 
 func (env *Env) GetBlockTimestamp() uint64 {
-	output := env.execute(GetBlockTimestamp_OpCode, nil)
+	output, err := env.execute(GetBlockTimestamp_OpCode, nil)
+	if err != nil {
+		return 0
+	}
 	return utils.BytesToUint64(output[0])
 }
 
 func (env *Env) GetBlockDifficulty() *big.Int {
-	output := env.execute(GetBlockDifficulty_OpCode, nil)
+	output, err := env.execute(GetBlockDifficulty_OpCode, nil)
+	if err != nil {
+		return nil
+	}
 	return new(big.Int).SetBytes(output[0])
 }
 
 func (env *Env) GetBlockBaseFee() *big.Int {
-	output := env.execute(GetBlockBaseFee_OpCode, nil)
+	output, err := env.execute(GetBlockBaseFee_OpCode, nil)
+	if err != nil {
+		return nil
+	}
 	return new(big.Int).SetBytes(output[0])
 }
 
 func (env *Env) GetBlockCoinbase() common.Address {
-	output := env.execute(GetBlockCoinbase_OpCode, nil)
+	output, err := env.execute(GetBlockCoinbase_OpCode, nil)
+	if err != nil {
+		return common.Address{}
+	}
 	return common.BytesToAddress(output[0])
 }
 
 func (env *Env) GetPrevRandom() common.Hash {
-	output := env.execute(GetPrevRandom_OpCode, nil)
+	output, err := env.execute(GetPrevRandom_OpCode, nil)
+	if err != nil {
+		return common.Hash{}
+	}
 	return common.BytesToHash(output[0])
 }
 
 func (env *Env) GetBlockHash(number uint64) common.Hash {
 	input := [][]byte{utils.Uint64ToBytes(number)}
-	output := env.execute(GetBlockHash_OpCode, input)
+	output, err := env.execute(GetBlockHash_OpCode, input)
+	if err != nil {
+		return common.Hash{}
+	}
 	return common.BytesToHash(output[0])
 }
 
 func (env *Env) GetBalance(address common.Address) *big.Int {
 	input := [][]byte{address.Bytes()}
-	output := env.execute(GetBalance_OpCode, input)
+	output, err := env.execute(GetBalance_OpCode, input)
+	if err != nil {
+		return nil
+	}
 	return new(big.Int).SetBytes(output[0])
 }
 
 func (env *Env) GetTxGasPrice() *big.Int {
-	output := env.execute(GetTxGasPrice_OpCode, nil)
+	output, err := env.execute(GetTxGasPrice_OpCode, nil)
+	if err != nil {
+		return nil
+	}
 	return new(big.Int).SetBytes(output[0])
 }
 
 func (env *Env) GetTxOrigin() common.Address {
-	output := env.execute(GetTxOrigin_OpCode, nil)
+	output, err := env.execute(GetTxOrigin_OpCode, nil)
+	if err != nil {
+		return common.Address{}
+	}
 	return common.BytesToAddress(output[0])
 }
 
 func (env *Env) GetCallData() []byte {
-	output := env.execute(GetCallData_OpCode, nil)
+	output, err := env.execute(GetCallData_OpCode, nil)
+	if err != nil {
+		return nil
+	}
 	return output[0]
 }
 
 func (env *Env) GetCallDataSize() int {
-	output := env.execute(GetCallDataSize_OpCode, nil)
+	output, err := env.execute(GetCallDataSize_OpCode, nil)
+	if err != nil {
+		return 0
+	}
 	return int(utils.BytesToUint64(output[0]))
 }
 
 func (env *Env) GetCaller() common.Address {
-	output := env.execute(GetCaller_OpCode, nil)
+	output, err := env.execute(GetCaller_OpCode, nil)
+	if err != nil {
+		return common.Address{}
+	}
 	return common.BytesToAddress(output[0])
 }
 
 func (env *Env) GetCallValue() *big.Int {
-	output := env.execute(GetCallValue_OpCode, nil)
+	output, err := env.execute(GetCallValue_OpCode, nil)
+	if err != nil {
+		return nil
+	}
 	return new(big.Int).SetBytes(output[0])
 }
 
 func (env *Env) StorageLoad(key common.Hash) common.Hash {
 	input := [][]byte{key.Bytes()}
-	output := env.execute(StorageLoad_OpCode, input)
+	output, err := env.execute(StorageLoad_OpCode, input)
+	if err != nil {
+		return common.Hash{}
+	}
 	return common.BytesToHash(output[0])
 }
 
 func (env *Env) GetCode(address common.Address) []byte {
 	input := [][]byte{address.Bytes()}
-	output := env.execute(GetCode_OpCode, input)
+	output, err := env.execute(GetCode_OpCode, input)
+	if err != nil {
+		return nil
+	}
 	return output[0]
 }
 
 func (env *Env) GetCodeSize() int {
-	output := env.execute(GetCodeSize_OpCode, nil)
+	output, err := env.execute(GetCodeSize_OpCode, nil)
+	if err != nil {
+		return 0
+	}
 	return int(utils.BytesToUint64(output[0]))
 }
 
@@ -494,55 +580,82 @@ func (env *Env) Log(topics []common.Hash, data []byte) {
 
 func (env *Env) GetExternalBalance(address common.Address) *big.Int {
 	input := [][]byte{address.Bytes()}
-	output := env.execute(GetExternalBalance_OpCode, input)
+	output, err := env.execute(GetExternalBalance_OpCode, input)
+	if err != nil {
+		return nil
+	}
 	return new(big.Int).SetBytes(output[0])
 }
 
 func (env *Env) CallStatic(address common.Address, data []byte, gas uint64) ([]byte, error) {
 	input := [][]byte{utils.Uint64ToBytes(gas), address.Bytes(), data}
-	output := env.execute(CallStatic_OpCode, input)
+	output, err := env.execute(CallStatic_OpCode, input)
+	if err != nil {
+		return nil, nil
+	}
 	return output[0], utils.DecodeError(output[1])
 }
 
 func (env *Env) GetExternalCode(address common.Address) []byte {
 	input := [][]byte{address.Bytes()}
-	output := env.execute(GetExternalCode_OpCode, input)
+	output, err := env.execute(GetExternalCode_OpCode, input)
+	if err != nil {
+		return nil
+	}
 	return output[0]
 }
 
 func (env *Env) GetExternalCodeSize(address common.Address) int {
 	input := [][]byte{address.Bytes()}
-	output := env.execute(GetExternalCodeSize_OpCode, input)
+	output, err := env.execute(GetExternalCodeSize_OpCode, input)
+	if err != nil {
+		return 0
+	}
 	return int(utils.BytesToUint64(output[0]))
 }
 
 func (env *Env) GetExternalCodeHash(address common.Address) common.Hash {
 	input := [][]byte{address.Bytes()}
-	output := env.execute(GetExternalCodeHash_OpCode, input)
+	output, err := env.execute(GetExternalCodeHash_OpCode, input)
+	if err != nil {
+		return common.Hash{}
+	}
 	return common.BytesToHash(output[0])
 }
 
 func (env *Env) Call(address common.Address, data []byte, gas uint64, value *big.Int) ([]byte, error) {
 	input := [][]byte{utils.Uint64ToBytes(gas), address.Bytes(), value.Bytes(), data}
-	output := env.execute(Call_OpCode, input)
+	output, err := env.execute(Call_OpCode, input)
+	if err != nil {
+		return nil, err
+	}
 	return output[0], utils.DecodeError(output[1])
 }
 
 func (env *Env) CallDelegate(address common.Address, data []byte, gas uint64) ([]byte, error) {
 	input := [][]byte{utils.Uint64ToBytes(gas), address.Bytes(), data}
-	output := env.execute(CallDelegate_OpCode, input)
+	output, err := env.execute(CallDelegate_OpCode, input)
+	if err != nil {
+		return nil, nil
+	}
 	return output[0], utils.DecodeError(output[1])
 }
 
 func (env *Env) Create(data []byte, value *big.Int) (common.Address, error) {
 	input := [][]byte{value.Bytes(), data}
-	output := env.execute(Create_OpCode, input)
+	output, err := env.execute(Create_OpCode, input)
+	if err != nil {
+		return common.Address{}, err
+	}
 	return common.BytesToAddress(output[0]), utils.DecodeError(output[1])
 }
 
 func (env *Env) Create2(data []byte, salt common.Hash, value *big.Int) (common.Address, error) {
 	input := [][]byte{value.Bytes(), data, salt.Bytes()}
-	output := env.execute(Create2_OpCode, input)
+	output, err := env.execute(Create2_OpCode, input)
+	if err != nil {
+		return common.Address{}, err
+	}
 	return common.BytesToAddress(output[0]), utils.DecodeError(output[1])
 }
 
