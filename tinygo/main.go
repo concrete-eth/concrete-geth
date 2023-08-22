@@ -17,14 +17,15 @@ package tinygo
 
 import (
 	"github.com/ethereum/go-ethereum/concrete/api"
+	"github.com/ethereum/go-ethereum/concrete/precompiles"
 	"github.com/ethereum/go-ethereum/concrete/wasm/bridge"
 	"github.com/ethereum/go-ethereum/concrete/wasm/bridge/wasm"
 	"github.com/ethereum/go-ethereum/tinygo/infra"
 )
 
-var precompile api.Precompile
+var precompile precompiles.Precompile
 
-func WasmWrap(pc api.Precompile) {
+func WasmWrap(pc precompiles.Precompile) {
 	precompile = pc
 }
 

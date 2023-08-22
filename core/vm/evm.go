@@ -61,7 +61,7 @@ func (evm *EVM) precompile(addr common.Address) (PrecompiledContract, bool) {
 	return p, ok
 }
 
-func (evm *EVM) concretePrecompile(addr common.Address) (cc_api.Precompile, bool) {
+func (evm *EVM) concretePrecompile(addr common.Address) (cc_precompiles.Precompile, bool) {
 	return cc_precompiles.GetPrecompile(addr)
 }
 

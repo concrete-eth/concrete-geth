@@ -20,6 +20,7 @@ import (
 	"sync"
 
 	"github.com/ethereum/go-ethereum/concrete/api"
+	"github.com/ethereum/go-ethereum/concrete/precompiles"
 	"github.com/ethereum/go-ethereum/concrete/wasm/bridge"
 	"github.com/ethereum/go-ethereum/concrete/wasm/bridge/host"
 	"github.com/tetratelabs/wazero"
@@ -39,7 +40,7 @@ const (
 
 // Note: For trusted use only. Precompiles can trigger a panic in the host.
 
-func NewWasmPrecompile(code []byte) api.Precompile {
+func NewWasmPrecompile(code []byte) precompiles.Precompile {
 	return newWasmPrecompile(code)
 }
 
@@ -178,4 +179,4 @@ func (p *wasmPrecompile) Run(env api.Environment, input []byte) ([]byte, error) 
 	return p.call_Bytes_BytesErr(p.expRun, input)
 }
 
-var _ api.Precompile = (*wasmPrecompile)(nil)
+var _ precompiles.Precompile = (*wasmPrecompile)(nil)
