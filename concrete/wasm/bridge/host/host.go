@@ -140,7 +140,7 @@ func NewEnvironmentCaller(apiGetter func() api.Environment) HostFunc {
 		opcode.Decode(args[0])
 		args = args[1:]
 
-		out := env.Execute(opcode, args)
+		out, _ := env.Execute(opcode, args)
 
 		// TODO: halt execution on error [?]
 
