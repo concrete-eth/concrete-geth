@@ -25,18 +25,12 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/concrete/api"
-	"github.com/ethereum/go-ethereum/concrete/testutils"
+	"github.com/ethereum/go-ethereum/concrete/mock"
 	"github.com/stretchr/testify/require"
 )
 
-func testKeyValueStore(t *testing.T, kv KeyValueStore) {
+func TestEnvKeyValueStore(t *testing.T) {
 	r := require.New(t)
-	key := common.Hash{0x01}
-	value := kv.Get(key)
-	r.Equal(common.Hash{}, value)
-}
-
-func TestEnvPersistentKeyValueStore(t *testing.T) {
 	var (
 		address = common.HexToAddress("0xc0ffee0001")
 		config  = api.EnvConfig{
@@ -48,24 +42,24 @@ func TestEnvPersistentKeyValueStore(t *testing.T) {
 		meterGas = true
 		gas      = uint64(1e6)
 	)
-	env := testutils.NewMockEnv(address, config, meterGas, gas)
-	kv := newEnvPersistentKeyValueStore(env)
-	testKeyValueStore(t, kv)
-}
-
-func TestEnvEphemeralKeyValueStore(t *testing.T) {
-	var (
-		address = common.HexToAddress("0xc0ffee0001")
-		config  = api.EnvConfig{
-			Static:    false,
-			Ephemeral: false,
-			Preimages: false,
-			Trusted:   false,
-		}
-		meterGas = true
-		gas      = uint64(1e6)
-	)
-	env := testutils.NewMockEnv(address, config, meterGas, gas)
-	kv := newEnvEphemeralKeyValueStore(env)
-	testKeyValueStore(t, kv)
+	tests := []struct {
+		name string
+		kv   KeyValueStore
+	}{
+		{
+			name: "Persistent",
+			kv:   newEnvPersistentKeyValueStore(mock.NewMockEnv(address, config, meterGas, gas)),
+		},
+		{
+			name: "Ephemeral",
+			kv:   newEnvEphemeralKeyValueStore(mock.NewMockEnv(address, config, meterGas, gas)),
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			key := common.Hash{0x01}
+			value := test.kv.Get(key)
+			r.Equal(common.Hash{}, value)
+		})
+	}
 }

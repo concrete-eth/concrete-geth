@@ -18,7 +18,7 @@
 // This file will ignored when building with tinygo to prevent compatibility
 // issues.
 
-package testutils
+package mock
 
 import (
 	"github.com/ethereum/go-ethereum/common"

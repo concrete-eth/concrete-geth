@@ -21,7 +21,7 @@ import (
 )
 
 func init() {
-	tinygo.WasmWrap(&fixtures.AdditionPrecompile{})
+	tinygo.WasmWrap(&fixtures.KeyKeyValuePrecompile{})
 }
 
 // main is REQUIRED for TinyGo to compile to WASM

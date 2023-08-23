@@ -13,10 +13,11 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with the concrete library. If not, see <http://www.gnu.org/licenses/>.
 
-package testutils
+package fixtures
 
 import (
 	"bytes"
+	"fmt"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -49,3 +50,50 @@ func (a *AdditionPrecompile) Run(env api.Environment, input []byte) ([]byte, err
 }
 
 var _ precompiles.Precompile = &AdditionPrecompile{}
+
+const KkvAbiString = "[{\"inputs\":[{\"name\":\"k1\",\"type\":\"bytes32\"},{\"name\":\"k2\",\"type\":\"bytes32\"},{\"name\":\"v\",\"type\":\"bytes32\"}],\"name\":\"set\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"name\":\"k1\",\"type\":\"bytes32\"},{\"name\":\"k2\",\"type\":\"bytes32\"}],\"name\":\"get\",\"outputs\":[{\"name\":\"v\",\"type\":\"bytes32\"}],\"stateMutability\":\"view\",\"type\":\"function\"}]"
+
+var (
+	kkvSetMethodID = common.Hex2Bytes("bb40a4a9")
+	kkvGetMethodID = common.Hex2Bytes("658cc1f6")
+)
+
+type KeyKeyValuePrecompile struct {
+	lib.BlankPrecompile
+}
+
+func (a *KeyKeyValuePrecompile) IsStatic(input []byte) bool {
+	methodID, _ := utils.SplitInput(input)
+	if bytes.Equal(methodID, kkvGetMethodID) {
+		return true
+	} else if bytes.Equal(methodID, kkvSetMethodID) {
+		return false
+	}
+	return true
+}
+
+func (a *KeyKeyValuePrecompile) Run(env api.Environment, input []byte) ([]byte, error) {
+	methodID, data := utils.SplitInput(input)
+	if bytes.Equal(methodID, kkvGetMethodID) {
+		if len(data) != 64 {
+			return nil, precompiles.ErrInvalidInput
+		}
+		k1 := data[:32]
+		k2 := data[32:]
+		kkv := lib.NewDatastore(env).Mapping([]byte("map.kkv.v1"))
+		v := kkv.Mapping(k1).Value(k2).GetBytes()
+		fmt.Println("kkv get", k1, k2, v)
+		return v, nil
+	} else if bytes.Equal(methodID, kkvSetMethodID) {
+		if len(data) != 96 {
+			return nil, precompiles.ErrInvalidInput
+		}
+		k1 := data[:32]
+		k2 := data[32:64]
+		v := data[64:]
+		kkv := lib.NewDatastore(env).Mapping([]byte("map.kkv.v1"))
+		kkv.Mapping(k1).Value(k2).SetBytes(v)
+		return nil, nil
+	}
+	return nil, precompiles.ErrMethodNotFound
+}
