@@ -25,6 +25,7 @@ type HostFuncCaller func(pointer uint64) uint64
 func NewProxyEnvironment(memory bridge.Memory, allocator bridge.Allocator, envCaller HostFuncCaller) *api.Env {
 	return api.NewProxyEnvironment(
 		func(op api.OpCode, env *api.Env, args [][]byte) ([][]byte, error) {
+			args = append([][]byte{op.Encode()}, args...)
 			argsPointer := bridge.PutArgs(memory, args)
 			retPointer := bridge.MemPointer(envCaller(argsPointer.Uint64()))
 			retValues := bridge.GetValues(memory, retPointer)
