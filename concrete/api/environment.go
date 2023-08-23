@@ -16,6 +16,7 @@
 package api
 
 import (
+	"fmt"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -202,15 +203,15 @@ func execute(op OpCode, env *Env, args [][]byte) (output [][]byte, retErr error)
 		switch err {
 		case ErrFeatureDisabled:
 			if env.config.Trusted {
-				panic(err)
+				panic(fmt.Sprintf("%s [opcode=0x%x]", err.Error(), op))
 			}
 		case ErrInvalidOpCode:
 			if env.config.Trusted {
-				panic(err)
+				panic(fmt.Sprintf("%s [opcode=0x%x]", err.Error(), op))
 			}
 		case ErrNoData:
 			if env.config.Trusted {
-				panic(err)
+				panic(fmt.Sprintf("%s [opcode=0x%x]", err.Error(), op))
 			}
 		}
 		retErr = err

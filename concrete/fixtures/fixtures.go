@@ -17,7 +17,6 @@ package fixtures
 
 import (
 	"bytes"
-	"fmt"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -81,9 +80,8 @@ func (a *KeyKeyValuePrecompile) Run(env api.Environment, input []byte) ([]byte, 
 		k1 := data[:32]
 		k2 := data[32:]
 		kkv := lib.NewDatastore(env).Mapping([]byte("map.kkv.v1"))
-		v := kkv.Mapping(k1).Value(k2).GetBytes()
-		fmt.Println("kkv get", k1, k2, v)
-		return v, nil
+		v := kkv.Mapping(k1).Value(k2).GetBytes32()
+		return v.Bytes(), nil
 	} else if bytes.Equal(methodID, kkvSetMethodID) {
 		if len(data) != 96 {
 			return nil, precompiles.ErrInvalidInput
@@ -92,7 +90,7 @@ func (a *KeyKeyValuePrecompile) Run(env api.Environment, input []byte) ([]byte, 
 		k2 := data[32:64]
 		v := data[64:]
 		kkv := lib.NewDatastore(env).Mapping([]byte("map.kkv.v1"))
-		kkv.Mapping(k1).Value(k2).SetBytes(v)
+		kkv.Mapping(k1).Value(k2).SetBytes32(common.BytesToHash(v))
 		return nil, nil
 	}
 	return nil, precompiles.ErrMethodNotFound

@@ -24,15 +24,19 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/concrete/api"
+	"github.com/ethereum/go-ethereum/concrete/fixtures"
+	"github.com/ethereum/go-ethereum/concrete/mock"
 	"github.com/ethereum/go-ethereum/concrete/precompiles"
-	"github.com/ethereum/go-ethereum/concrete/testutils"
 	"github.com/ethereum/go-ethereum/concrete/wasm"
 )
 
-//go:embed testutils/build/add.wasm
+//go:embed fixtures/build/add.wasm
 var addWasm []byte
 
-var implementations = []struct {
+//go:embed fixtures/build/kkv.wasm
+var kkvWasm []byte
+
+var addImplementations = []struct {
 	name    string
 	address common.Address
 	pc      precompiles.Precompile
@@ -40,7 +44,7 @@ var implementations = []struct {
 	{
 		name:    "Native",
 		address: common.BytesToAddress([]byte{128}),
-		pc:      &testutils.AdditionPrecompile{},
+		pc:      &fixtures.AdditionPrecompile{},
 	},
 	{
 		name:    "Wasm",
@@ -50,24 +54,24 @@ var implementations = []struct {
 }
 
 func getAddABI() abi.ABI {
-	addABI, err := abi.JSON(strings.NewReader(testutils.AddAbiString))
+	addABI, err := abi.JSON(strings.NewReader(fixtures.AddAbiString))
 	if err != nil {
 		panic(err)
 	}
 	return addABI
 }
 
-func TestFixture(t *testing.T) {
+func TestAddPrecompileFixture(t *testing.T) {
 	var (
 		ABI = getAddABI()
 		x   = big.NewInt(1)
 		y   = big.NewInt(2)
 	)
-	for _, impl := range implementations {
+	for _, impl := range addImplementations {
 		precompiles.AddPrecompile(impl.address, impl.pc)
 	}
-	for _, impl := range implementations {
-		env := testutils.NewMockEnv(impl.address, api.EnvConfig{Trusted: true}, false, 0)
+	for _, impl := range addImplementations {
+		env := mock.NewMockEnv(impl.address, api.EnvConfig{Trusted: true}, false, 0)
 		t.Run(impl.name, func(t *testing.T) {
 			input, err := ABI.Pack("add", x, y)
 			if err != nil {
@@ -91,6 +95,86 @@ func TestFixture(t *testing.T) {
 			value := values[0].(*big.Int)
 			if value.Cmp(x.Add(x, y)) != 0 {
 				t.Fatalf("expected 3, got %d", value)
+			}
+		})
+	}
+}
+
+var kkvImplementations = []struct {
+	name    string
+	address common.Address
+	pc      precompiles.Precompile
+}{
+	{
+		name:    "Native",
+		address: common.BytesToAddress([]byte{130}),
+		pc:      &fixtures.KeyKeyValuePrecompile{},
+	},
+	{
+		name:    "Wasm",
+		address: common.BytesToAddress([]byte{131}),
+		pc:      wasm.NewWasmPrecompile(kkvWasm),
+	},
+}
+
+func getKkvABI() abi.ABI {
+	kkvABI, err := abi.JSON(strings.NewReader(fixtures.KkvAbiString))
+	if err != nil {
+		panic(err)
+	}
+	return kkvABI
+}
+
+func TestKkvPrecompileFixture(t *testing.T) {
+	var (
+		ABI = getKkvABI()
+		k1  = common.HexToHash("0x01")
+		k2  = common.HexToHash("0x02")
+		v   = common.HexToHash("0x03")
+	)
+	for _, impl := range kkvImplementations {
+		precompiles.AddPrecompile(impl.address, impl.pc)
+	}
+	for _, impl := range kkvImplementations {
+		env := mock.NewMockEnv(impl.address, api.EnvConfig{Trusted: true}, false, 0)
+		t.Run(impl.name, func(t *testing.T) {
+			input, err := ABI.Pack("set", k1, k2, v)
+			if err != nil {
+				t.Fatal(err)
+			}
+			isStatic := impl.pc.IsStatic(input)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if isStatic {
+				t.Fatal("expected non-static")
+			}
+			_, err = impl.pc.Run(env, input)
+			if err != nil {
+				t.Fatal(err)
+			}
+			input, err = ABI.Pack("get", k1, k2)
+			if err != nil {
+				t.Fatal(err)
+			}
+			isStatic = impl.pc.IsStatic(input)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !isStatic {
+				t.Fatal("expected static")
+			}
+			output, err := impl.pc.Run(env, input)
+			if err != nil {
+				t.Fatal(err)
+			}
+			values, err := ABI.Methods["get"].Outputs.Unpack(output)
+			if err != nil {
+				t.Fatal(err)
+			}
+			value := common.Hash(values[0].([32]byte))
+			if value != v {
+				t.Fatalf("expected %s, got %s", v, value)
 			}
 		})
 	}
