@@ -138,12 +138,14 @@ func (p *wasmPrecompile) call_Bytes_BytesErr(expFunc wz_api.Function, input []by
 }
 
 func (p *wasmPrecompile) before(env api.Environment) {
-	envImpl, ok := env.(*api.Env)
-	if !ok {
-		panic("invalid environment")
-	}
-	if !envImpl.Config().Trusted {
-		panic("untrusted environment")
+	if env != nil {
+		envImpl, ok := env.(*api.Env)
+		if !ok {
+			panic("invalid environment")
+		}
+		if !envImpl.Config().Trusted {
+			panic("untrusted environment")
+		}
 	}
 	p.mutex.Lock()
 	p.environment = env
