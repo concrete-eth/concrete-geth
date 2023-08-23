@@ -21,6 +21,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/ethereum/go-ethereum/concrete/api"
 	"github.com/ethereum/go-ethereum/concrete/wasm/bridge"
 	"github.com/ethereum/go-ethereum/concrete/wasm/bridge/host"
 	"github.com/stretchr/testify/require"
@@ -183,8 +184,8 @@ func TestPutGetReturnWithError(t *testing.T) {
 var blankCode []byte
 
 func newTestMemory() (bridge.Memory, bridge.Allocator) {
-	hostConfig := newHostConfig()
-	mod, _, err := newModule(hostConfig, blankCode)
+	envCall := host.NewEnvironmentCaller(func() api.Environment { return nil })
+	mod, _, err := newModule(envCall, blankCode)
 	if err != nil {
 		panic(err)
 	}
