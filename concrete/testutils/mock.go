@@ -18,7 +18,7 @@
 // This file will ignored when building with tinygo to prevent compatibility
 // issues.
 
-package lib
+package testutils
 
 import (
 	"github.com/ethereum/go-ethereum/common"
@@ -27,11 +27,11 @@ import (
 	"github.com/ethereum/go-ethereum/core/state"
 )
 
-func newMockEnv(addr common.Address, config api.EnvConfig, meterGas bool, gas uint64) *api.Env {
+func NewMockEnv(addr common.Address, config api.EnvConfig, meterGas bool, gas uint64) *api.Env {
 	return api.NewEnvironment(
 		addr,
 		config,
-		newMockStateDB(),
+		NewMockStateDB(),
 		api.NewMockBlockContext(),
 		api.NewMockCallContext(),
 		api.NewMockCaller(),
@@ -40,7 +40,7 @@ func newMockEnv(addr common.Address, config api.EnvConfig, meterGas bool, gas ui
 	)
 }
 
-func newMockStateDB() api.StateDB {
+func NewMockStateDB() api.StateDB {
 	statedb, err := state.New(common.Hash{}, state.NewDatabase(rawdb.NewMemoryDatabase()), nil)
 	if err != nil {
 		panic(err)

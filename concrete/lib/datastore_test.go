@@ -25,6 +25,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/concrete/api"
+	"github.com/ethereum/go-ethereum/concrete/testutils"
 	"github.com/stretchr/testify/require"
 )
 
@@ -47,7 +48,7 @@ func TestEnvPersistentKeyValueStore(t *testing.T) {
 		meterGas = true
 		gas      = uint64(1e6)
 	)
-	env := newMockEnv(address, config, meterGas, gas)
+	env := testutils.NewMockEnv(address, config, meterGas, gas)
 	kv := newEnvPersistentKeyValueStore(env)
 	testKeyValueStore(t, kv)
 }
@@ -64,7 +65,7 @@ func TestEnvEphemeralKeyValueStore(t *testing.T) {
 		meterGas = true
 		gas      = uint64(1e6)
 	)
-	env := newMockEnv(address, config, meterGas, gas)
+	env := testutils.NewMockEnv(address, config, meterGas, gas)
 	kv := newEnvEphemeralKeyValueStore(env)
 	testKeyValueStore(t, kv)
 }

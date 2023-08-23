@@ -13,48 +13,88 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with the concrete library. If not, see <http://www.gnu.org/licenses/>.
 
-// package concrete
+package concrete
 
-// import (
-// 	_ "embed"
-// 	"fmt"
-// 	"math/big"
-// 	"testing"
+import (
+	_ "embed"
+	"math/big"
+	"strings"
+	"testing"
 
-// 	"github.com/ethereum/go-ethereum/common"
-// 	"github.com/ethereum/go-ethereum/concrete/api"
-// 	"github.com/ethereum/go-ethereum/concrete/lib"
-// 	lib_precompiles "github.com/ethereum/go-ethereum/concrete/lib/precompiles"
-// 	"github.com/ethereum/go-ethereum/concrete/precompiles"
-// 	"github.com/ethereum/go-ethereum/concrete/wasm"
-// 	"github.com/ethereum/go-ethereum/consensus/ethash"
-// 	"github.com/ethereum/go-ethereum/core"
-// 	"github.com/ethereum/go-ethereum/core/state"
-// 	"github.com/ethereum/go-ethereum/core/types"
-// 	"github.com/ethereum/go-ethereum/crypto"
-// 	"github.com/ethereum/go-ethereum/params"
-// 	"github.com/stretchr/testify/require"
-// )
+	"github.com/ethereum/go-ethereum/accounts/abi"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/concrete/api"
+	"github.com/ethereum/go-ethereum/concrete/precompiles"
+	"github.com/ethereum/go-ethereum/concrete/testutils"
+	"github.com/ethereum/go-ethereum/concrete/wasm"
+)
 
-// //go:embed wasm/testdata/typical.wasm
-// var typicalWasm []byte
+//go:embed testutils/build/add.wasm
+var addWasm []byte
 
-// var implementations = []struct {
-// 	name    string
-// 	address common.Address
-// 	pc      api.Precompile
-// }{
-// 	{
-// 		name:    "Native",
-// 		address: common.BytesToAddress([]byte{128}),
-// 		pc:      &lib_precompiles.TypicalPrecompile{},
-// 	},
-// 	{
-// 		name:    "Wasm",
-// 		address: common.BytesToAddress([]byte{129}),
-// 		pc:      wasm.NewWasmPrecompile(typicalWasm),
-// 	},
-// }
+var implementations = []struct {
+	name    string
+	address common.Address
+	pc      precompiles.Precompile
+}{
+	{
+		name:    "Native",
+		address: common.BytesToAddress([]byte{128}),
+		pc:      &testutils.AdditionPrecompile{},
+	},
+	{
+		name:    "Wasm",
+		address: common.BytesToAddress([]byte{129}),
+		pc:      wasm.NewWasmPrecompile(addWasm),
+	},
+}
+
+func getAddABI() abi.ABI {
+	addABI, err := abi.JSON(strings.NewReader(testutils.AddAbiString))
+	if err != nil {
+		panic(err)
+	}
+	return addABI
+}
+
+func TestFixture(t *testing.T) {
+	var (
+		ABI = getAddABI()
+		x   = big.NewInt(1)
+		y   = big.NewInt(2)
+	)
+	for _, impl := range implementations {
+		precompiles.AddPrecompile(impl.address, impl.pc)
+	}
+	for _, impl := range implementations {
+		env := testutils.NewMockEnv(impl.address, api.EnvConfig{Trusted: true}, false, 0)
+		t.Run(impl.name, func(t *testing.T) {
+			input, err := ABI.Pack("add", x, y)
+			if err != nil {
+				t.Fatal(err)
+			}
+			isStatic := impl.pc.IsStatic(input)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !isStatic {
+				t.Fatal("expected static")
+			}
+			output, err := impl.pc.Run(env, input)
+			if err != nil {
+				t.Fatal(err)
+			}
+			values, err := ABI.Methods["add"].Outputs.Unpack(output)
+			if err != nil {
+				t.Fatal(err)
+			}
+			value := values[0].(*big.Int)
+			if value.Cmp(x.Add(x, y)) != 0 {
+				t.Fatalf("expected 3, got %d", value)
+			}
+		})
+	}
+}
 
 // func TestPrecompile(t *testing.T) {
 // 	var (

@@ -13,22 +13,11 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with the concrete library. If not, see <http://www.gnu.org/licenses/>.
 
-// package wasm
+package wasm
 
-// import (
-// 	_ "embed"
-// 	"math/rand"
-// 	"sync"
-// 	"testing"
-// 	"time"
-
-// 	"github.com/ethereum/go-ethereum/common"
-// 	"github.com/ethereum/go-ethereum/concrete/api"
-// 	"github.com/ethereum/go-ethereum/concrete/lib"
-// 	"github.com/ethereum/go-ethereum/concrete/lib/precompiles"
-// 	"github.com/ethereum/go-ethereum/crypto"
-// 	"github.com/stretchr/testify/require"
-// )
+import (
+	_ "embed"
+)
 
 // //go:embed testdata/typical.wasm
 // var typicalCode []byte

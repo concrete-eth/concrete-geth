@@ -13,22 +13,16 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with the concrete library. If not, see <http://www.gnu.org/licenses/>.
 
-package wasm
+package main
 
 import (
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/concrete/api"
-	"github.com/ethereum/go-ethereum/core/rawdb"
-	"github.com/ethereum/go-ethereum/core/state"
-	"github.com/ethereum/go-ethereum/core/vm"
-	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/concrete/testutils"
+	"github.com/ethereum/go-ethereum/tinygo"
 )
 
-func newTestStateDB() vm.StateDB {
-	db, _ := state.New(common.Hash{}, state.NewDatabase(rawdb.NewMemoryDatabase()), nil)
-	return db
+func init() {
+	tinygo.WasmWrap(&testutils.AdditionPrecompile{})
 }
 
-func newTestEVM(db vm.StateDB) api.EVM {
-	return vm.NewEVM(vm.BlockContext{}, vm.TxContext{}, db, params.TestChainConfig, vm.Config{}).NewConcreteEVM()
-}
+// main is REQUIRED for TinyGo to compile to WASM
+func main() {}
