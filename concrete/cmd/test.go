@@ -15,7 +15,7 @@
 
 package main
 
-import "github.com/ethereum/go-ethereum/concrete/testing"
+import testing "github.com/ethereum/go-ethereum/concrete/testtool"
 
 func main() {
 	testing.TestCmd()
