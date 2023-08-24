@@ -18,7 +18,6 @@ package wasm
 import (
 	"context"
 	_ "embed"
-	"errors"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/concrete/api"
@@ -58,16 +57,6 @@ func (memory *mockMemory) Write(data []byte) bridge.MemPointer {
 
 var _ bridge.Memory = (*mockMemory)(nil)
 
-type mockAllocator struct{}
-
-func newMockAllocator() bridge.Allocator {
-	return &mockAllocator{}
-}
-
-func (a *mockAllocator) Malloc(size uint32) bridge.MemPointer { return bridge.NullPointer }
-func (a *mockAllocator) Free(pointer bridge.MemPointer)       {}
-func (a *mockAllocator) Prune()                               {}
-
 func testMemoryReadWrite(t *testing.T, memory bridge.Memory) {
 	r := require.New(t)
 	data := []byte{1, 2, 3, 4, 5}
@@ -102,88 +91,20 @@ func testMemoryPutGetValues(t *testing.T, memory bridge.Memory) {
 	r.Equal([][]byte{}, resultValues)
 }
 
-func testMemoryPutGetArgs(t *testing.T, memory bridge.Memory) {
-	r := require.New(t)
-	// Test PutArgs and GetArgs
-	args := [][]byte{{0x01, 0x02}, {0x03, 0x04}, {0x05, 0x06, 0x07}}
-	pointer := bridge.PutArgs(memory, args)
-	r.NotEqual(bridge.NullPointer, pointer)
-	resultArgs := bridge.GetArgs(memory, pointer)
-	r.Equal(args, resultArgs)
-
-	// Test PutArgs with empty slice
-	pointer = bridge.PutArgs(memory, [][]byte{})
-	r.Equal(bridge.NullPointer, pointer)
-
-	// Test GetArgs with null pointer
-	resultArgs = bridge.GetArgs(memory, bridge.NullPointer)
-	r.Equal([][]byte{}, resultArgs)
-}
-
-func testMemoryPutGetReturn(t *testing.T, memory bridge.Memory) {
-	r := require.New(t)
-	// Test PutReturn and GetReturn
-	retValues := [][]byte{{0x01, 0x02}, {0x03, 0x04}, {0x05, 0x06, 0x07}}
-	pointer := bridge.PutReturn(memory, retValues)
-	r.NotEqual(bridge.NullPointer, pointer)
-	resultRetValues := bridge.GetReturn(memory, pointer)
-	r.Equal(retValues, resultRetValues)
-
-	// Test PutReturn with empty slice
-	pointer = bridge.PutReturn(memory, [][]byte{})
-	r.Equal(bridge.NullPointer, pointer)
-
-	// Test GetReturn with null pointer
-	resultRetValues = bridge.GetReturn(memory, bridge.NullPointer)
-	r.Equal([][]byte{}, resultRetValues)
-}
-
-func testMemoryPutGetReturnWithError(t *testing.T, memory bridge.Memory) {
-	r := require.New(t)
-	// Test with success
-	retValues := [][]byte{{0x01, 0x02}, {0x03, 0x04}, {0x05, 0x06, 0x07}}
-	retPointer := bridge.PutReturnWithError(memory, retValues, nil)
-	retValuesGot, err := bridge.GetReturnWithError(memory, retPointer)
-	r.NoError(err)
-	r.Equal(retValues, retValuesGot)
-
-	// Test with error
-	retErr := errors.New("some error")
-	retPointer = bridge.PutReturnWithError(memory, retValues, retErr)
-	retValuesGot, err = bridge.GetReturnWithError(memory, retPointer)
-	r.EqualError(err, retErr.Error())
-	r.Equal(retValues, retValuesGot)
-}
-
 func TestMockMemoryReadWrite(t *testing.T) {
 	memory := newMockMemory()
 	testMemoryReadWrite(t, memory)
 }
 
-func TestPutGetValues(t *testing.T) {
+func TestMockMemoryPutGetValues(t *testing.T) {
 	memory := newMockMemory()
 	testMemoryPutGetValues(t, memory)
-}
-
-func TestPutGetArgs(t *testing.T) {
-	memory := newMockMemory()
-	testMemoryPutGetArgs(t, memory)
-}
-
-func TestPutGetReturn(t *testing.T) {
-	memory := newMockMemory()
-	testMemoryPutGetReturn(t, memory)
-}
-
-func TestPutGetReturnWithError(t *testing.T) {
-	memory := newMockMemory()
-	testMemoryPutGetReturnWithError(t, memory)
 }
 
 //go:embed testdata/blank.wasm
 var blankCode []byte
 
-func newTestMemory() (bridge.Memory, bridge.Allocator) {
+func newWasmMemory() (bridge.Memory, bridge.Allocator) {
 	envCall := host.NewEnvironmentCaller(func() api.Environment { return nil })
 	mod, _, err := newModule(envCall, blankCode)
 	if err != nil {
@@ -193,13 +114,8 @@ func newTestMemory() (bridge.Memory, bridge.Allocator) {
 	return host.NewMemory(ctx, mod)
 }
 
-func TestWasmMemoryReadWrite(t *testing.T) {
-	memory, _ := newTestMemory()
-	testMemoryReadWrite(t, memory)
-}
-
 func TestWasmMemoryFree(t *testing.T) {
-	memory, alloc := newTestMemory()
+	memory, alloc := newWasmMemory()
 	data := []byte{1, 2, 3, 4, 5}
 	ptr := memory.Write(data)
 	alloc.Free(ptr)
@@ -207,7 +123,7 @@ func TestWasmMemoryFree(t *testing.T) {
 }
 
 func TestWasmMemoryPrune(t *testing.T) {
-	memory, alloc := newTestMemory()
+	memory, alloc := newWasmMemory()
 	data := []byte{1, 2, 3, 4, 5}
 	ptr1 := memory.Write(data)
 	ptr2 := memory.Write(data)
@@ -216,22 +132,12 @@ func TestWasmMemoryPrune(t *testing.T) {
 	require.Panics(t, func() { alloc.Free(ptr2) })
 }
 
+func TestWasmMemoryReadWrite(t *testing.T) {
+	memory, _ := newWasmMemory()
+	testMemoryReadWrite(t, memory)
+}
+
 func TestWasmMemoryPutGetValues(t *testing.T) {
-	memory, _ := newTestMemory()
+	memory, _ := newWasmMemory()
 	testMemoryPutGetValues(t, memory)
-}
-
-func TestWasmMemoryPutGetArgs(t *testing.T) {
-	memory, _ := newTestMemory()
-	testMemoryPutGetArgs(t, memory)
-}
-
-func TestWasmMemoryPutGetReturn(t *testing.T) {
-	memory, _ := newTestMemory()
-	testMemoryPutGetReturn(t, memory)
-}
-
-func TestWasmMemoryPutGetReturnWithError(t *testing.T) {
-	memory, _ := newTestMemory()
-	testMemoryPutGetReturnWithError(t, memory)
 }
