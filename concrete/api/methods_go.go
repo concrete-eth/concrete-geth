@@ -450,7 +450,7 @@ func opGetGasLeft(env *Env, args [][]byte) ([][]byte, error) {
 }
 
 func opGetBlockNumber(env *Env, args [][]byte) ([][]byte, error) {
-	if len(args) != 1 {
+	if len(args) != 0 {
 		return nil, ErrInvalidInput
 	}
 	if env.block == nil {
