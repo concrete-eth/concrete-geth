@@ -115,7 +115,7 @@ func (p *wasmPrecompile) call__Uint64(expFunc wz_api.Function) uint64 {
 func (p *wasmPrecompile) call__Err(expFunc wz_api.Function) error {
 	_retPointer := p.call__Uint64(expFunc)
 	retPointer := bridge.MemPointer(_retPointer)
-	_, retErr := bridge.GetReturnWithError(p.memory, retPointer)
+	retErr := bridge.GetError(p.memory, retPointer)
 	return retErr
 }
 

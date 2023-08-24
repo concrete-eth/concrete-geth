@@ -57,21 +57,21 @@ func isStatic(pointer uint64) uint64 {
 //export concrete_Finalise
 func finalise() uint64 {
 	env := newEnvironment()
-	precompile.Finalise(env)
-	return bridge.NullPointer.Uint64()
+	err := precompile.Finalise(env)
+	return bridge.PutError(infra.Memory, err).Uint64()
 }
 
 //export concrete_Commit
 func commit() uint64 {
 	env := newEnvironment()
-	precompile.Commit(env)
-	return bridge.NullPointer.Uint64()
+	err := precompile.Commit(env)
+	return bridge.PutError(infra.Memory, err).Uint64()
 }
 
 //export concrete_Run
 func run(pointer uint64) uint64 {
-	input := bridge.GetValue(infra.Memory, bridge.MemPointer(pointer))
 	env := newEnvironment()
+	input := bridge.GetValue(infra.Memory, bridge.MemPointer(pointer))
 	output, err := precompile.Run(env, input)
 	return bridge.PutReturnWithError(infra.Memory, [][]byte{output}, err).Uint64()
 }

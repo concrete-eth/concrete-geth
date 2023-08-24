@@ -134,6 +134,14 @@ func GetReturn(memory Memory, retPointer MemPointer) [][]byte {
 	return GetValues(memory, retPointer)
 }
 
+func PutError(memory Memory, err error) MemPointer {
+	return PutValue(memory, utils.EncodeError(err))
+}
+
+func GetError(memory Memory, errPointer MemPointer) error {
+	return utils.DecodeError(GetValue(memory, errPointer))
+}
+
 func PutReturnWithError(memory Memory, retValues [][]byte, retErr error) MemPointer {
 	retValues = append(retValues, utils.EncodeError(retErr))
 	return PutReturn(memory, retValues)
