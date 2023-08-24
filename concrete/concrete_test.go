@@ -197,11 +197,11 @@ var kkvImplementationsE2E = []struct {
 		address: common.BytesToAddress([]byte{132}),
 		pc:      &fixtures.KeyKeyValuePrecompile{},
 	},
-	// {
-	// 	name:    "Wasm",
-	// 	address: common.BytesToAddress([]byte{133}),
-	// 	pc:      wasm.NewWasmPrecompile(kkvWasm),
-	// },
+	{
+		name:    "Wasm",
+		address: common.BytesToAddress([]byte{133}),
+		pc:      wasm.NewWasmPrecompile(kkvWasm),
+	},
 }
 
 func TestE2EKkvPrecompile(t *testing.T) {
