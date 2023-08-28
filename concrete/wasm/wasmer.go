@@ -30,8 +30,7 @@ func NewWasmerPrecompile(code []byte) precompiles.Precompile {
 }
 
 func newWasmerModule(envCall host.WasmerHostFunc, code []byte) (*wasmer.Module, *wasmer.Instance, error) {
-	config := wasmer.NewConfig()
-	config.UseSinglepassCompiler()
+	config := wasmer.NewConfig().UseCraneliftCompiler()
 	engine := wasmer.NewEngineWithConfig(config)
 	store := wasmer.NewStore(engine)
 	module, err := wasmer.NewModule(store, code)

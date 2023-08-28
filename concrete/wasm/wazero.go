@@ -36,9 +36,10 @@ func NewWazeroPrecompile(code []byte) precompiles.Precompile {
 
 func newWazeroModule(envCall host.WazeroHostFunc, code []byte) (wz_api.Module, wazero.Runtime, error) {
 	ctx := context.Background()
-	runtimeConfig := wazero.NewRuntimeConfigCompiler().
-		WithMemoryCapacityFromMax(true).
-		WithMemoryLimitPages(128)
+	runtimeConfig := wazero.NewRuntimeConfigCompiler()
+	// runtimeConfig := wazero.NewRuntimeConfigCompiler().
+	// 	WithMemoryCapacityFromMax(true).
+	// 	WithMemoryLimitPages(128)
 	r := wazero.NewRuntimeWithConfig(ctx, runtimeConfig)
 	_, err := r.NewHostModuleBuilder("env").
 		NewFunctionBuilder().WithFunc(envCall).Export(Environment_WasmFuncName).
