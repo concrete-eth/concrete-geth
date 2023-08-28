@@ -17,7 +17,6 @@ package host
 
 import (
 	"context"
-	"errors"
 
 	"github.com/ethereum/go-ethereum/concrete/api"
 	"github.com/ethereum/go-ethereum/concrete/wasm/bridge"
@@ -26,17 +25,7 @@ import (
 
 // TODO: how is wasm panic handled?
 
-var (
-	ErrMemoryReadOutOfRange = errors.New("go: memory read out of range of memory size")
-)
-
-var (
-	Malloc_WasmFuncName = "concrete_Malloc"
-	Free_WasmFuncName   = "concrete_Free"
-	Prune_WasmFuncName  = "concrete_Prune"
-)
-
-type allocator struct {
+type wazeroAllocator struct {
 	ctx       context.Context
 	module    wz_api.Module
 	expMalloc wz_api.Function
@@ -44,11 +33,11 @@ type allocator struct {
 	expPrune  wz_api.Function
 }
 
-func NewAllocator(ctx context.Context, module wz_api.Module) bridge.Allocator {
-	return &allocator{ctx: ctx, module: module}
+func NewWazeroAllocator(ctx context.Context, module wz_api.Module) bridge.Allocator {
+	return &wazeroAllocator{ctx: ctx, module: module}
 }
 
-func (a *allocator) Malloc(size uint32) bridge.MemPointer {
+func (a *wazeroAllocator) Malloc(size uint32) bridge.MemPointer {
 	if size == 0 {
 		return bridge.NullPointer
 	}
@@ -64,7 +53,7 @@ func (a *allocator) Malloc(size uint32) bridge.MemPointer {
 	return pointer
 }
 
-func (a *allocator) Free(pointer bridge.MemPointer) {
+func (a *wazeroAllocator) Free(pointer bridge.MemPointer) {
 	if pointer.IsNull() {
 		return
 	}
@@ -77,7 +66,7 @@ func (a *allocator) Free(pointer bridge.MemPointer) {
 	}
 }
 
-func (a *allocator) Prune() {
+func (a *wazeroAllocator) Prune() {
 	if a.expPrune == nil {
 		a.expPrune = a.module.ExportedFunction(Prune_WasmFuncName)
 	}
@@ -87,22 +76,22 @@ func (a *allocator) Prune() {
 	}
 }
 
-var _ bridge.Allocator = (*allocator)(nil)
+var _ bridge.Allocator = (*wazeroAllocator)(nil)
 
-type memory struct {
-	allocator
+type wazeroMemory struct {
+	wazeroAllocator
 }
 
-func NewMemory(ctx context.Context, module wz_api.Module) (bridge.Memory, bridge.Allocator) {
-	alloc := &allocator{ctx: ctx, module: module}
-	return &memory{allocator: *alloc}, alloc
+func NewWazeroMemory(ctx context.Context, module wz_api.Module) (bridge.Memory, bridge.Allocator) {
+	alloc := &wazeroAllocator{ctx: ctx, module: module}
+	return &wazeroMemory{wazeroAllocator: *alloc}, alloc
 }
 
-func NewMemoryFromAlloc(alloc *allocator) bridge.Allocator {
-	return &memory{*alloc}
+func NewWazeroMemoryFromAlloc(alloc *wazeroAllocator) bridge.Allocator {
+	return &wazeroMemory{*alloc}
 }
 
-func (m *memory) Write(data []byte) bridge.MemPointer {
+func (m *wazeroMemory) Write(data []byte) bridge.MemPointer {
 	if len(data) == 0 {
 		return bridge.NullPointer
 	}
@@ -114,7 +103,7 @@ func (m *memory) Write(data []byte) bridge.MemPointer {
 	return pointer
 }
 
-func (m *memory) Read(pointer bridge.MemPointer) []byte {
+func (m *wazeroMemory) Read(pointer bridge.MemPointer) []byte {
 	if pointer.IsNull() {
 		return []byte{}
 	}
@@ -125,15 +114,15 @@ func (m *memory) Read(pointer bridge.MemPointer) []byte {
 	return output
 }
 
-var _ bridge.Memory = (*memory)(nil)
+var _ bridge.Memory = (*wazeroMemory)(nil)
 
-type HostFunc func(ctx context.Context, module wz_api.Module, pointer uint64) uint64
+type WazeroHostFunc func(ctx context.Context, module wz_api.Module, pointer uint64) uint64
 
-func NewEnvironmentCaller(apiGetter func() api.Environment) HostFunc {
+func NewWazeroEnvironmentCaller(apiGetter func() api.Environment) WazeroHostFunc {
 	return func(ctx context.Context, module wz_api.Module, _pointer uint64) uint64 {
 		pointer := bridge.MemPointer(_pointer)
 		env := apiGetter()
-		mem, _ := NewMemory(ctx, module)
+		mem, _ := NewWazeroMemory(ctx, module)
 
 		args := bridge.GetArgs(mem, pointer)
 		var opcode api.OpCode

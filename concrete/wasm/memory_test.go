@@ -104,26 +104,26 @@ func TestMockMemoryPutGetValues(t *testing.T) {
 //go:embed testdata/blank.wasm
 var blankCode []byte
 
-func newWasmMemory() (bridge.Memory, bridge.Allocator) {
-	envCall := host.NewEnvironmentCaller(func() api.Environment { return nil })
-	mod, _, err := newModule(envCall, blankCode)
+func newWazeroMemory() (bridge.Memory, bridge.Allocator) {
+	envCall := host.NewWazeroEnvironmentCaller(func() api.Environment { return nil })
+	mod, _, err := newWazeroModule(envCall, blankCode)
 	if err != nil {
 		panic(err)
 	}
 	ctx := context.Background()
-	return host.NewMemory(ctx, mod)
+	return host.NewWazeroMemory(ctx, mod)
 }
 
-func TestWasmMemoryFree(t *testing.T) {
-	memory, alloc := newWasmMemory()
+func TestWazeroMemoryFree(t *testing.T) {
+	memory, alloc := newWazeroMemory()
 	data := []byte{1, 2, 3, 4, 5}
 	ptr := memory.Write(data)
 	alloc.Free(ptr)
 	require.Panics(t, func() { alloc.Free(ptr) })
 }
 
-func TestWasmMemoryPrune(t *testing.T) {
-	memory, alloc := newWasmMemory()
+func TestWazeroMemoryPrune(t *testing.T) {
+	memory, alloc := newWazeroMemory()
 	data := []byte{1, 2, 3, 4, 5}
 	ptr1 := memory.Write(data)
 	ptr2 := memory.Write(data)
@@ -132,12 +132,12 @@ func TestWasmMemoryPrune(t *testing.T) {
 	require.Panics(t, func() { alloc.Free(ptr2) })
 }
 
-func TestWasmMemoryReadWrite(t *testing.T) {
-	memory, _ := newWasmMemory()
+func TestWazeroMemoryReadWrite(t *testing.T) {
+	memory, _ := newWazeroMemory()
 	testMemoryReadWrite(t, memory)
 }
 
-func TestWasmMemoryPutGetValues(t *testing.T) {
-	memory, _ := newWasmMemory()
+func TestWazeroMemoryPutGetValues(t *testing.T) {
+	memory, _ := newWazeroMemory()
 	testMemoryPutGetValues(t, memory)
 }

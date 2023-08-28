@@ -28,23 +28,13 @@ import (
 	"github.com/tetratelabs/wazero/imports/wasi_snapshot_preview1"
 )
 
-const (
-	// Host functions
-	Environment_WasmFuncName = "concrete_Environment"
-	// WASM functions
-	IsStatic_WasmFuncName = "concrete_IsStatic" // TODO: why is this IsStatic and not IsView
-	Finalise_WasmFuncName = "concrete_Finalise"
-	Commit_WasmFuncName   = "concrete_Commit"
-	Run_WasmFuncName      = "concrete_Run"
-)
-
 // Note: For trusted use only. Precompiles can trigger a panic in the host.
 
-func NewWasmPrecompile(code []byte) precompiles.Precompile {
-	return newWasmPrecompile(code)
+func NewWazeroPrecompile(code []byte) precompiles.Precompile {
+	return newWazeroPrecompile(code)
 }
 
-func newModule(envCall host.HostFunc, code []byte) (wz_api.Module, wazero.Runtime, error) {
+func newWazeroModule(envCall host.WazeroHostFunc, code []byte) (wz_api.Module, wazero.Runtime, error) {
 	ctx := context.Background()
 	runtimeConfig := wazero.NewRuntimeConfigCompiler().
 		WithMemoryCapacityFromMax(true).
@@ -64,7 +54,7 @@ func newModule(envCall host.HostFunc, code []byte) (wz_api.Module, wazero.Runtim
 	return mod, r, nil
 }
 
-type wasmPrecompile struct {
+type wazeroPrecompile struct {
 	runtime     wazero.Runtime
 	module      wz_api.Module
 	mutex       sync.Mutex
@@ -77,18 +67,18 @@ type wasmPrecompile struct {
 	expRun      wz_api.Function
 }
 
-func newWasmPrecompile(code []byte) *wasmPrecompile {
-	pc := &wasmPrecompile{}
+func newWazeroPrecompile(code []byte) *wazeroPrecompile {
+	pc := &wazeroPrecompile{}
 
-	envCall := host.NewEnvironmentCaller(func() api.Environment { return pc.environment })
-	mod, r, err := newModule(envCall, code)
+	envCall := host.NewWazeroEnvironmentCaller(func() api.Environment { return pc.environment })
+	mod, r, err := newWazeroModule(envCall, code)
 	if err != nil {
 		panic(err)
 	}
 
 	pc.runtime = r
 	pc.module = mod
-	pc.memory, pc.allocator = host.NewMemory(context.Background(), mod)
+	pc.memory, pc.allocator = host.NewWazeroMemory(context.Background(), mod)
 
 	pc.expIsStatic = mod.ExportedFunction(IsStatic_WasmFuncName)
 	pc.expFinalise = mod.ExportedFunction(Finalise_WasmFuncName)
@@ -98,12 +88,12 @@ func newWasmPrecompile(code []byte) *wasmPrecompile {
 	return pc
 }
 
-func (p *wasmPrecompile) close() {
+func (p *wazeroPrecompile) close() {
 	ctx := context.Background()
 	p.runtime.Close(ctx)
 }
 
-func (p *wasmPrecompile) call__Uint64(expFunc wz_api.Function) uint64 {
+func (p *wazeroPrecompile) call__Uint64(expFunc wz_api.Function) uint64 {
 	ctx := context.Background()
 	_ret, err := expFunc.Call(ctx)
 	if err != nil {
@@ -112,14 +102,14 @@ func (p *wasmPrecompile) call__Uint64(expFunc wz_api.Function) uint64 {
 	return _ret[0]
 }
 
-func (p *wasmPrecompile) call__Err(expFunc wz_api.Function) error {
+func (p *wazeroPrecompile) call__Err(expFunc wz_api.Function) error {
 	_retPointer := p.call__Uint64(expFunc)
 	retPointer := bridge.MemPointer(_retPointer)
 	retErr := bridge.GetError(p.memory, retPointer)
 	return retErr
 }
 
-func (p *wasmPrecompile) call_Bytes_Uint64(expFunc wz_api.Function, input []byte) uint64 {
+func (p *wazeroPrecompile) call_Bytes_Uint64(expFunc wz_api.Function, input []byte) uint64 {
 	ctx := context.Background()
 	pointer := bridge.PutValue(p.memory, input)
 	defer p.allocator.Free(pointer)
@@ -130,14 +120,14 @@ func (p *wasmPrecompile) call_Bytes_Uint64(expFunc wz_api.Function, input []byte
 	return _ret[0]
 }
 
-func (p *wasmPrecompile) call_Bytes_BytesErr(expFunc wz_api.Function, input []byte) ([]byte, error) {
+func (p *wazeroPrecompile) call_Bytes_BytesErr(expFunc wz_api.Function, input []byte) ([]byte, error) {
 	_retPointer := p.call_Bytes_Uint64(expFunc, input)
 	retPointer := bridge.MemPointer(_retPointer)
 	retValues, retErr := bridge.GetReturnWithError(p.memory, retPointer)
 	return retValues[0], retErr
 }
 
-func (p *wasmPrecompile) before(env api.Environment) {
+func (p *wazeroPrecompile) before(env api.Environment) {
 	if env != nil {
 		envImpl, ok := env.(*api.Env)
 		if !ok {
@@ -151,34 +141,34 @@ func (p *wasmPrecompile) before(env api.Environment) {
 	p.environment = env
 }
 
-func (p *wasmPrecompile) after(env api.Environment) {
+func (p *wazeroPrecompile) after(env api.Environment) {
 	p.environment = nil
 	p.allocator.Prune()
 	p.mutex.Unlock()
 }
 
-func (p *wasmPrecompile) IsStatic(input []byte) bool {
+func (p *wazeroPrecompile) IsStatic(input []byte) bool {
 	p.before(nil)
 	defer p.after(nil)
 	return p.call_Bytes_Uint64(p.expIsStatic, input) != 0
 }
 
-func (p *wasmPrecompile) Finalise(env api.Environment) error {
+func (p *wazeroPrecompile) Finalise(env api.Environment) error {
 	p.before(env)
 	defer p.after(env)
 	return p.call__Err(p.expFinalise)
 }
 
-func (p *wasmPrecompile) Commit(env api.Environment) error {
+func (p *wazeroPrecompile) Commit(env api.Environment) error {
 	p.before(env)
 	defer p.after(env)
 	return p.call__Err(p.expCommit)
 }
 
-func (p *wasmPrecompile) Run(env api.Environment, input []byte) ([]byte, error) {
+func (p *wazeroPrecompile) Run(env api.Environment, input []byte) ([]byte, error) {
 	p.before(env)
 	defer p.after(env)
 	return p.call_Bytes_BytesErr(p.expRun, input)
 }
 
-var _ precompiles.Precompile = (*wasmPrecompile)(nil)
+var _ precompiles.Precompile = (*wazeroPrecompile)(nil)

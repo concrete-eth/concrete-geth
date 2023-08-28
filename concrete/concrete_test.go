@@ -50,13 +50,18 @@ var addImplementations = []struct {
 }{
 	{
 		name:    "Native",
-		address: common.BytesToAddress([]byte{128}),
+		address: common.BytesToAddress([]byte{130}),
 		pc:      &fixtures.AdditionPrecompile{},
 	},
 	{
-		name:    "Wasm",
-		address: common.BytesToAddress([]byte{129}),
-		pc:      wasm.NewWasmPrecompile(addWasm),
+		name:    "Wazero",
+		address: common.BytesToAddress([]byte{131}),
+		pc:      wasm.NewWazeroPrecompile(addWasm),
+	},
+	{
+		name:    "Wasmer",
+		address: common.BytesToAddress([]byte{132}),
+		pc:      wasm.NewWasmerPrecompile(addWasm),
 	},
 }
 
@@ -114,13 +119,18 @@ var kkvImplementations = []struct {
 }{
 	{
 		name:    "Native",
-		address: common.BytesToAddress([]byte{130}),
+		address: common.BytesToAddress([]byte{140}),
 		pc:      &fixtures.KeyKeyValuePrecompile{},
 	},
 	{
-		name:    "Wasm",
-		address: common.BytesToAddress([]byte{131}),
-		pc:      wasm.NewWasmPrecompile(kkvWasm),
+		name:    "Wazero",
+		address: common.BytesToAddress([]byte{141}),
+		pc:      wasm.NewWazeroPrecompile(kkvWasm),
+	},
+	{
+		name:    "Wasmer",
+		address: common.BytesToAddress([]byte{142}),
+		pc:      wasm.NewWasmerPrecompile(kkvWasm),
 	},
 }
 
@@ -194,13 +204,18 @@ var kkvImplementationsE2E = []struct {
 }{
 	{
 		name:    "Native",
-		address: common.BytesToAddress([]byte{132}),
+		address: common.BytesToAddress([]byte{150}),
 		pc:      &fixtures.KeyKeyValuePrecompile{},
 	},
 	{
-		name:    "Wasm",
-		address: common.BytesToAddress([]byte{133}),
-		pc:      wasm.NewWasmPrecompile(kkvWasm),
+		name:    "Wazero",
+		address: common.BytesToAddress([]byte{151}),
+		pc:      wasm.NewWazeroPrecompile(kkvWasm),
+	},
+	{
+		name:    "Wasmer",
+		address: common.BytesToAddress([]byte{151}),
+		pc:      wasm.NewWasmerPrecompile(kkvWasm),
 	},
 }
 
