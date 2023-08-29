@@ -21,7 +21,6 @@
 package utils
 
 import (
-	"bytes"
 	"errors"
 	"math"
 	"testing"
@@ -54,8 +53,6 @@ func TestBytesToUint64(t *testing.T) {
 	for _, test := range uint64AndBytesTestCases {
 		require.Equal(t, test.num, BytesToUint64(test.bytes))
 	}
-	// require.Equal(t, uint64(0), BytesToUint64([]byte{}))
-	// require.Equal(t, uint64(0), nil)
 }
 
 var errorEncodeDecodeTestCases = []struct {
@@ -86,25 +83,21 @@ func TestGetData(t *testing.T) {
 	size := uint64(4)
 	expected := common.RightPadBytes([]byte("stda"), int(size))
 	result := GetData(data, start, size)
-	if !bytes.Equal(result, expected) {
-		t.Errorf("GetData failed, expected %v, got %v", string(expected), string(result))
-	}
+	require.Equal(t, expected, result)
 }
 
 func TestSplitData(t *testing.T) {
 	data := []byte("testdata")
 	size := uint64(4)
 	part1, part2 := SplitData(data, size)
-	if !bytes.Equal(part1, data[:size]) || !bytes.Equal(part2, data[size:]) {
-		t.Errorf("SplitData failed, expected %v and %v, got %v and %v", string(data[:size]), string(data[size:]), string(part1), string(part2))
-	}
+	require.Equal(t, part1, data[:size])
+	require.Equal(t, part2, data[size:])
 }
 
 func TestSplitInput(t *testing.T) {
 	input := []byte("testdata")
 	size := uint64(4)
 	part1, part2 := SplitInput(input)
-	if !bytes.Equal(part1, input[:size]) || !bytes.Equal(part2, input[size:]) {
-		t.Errorf("SplitInput failed, expected %v and %v, got %v and %v", string(input[:size]), string(input[size:]), string(part1), string(part2))
-	}
+	require.Equal(t, part1, input[:size])
+	require.Equal(t, part2, input[size:])
 }
