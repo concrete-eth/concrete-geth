@@ -35,6 +35,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/stretchr/testify/require"
 )
 
 //go:embed fixtures/build/add.wasm
@@ -75,6 +76,7 @@ func getAddABI() abi.ABI {
 
 func TestAddPrecompileFixture(t *testing.T) {
 	var (
+		r   = require.New(t)
 		ABI = getAddABI()
 		x   = big.NewInt(1)
 		y   = big.NewInt(2)
@@ -86,28 +88,16 @@ func TestAddPrecompileFixture(t *testing.T) {
 		env := mock.NewMockEnv(impl.address, api.EnvConfig{Trusted: true}, false, 0)
 		t.Run(impl.name, func(t *testing.T) {
 			input, err := ABI.Pack("add", x, y)
-			if err != nil {
-				t.Fatal(err)
-			}
+			r.NoError(err)
 			isStatic := impl.pc.IsStatic(input)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if !isStatic {
-				t.Fatal("expected static")
-			}
+			r.NoError(err)
+			r.True(isStatic)
 			output, err := impl.pc.Run(env, input)
-			if err != nil {
-				t.Fatal(err)
-			}
+			r.NoError(err)
 			values, err := ABI.Methods["add"].Outputs.Unpack(output)
-			if err != nil {
-				t.Fatal(err)
-			}
+			r.NoError(err)
 			value := values[0].(*big.Int)
-			if value.Cmp(x.Add(x, y)) != 0 {
-				t.Fatalf("expected 3, got %d", value)
-			}
+			r.True(value.Cmp(x.Add(x, y)) == 0)
 		})
 	}
 }
@@ -144,6 +134,7 @@ func getKkvABI() abi.ABI {
 
 func TestKkvPrecompileFixture(t *testing.T) {
 	var (
+		r   = require.New(t)
 		ABI = getKkvABI()
 		k1  = common.HexToHash("0x01")
 		k2  = common.HexToHash("0x02")
@@ -156,43 +147,23 @@ func TestKkvPrecompileFixture(t *testing.T) {
 		env := mock.NewMockEnv(impl.address, api.EnvConfig{Trusted: true}, false, 0)
 		t.Run(impl.name, func(t *testing.T) {
 			input, err := ABI.Pack("set", k1, k2, v)
-			if err != nil {
-				t.Fatal(err)
-			}
+			r.NoError(err)
 			isStatic := impl.pc.IsStatic(input)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if isStatic {
-				t.Fatal("expected non-static")
-			}
+			r.NoError(err)
+			r.False(isStatic)
 			_, err = impl.pc.Run(env, input)
-			if err != nil {
-				t.Fatal(err)
-			}
+			r.NoError(err)
 			input, err = ABI.Pack("get", k1, k2)
-			if err != nil {
-				t.Fatal(err)
-			}
+			r.NoError(err)
 			isStatic = impl.pc.IsStatic(input)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if !isStatic {
-				t.Fatal("expected static")
-			}
+			r.NoError(err)
+			r.True(isStatic)
 			output, err := impl.pc.Run(env, input)
-			if err != nil {
-				t.Fatal(err)
-			}
+			r.NoError(err)
 			values, err := ABI.Methods["get"].Outputs.Unpack(output)
-			if err != nil {
-				t.Fatal(err)
-			}
+			r.NoError(err)
 			value := common.Hash(values[0].([32]byte))
-			if value != v {
-				t.Fatalf("expected %s, got %s", v, value)
-			}
+			r.Equal(v, value)
 		})
 	}
 }
@@ -221,6 +192,7 @@ var kkvImplementationsE2E = []struct {
 
 func TestE2EKkvPrecompile(t *testing.T) {
 	var (
+		r             = require.New(t)
 		ABI           = getKkvABI()
 		key, _        = crypto.HexToECDSA("b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291")
 		senderAddress = crypto.PubkeyToAddress(key.PublicKey)
@@ -245,21 +217,15 @@ func TestE2EKkvPrecompile(t *testing.T) {
 				k2 := common.BigToHash(big.NewInt(int64(ii + 1)))
 				v := common.BigToHash(big.NewInt(int64(ii + 2)))
 				input, err := ABI.Pack("set", k1, k2, v)
-				if err != nil {
-					t.Fatal(err)
-				}
+				r.NoError(err)
 				tx := types.NewTransaction(block.TxNonce(senderAddress), impl.address, common.Big0, 1e5, block.BaseFee(), input)
 				signed, err := types.SignTx(tx, signer, key)
-				if err != nil {
-					t.Fatal(err)
-				}
+				r.NoError(err)
 				block.AddTx(signed)
 			})
 			root := blocks[len(blocks)-1].Root()
 			statedb, err := state.New(root, state.NewDatabase(db), nil)
-			if err != nil {
-				t.Fatal(err)
-			}
+			r.NoError(err)
 			env := api.NewNoCallEnvironment(impl.address, api.EnvConfig{}, statedb, false, 0)
 			kkv := lib.NewDatastore(env).Mapping([]byte("map.kkv.v1"))
 			for ii := 0; ii < nBlocks; ii++ {
@@ -267,9 +233,7 @@ func TestE2EKkvPrecompile(t *testing.T) {
 				k2 := common.BigToHash(big.NewInt(int64(ii + 1)))
 				v := common.BigToHash(big.NewInt(int64(ii + 2)))
 				value := kkv.Mapping(k1.Bytes()).Value(k2.Bytes()).GetBytes32()
-				if value != v {
-					t.Fatalf("expected %s, got %s", v, value)
-				}
+				r.Equal(v, value)
 			}
 		})
 	}

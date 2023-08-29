@@ -30,8 +30,8 @@ import (
 )
 
 func TestEnvKeyValueStore(t *testing.T) {
-	r := require.New(t)
 	var (
+		r       = require.New(t)
 		address = common.HexToAddress("0xc0ffee0001")
 		config  = api.EnvConfig{
 			Static:    false,
