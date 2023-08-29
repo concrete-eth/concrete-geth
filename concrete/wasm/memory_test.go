@@ -21,90 +21,90 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/concrete/api"
-	"github.com/ethereum/go-ethereum/concrete/wasm/bridge"
-	"github.com/ethereum/go-ethereum/concrete/wasm/bridge/host"
+	"github.com/ethereum/go-ethereum/concrete/wasm/host"
+	"github.com/ethereum/go-ethereum/concrete/wasm/memory"
 	"github.com/stretchr/testify/require"
 )
 
 type mockMemory []byte
 
-func newMockMemory() bridge.Memory {
+func newMockMemory() memory.Memory {
 	return &mockMemory{}
 }
 
-func (memory *mockMemory) Read(pointer bridge.MemPointer) []byte {
+func (mem *mockMemory) Read(pointer memory.MemPointer) []byte {
 	if pointer.IsNull() {
 		return []byte{}
 	}
 	offset, size := pointer.Unpack()
-	if offset+size > uint32(len(*memory)) {
+	if offset+size > uint32(len(*mem)) {
 		panic("out of memory")
 	}
-	return (*memory)[offset : offset+size]
+	return (*mem)[offset : offset+size]
 }
 
-func (memory *mockMemory) Write(data []byte) bridge.MemPointer {
+func (mem *mockMemory) Write(data []byte) memory.MemPointer {
 	size := len(data)
 	if size == 0 {
-		return bridge.NullPointer
+		return memory.NullPointer
 	}
-	offset := len(*memory)
-	*memory = append(*memory, data...)
-	var pointer bridge.MemPointer
+	offset := len(*mem)
+	*mem = append(*mem, data...)
+	var pointer memory.MemPointer
 	pointer.Pack(uint32(offset), uint32(size))
 	return pointer
 }
 
-var _ bridge.Memory = (*mockMemory)(nil)
+var _ memory.Memory = (*mockMemory)(nil)
 
-func testMemoryReadWrite(t *testing.T, memory bridge.Memory) {
+func testMemoryReadWrite(t *testing.T, mem memory.Memory) {
 	r := require.New(t)
 	data := []byte{1, 2, 3, 4, 5}
-	ptr := memory.Write(data)
+	ptr := mem.Write(data)
 	r.False(ptr.IsNull())
-	readData := memory.Read(ptr)
+	readData := mem.Read(ptr)
 	r.Equal(data, readData)
 }
 
-func testMemoryPutGetValues(t *testing.T, memory bridge.Memory) {
+func testMemoryPutGetValues(t *testing.T, mem memory.Memory) {
 	r := require.New(t)
 	// Test PutValue and GetValue
 	value := []byte{0x01, 0x02, 0x03}
-	pointer := bridge.PutValue(memory, value)
-	r.NotEqual(bridge.NullPointer, pointer)
-	result := bridge.GetValue(memory, pointer)
+	pointer := memory.PutValue(mem, value)
+	r.NotEqual(memory.NullPointer, pointer)
+	result := memory.GetValue(mem, pointer)
 	r.Equal(value, result)
 
 	// Test PutValues and GetValues
 	values := [][]byte{{0x01, 0x02}, {0x03, 0x04}, {0x05, 0x06, 0x07}}
-	pointer = bridge.PutValues(memory, values)
-	r.NotEqual(bridge.NullPointer, pointer)
-	resultValues := bridge.GetValues(memory, pointer)
+	pointer = memory.PutValues(mem, values)
+	r.NotEqual(memory.NullPointer, pointer)
+	resultValues := memory.GetValues(mem, pointer)
 	r.Equal(values, resultValues)
 
 	// Test PutValues with empty slice
-	pointer = bridge.PutValues(memory, [][]byte{})
-	r.Equal(bridge.NullPointer, pointer)
+	pointer = memory.PutValues(mem, [][]byte{})
+	r.Equal(memory.NullPointer, pointer)
 
 	// Test GetValues with null pointer
-	resultValues = bridge.GetValues(memory, bridge.NullPointer)
+	resultValues = memory.GetValues(mem, memory.NullPointer)
 	r.Equal([][]byte{}, resultValues)
 }
 
 func TestMockMemoryReadWrite(t *testing.T) {
-	memory := newMockMemory()
-	testMemoryReadWrite(t, memory)
+	mem := newMockMemory()
+	testMemoryReadWrite(t, mem)
 }
 
 func TestMockMemoryPutGetValues(t *testing.T) {
-	memory := newMockMemory()
-	testMemoryPutGetValues(t, memory)
+	mem := newMockMemory()
+	testMemoryPutGetValues(t, mem)
 }
 
 //go:embed testdata/blank.wasm
 var blankCode []byte
 
-func newWazeroMemory() (bridge.Memory, bridge.Allocator) {
+func newWazeroMemory() (memory.Memory, memory.Allocator) {
 	envCall := host.NewWazeroEnvironmentCaller(func() api.Environment { return nil })
 	mod, _, err := newWazeroModule(envCall, blankCode)
 	if err != nil {
@@ -115,29 +115,29 @@ func newWazeroMemory() (bridge.Memory, bridge.Allocator) {
 }
 
 func TestWazeroMemoryFree(t *testing.T) {
-	memory, alloc := newWazeroMemory()
+	mem, alloc := newWazeroMemory()
 	data := []byte{1, 2, 3, 4, 5}
-	ptr := memory.Write(data)
+	ptr := mem.Write(data)
 	alloc.Free(ptr)
 	require.Panics(t, func() { alloc.Free(ptr) })
 }
 
 func TestWazeroMemoryPrune(t *testing.T) {
-	memory, alloc := newWazeroMemory()
+	mem, alloc := newWazeroMemory()
 	data := []byte{1, 2, 3, 4, 5}
-	ptr1 := memory.Write(data)
-	ptr2 := memory.Write(data)
+	ptr1 := mem.Write(data)
+	ptr2 := mem.Write(data)
 	alloc.Prune()
 	require.Panics(t, func() { alloc.Free(ptr1) })
 	require.Panics(t, func() { alloc.Free(ptr2) })
 }
 
 func TestWazeroMemoryReadWrite(t *testing.T) {
-	memory, _ := newWazeroMemory()
-	testMemoryReadWrite(t, memory)
+	mem, _ := newWazeroMemory()
+	testMemoryReadWrite(t, mem)
 }
 
 func TestWazeroMemoryPutGetValues(t *testing.T) {
-	memory, _ := newWazeroMemory()
-	testMemoryPutGetValues(t, memory)
+	mem, _ := newWazeroMemory()
+	testMemoryPutGetValues(t, mem)
 }

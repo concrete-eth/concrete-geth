@@ -21,8 +21,8 @@ import (
 
 	"github.com/ethereum/go-ethereum/concrete/api"
 	"github.com/ethereum/go-ethereum/concrete/precompiles"
-	"github.com/ethereum/go-ethereum/concrete/wasm/bridge"
-	"github.com/ethereum/go-ethereum/concrete/wasm/bridge/host"
+	"github.com/ethereum/go-ethereum/concrete/wasm/host"
+	"github.com/ethereum/go-ethereum/concrete/wasm/memory"
 	"github.com/tetratelabs/wazero"
 	wz_api "github.com/tetratelabs/wazero/api"
 	"github.com/tetratelabs/wazero/imports/wasi_snapshot_preview1"
@@ -59,8 +59,8 @@ type wazeroPrecompile struct {
 	runtime     wazero.Runtime
 	module      wz_api.Module
 	mutex       sync.Mutex
-	memory      bridge.Memory
-	allocator   bridge.Allocator
+	memory      memory.Memory
+	allocator   memory.Allocator
 	environment api.Environment
 	expIsStatic wz_api.Function
 	expFinalise wz_api.Function
@@ -92,6 +92,7 @@ func newWazeroPrecompile(code []byte) *wazeroPrecompile {
 func (p *wazeroPrecompile) close() {
 	ctx := context.Background()
 	p.runtime.Close(ctx)
+	p.module.Close(ctx)
 }
 
 func (p *wazeroPrecompile) call__Uint64(expFunc wz_api.Function) uint64 {
@@ -105,14 +106,14 @@ func (p *wazeroPrecompile) call__Uint64(expFunc wz_api.Function) uint64 {
 
 func (p *wazeroPrecompile) call__Err(expFunc wz_api.Function) error {
 	_retPointer := p.call__Uint64(expFunc)
-	retPointer := bridge.MemPointer(_retPointer)
-	retErr := bridge.GetError(p.memory, retPointer)
+	retPointer := memory.MemPointer(_retPointer)
+	retErr := memory.GetError(p.memory, retPointer)
 	return retErr
 }
 
 func (p *wazeroPrecompile) call_Bytes_Uint64(expFunc wz_api.Function, input []byte) uint64 {
 	ctx := context.Background()
-	pointer := bridge.PutValue(p.memory, input)
+	pointer := memory.PutValue(p.memory, input)
 	defer p.allocator.Free(pointer)
 	_ret, err := expFunc.Call(ctx, pointer.Uint64())
 	if err != nil {
@@ -123,8 +124,8 @@ func (p *wazeroPrecompile) call_Bytes_Uint64(expFunc wz_api.Function, input []by
 
 func (p *wazeroPrecompile) call_Bytes_BytesErr(expFunc wz_api.Function, input []byte) ([]byte, error) {
 	_retPointer := p.call_Bytes_Uint64(expFunc, input)
-	retPointer := bridge.MemPointer(_retPointer)
-	retValues, retErr := bridge.GetReturnWithError(p.memory, retPointer)
+	retPointer := memory.MemPointer(_retPointer)
+	retValues, retErr := memory.GetReturnWithError(p.memory, retPointer)
 	return retValues[0], retErr
 }
 

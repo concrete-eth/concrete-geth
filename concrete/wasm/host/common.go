@@ -13,26 +13,16 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with the concrete library. If not, see <http://www.gnu.org/licenses/>.
 
-package proxy
+package host
 
-import (
-	"github.com/ethereum/go-ethereum/concrete/api"
-	"github.com/ethereum/go-ethereum/concrete/wasm/bridge"
+import "errors"
+
+var (
+	ErrMemoryReadOutOfRange = errors.New("go: memory read out of range of memory size")
 )
 
-type HostFuncCaller func(pointer uint64) uint64
-
-func NewProxyEnvironment(memory bridge.Memory, allocator bridge.Allocator, envCaller HostFuncCaller) *api.Env {
-	return api.NewProxyEnvironment(
-		func(op api.OpCode, env *api.Env, args [][]byte) ([][]byte, error) {
-			args = append([][]byte{op.Encode()}, args...)
-			argsPointer := bridge.PutArgs(memory, args)
-			retPointer := bridge.MemPointer(envCaller(argsPointer.Uint64()))
-			retValues := bridge.GetValues(memory, retPointer)
-			if !retPointer.IsNull() {
-				allocator.Free(retPointer)
-			}
-			return retValues, nil
-		},
-	)
-}
+const (
+	Malloc_WasmFuncName = "concrete_Malloc"
+	Free_WasmFuncName   = "concrete_Free"
+	Prune_WasmFuncName  = "concrete_Prune"
+)

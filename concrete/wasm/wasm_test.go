@@ -14,7 +14,3 @@
 // along with the concrete library. If not, see <http://www.gnu.org/licenses/>.
 
 package wasm
-
-import (
-	_ "embed"
-)

@@ -17,7 +17,7 @@ package host
 
 import (
 	"github.com/ethereum/go-ethereum/concrete/api"
-	"github.com/ethereum/go-ethereum/concrete/wasm/bridge"
+	"github.com/ethereum/go-ethereum/concrete/wasm/memory"
 	"github.com/wasmerio/wasmer-go/wasmer"
 )
 
@@ -29,20 +29,20 @@ type wasmerAllocator struct {
 	expPrune  wasmer.NativeFunction
 }
 
-func NewWasmerAllocator(instance *wasmer.Instance) bridge.Allocator {
-	memory, err := instance.Exports.GetMemory("memory")
+func NewWasmerAllocator(instance *wasmer.Instance) memory.Allocator {
+	mem, err := instance.Exports.GetMemory("memory")
 	if err != nil {
 		panic(err)
 	}
-	if memory == nil {
+	if mem == nil {
 		panic("memory not exported")
 	}
-	return &wasmerAllocator{instance: instance, memory: memory}
+	return &wasmerAllocator{instance: instance, memory: mem}
 }
 
-func (a *wasmerAllocator) Malloc(size uint32) bridge.MemPointer {
+func (a *wasmerAllocator) Malloc(size uint32) memory.MemPointer {
 	if size == 0 {
-		return bridge.NullPointer
+		return memory.NullPointer
 	}
 	if a.expMalloc == nil {
 		var err error
@@ -55,13 +55,13 @@ func (a *wasmerAllocator) Malloc(size uint32) bridge.MemPointer {
 	if err != nil {
 		panic(err)
 	}
-	var pointer bridge.MemPointer
+	var pointer memory.MemPointer
 	offset, _ := _offset.(int64)
 	pointer.Pack(uint32(offset), size)
 	return pointer
 }
 
-func (a *wasmerAllocator) Free(pointer bridge.MemPointer) {
+func (a *wasmerAllocator) Free(pointer memory.MemPointer) {
 	if pointer.IsNull() {
 		return
 	}
@@ -92,24 +92,24 @@ func (a *wasmerAllocator) Prune() {
 	}
 }
 
-var _ bridge.Allocator = (*wasmerAllocator)(nil)
+var _ memory.Allocator = (*wasmerAllocator)(nil)
 
 type wasmerMemory struct {
 	wasmerAllocator
 }
 
-func NewWasmerMemory(instance *wasmer.Instance) (bridge.Memory, bridge.Allocator) {
+func NewWasmerMemory(instance *wasmer.Instance) (memory.Memory, memory.Allocator) {
 	alloc := NewWasmerAllocator(instance)
 	return &wasmerMemory{wasmerAllocator: *alloc.(*wasmerAllocator)}, alloc
 }
 
-func NewWasmerMemoryFromAlloc(alloc *wasmerAllocator) bridge.Allocator {
+func NewWasmerMemoryFromAlloc(alloc *wasmerAllocator) memory.Allocator {
 	return &wasmerMemory{*alloc}
 }
 
-func (m *wasmerMemory) Write(data []byte) bridge.MemPointer {
+func (m *wasmerMemory) Write(data []byte) memory.MemPointer {
 	if len(data) == 0 {
-		return bridge.NullPointer
+		return memory.NullPointer
 	}
 	pointer := m.Malloc(uint32(len(data)))
 	offset, size := pointer.Unpack()
@@ -122,7 +122,7 @@ func (m *wasmerMemory) Write(data []byte) bridge.MemPointer {
 	return pointer
 }
 
-func (m *wasmerMemory) Read(pointer bridge.MemPointer) []byte {
+func (m *wasmerMemory) Read(pointer memory.MemPointer) []byte {
 	if pointer.IsNull() {
 		return []byte{}
 	}
@@ -137,7 +137,7 @@ func (m *wasmerMemory) Read(pointer bridge.MemPointer) []byte {
 	return output
 }
 
-var _ bridge.Memory = (*wasmerMemory)(nil)
+var _ memory.Memory = (*wasmerMemory)(nil)
 
 type WasmerHostFunc func(interface{}, []wasmer.Value) ([]wasmer.Value, error)
 
@@ -155,17 +155,17 @@ func (e *WasmerEnvironment) Init(instance *wasmer.Instance) {
 
 func NewWasmerEnvironmentCaller(apiGetter func() api.Environment) WasmerHostFunc {
 	return func(wasmerEnv interface{}, _pointer []wasmer.Value) ([]wasmer.Value, error) {
-		pointer := bridge.MemPointer(_pointer[0].I64())
+		pointer := memory.MemPointer(_pointer[0].I64())
 		env := apiGetter()
 		mem, _ := NewWasmerMemory(wasmerEnv.(*WasmerEnvironment).instance)
 
-		args := bridge.GetArgs(mem, pointer)
+		args := memory.GetArgs(mem, pointer)
 		var opcode api.OpCode
 		opcode.Decode(args[0])
 		args = args[1:]
 
 		out, _ := env.Execute(opcode, args)
-		retPointer := bridge.PutValues(mem, out)
+		retPointer := memory.PutValues(mem, out)
 
 		return []wasmer.Value{wasmer.NewI64(int64(retPointer))}, nil
 	}
