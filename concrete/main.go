@@ -16,7 +16,7 @@
 package concrete
 
 import (
-	"fmt"
+	"errors"
 	"math/big"
 	"os"
 
@@ -56,7 +56,7 @@ func (a *concreteGeth) Run() error {
 
 func (a *concreteGeth) validateNewPCAddress(addr common.Address) error {
 	if addr.Big().Cmp(big.NewInt(128)) < 0 {
-		return fmt.Errorf("precompile address cannot be below 0x80")
+		return errors.New("precompile address cannot be below 0x80")
 	}
 	return nil
 }
