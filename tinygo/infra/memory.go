@@ -19,11 +19,11 @@ import (
 	"reflect"
 	"unsafe"
 
-	"github.com/ethereum/go-ethereum/concrete/wasm/bridge"
+	"github.com/ethereum/go-ethereum/concrete/wasm/memory"
 )
 
-var Memory bridge.Memory = &memory{}
-var Allocator bridge.Allocator = &allocator{}
+var Memory memory.Memory = &mem{}
+var Allocator memory.Allocator = &allocator{}
 
 var allocs = make(map[uintptr][]byte)
 
@@ -53,20 +53,20 @@ func Prune() {
 	allocs = make(map[uintptr][]byte)
 }
 
-type memory struct{}
+type mem struct{}
 
-func (m *memory) Write(data []byte) bridge.MemPointer {
+func (m *mem) Write(data []byte) memory.MemPointer {
 	if len(data) == 0 {
-		return bridge.NullPointer
+		return memory.NullPointer
 	}
 	offset := uint32(uintptr(unsafe.Pointer(&data[0])))
 	size := uint32(len(data))
-	var pointer bridge.MemPointer
+	var pointer memory.MemPointer
 	pointer.Pack(offset, size)
 	return pointer
 }
 
-func (m *memory) Read(pointer bridge.MemPointer) []byte {
+func (m *mem) Read(pointer memory.MemPointer) []byte {
 	if pointer.IsNull() {
 		return []byte{}
 	}
@@ -82,14 +82,14 @@ func (m *memory) Read(pointer bridge.MemPointer) []byte {
 
 type allocator struct{}
 
-func (m *allocator) Malloc(size uint32) bridge.MemPointer {
+func (m *allocator) Malloc(size uint32) memory.MemPointer {
 	offset := Malloc(uint64(size))
-	var pointer bridge.MemPointer
+	var pointer memory.MemPointer
 	pointer.Pack(uint32(offset), size)
 	return pointer
 }
 
-func (m *allocator) Free(pointer bridge.MemPointer) {
+func (m *allocator) Free(pointer memory.MemPointer) {
 	Free(uint64(pointer.Offset()))
 }
 

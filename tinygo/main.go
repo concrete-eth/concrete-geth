@@ -18,8 +18,8 @@ package tinygo
 import (
 	"github.com/ethereum/go-ethereum/concrete/api"
 	"github.com/ethereum/go-ethereum/concrete/precompiles"
-	"github.com/ethereum/go-ethereum/concrete/wasm/bridge"
-	"github.com/ethereum/go-ethereum/concrete/wasm/bridge/proxy"
+	"github.com/ethereum/go-ethereum/concrete/wasm/memory"
+	"github.com/ethereum/go-ethereum/concrete/wasm/proxy"
 	"github.com/ethereum/go-ethereum/tinygo/infra"
 )
 
@@ -46,7 +46,7 @@ func newEnvironment() *api.Env {
 
 //export concrete_IsStatic
 func isStatic(pointer uint64) uint64 {
-	input := bridge.GetValue(infra.Memory, bridge.MemPointer(pointer))
+	input := memory.GetValue(infra.Memory, memory.MemPointer(pointer))
 	if precompile.IsStatic(input) {
 		return 1
 	} else {
@@ -58,20 +58,20 @@ func isStatic(pointer uint64) uint64 {
 func finalise() uint64 {
 	env := newEnvironment()
 	err := precompile.Finalise(env)
-	return bridge.PutError(infra.Memory, err).Uint64()
+	return memory.PutError(infra.Memory, err).Uint64()
 }
 
 //export concrete_Commit
 func commit() uint64 {
 	env := newEnvironment()
 	err := precompile.Commit(env)
-	return bridge.PutError(infra.Memory, err).Uint64()
+	return memory.PutError(infra.Memory, err).Uint64()
 }
 
 //export concrete_Run
 func run(pointer uint64) uint64 {
 	env := newEnvironment()
-	input := bridge.GetValue(infra.Memory, bridge.MemPointer(pointer))
+	input := memory.GetValue(infra.Memory, memory.MemPointer(pointer))
 	output, err := precompile.Run(env, input)
-	return bridge.PutReturnWithError(infra.Memory, [][]byte{output}, err).Uint64()
+	return memory.PutReturnWithError(infra.Memory, [][]byte{output}, err).Uint64()
 }
