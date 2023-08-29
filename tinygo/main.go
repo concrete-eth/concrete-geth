@@ -19,7 +19,7 @@ import (
 	"github.com/ethereum/go-ethereum/concrete/api"
 	"github.com/ethereum/go-ethereum/concrete/precompiles"
 	"github.com/ethereum/go-ethereum/concrete/wasm/bridge"
-	"github.com/ethereum/go-ethereum/concrete/wasm/bridge/wasm"
+	"github.com/ethereum/go-ethereum/concrete/wasm/bridge/proxy"
 	"github.com/ethereum/go-ethereum/tinygo/infra"
 )
 
@@ -41,7 +41,7 @@ func environment(pointer uint64) uint64 {
 }
 
 func newEnvironment() *api.Env {
-	return wasm.NewProxyEnvironment(infra.Memory, infra.Allocator, environment)
+	return proxy.NewProxyEnvironment(infra.Memory, infra.Allocator, environment)
 }
 
 //export concrete_IsStatic

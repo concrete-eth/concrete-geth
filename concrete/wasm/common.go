@@ -19,7 +19,7 @@ const (
 	// Host functions
 	Environment_WasmFuncName = "concrete_Environment"
 	// WASM functions
-	IsStatic_WasmFuncName = "concrete_IsStatic" // TODO: why is this IsStatic and not IsView
+	IsStatic_WasmFuncName = "concrete_IsStatic"
 	Finalise_WasmFuncName = "concrete_Finalise"
 	Commit_WasmFuncName   = "concrete_Commit"
 	Run_WasmFuncName      = "concrete_Run"
