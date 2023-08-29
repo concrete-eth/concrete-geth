@@ -26,12 +26,16 @@ import (
 )
 
 func NewWasmerPrecompile(code []byte) precompiles.Precompile {
-	return newWasmerPrecompile(code)
+	config := wasmer.NewConfig().UseCraneliftCompiler()
+	return newWasmerPrecompile(code, config)
 }
 
-func newWasmerModule(envCall host.WasmerHostFunc, code []byte) (*wasmer.Module, *wasmer.Instance, error) {
-	config := wasmer.NewConfig().UseCraneliftCompiler()
-	engine := wasmer.NewEngineWithConfig(config)
+func NewWasmerPrecompileWithConfig(code []byte, config *wasmer.Config) precompiles.Precompile {
+	return newWasmerPrecompile(code, config)
+}
+
+func newWasmerModule(envCall host.WasmerHostFunc, code []byte, engineConfig *wasmer.Config) (*wasmer.Module, *wasmer.Instance, error) {
+	engine := wasmer.NewEngineWithConfig(engineConfig)
 	store := wasmer.NewStore(engine)
 	module, err := wasmer.NewModule(store, code)
 
@@ -87,11 +91,11 @@ type wasmerPrecompile struct {
 	expRun      wasmer.NativeFunction
 }
 
-func newWasmerPrecompile(code []byte) *wasmerPrecompile {
+func newWasmerPrecompile(code []byte, engineConfig *wasmer.Config) *wasmerPrecompile {
 	pc := &wasmerPrecompile{}
 
 	envCall := host.NewWasmerEnvironmentCaller(func() api.Environment { return pc.environment })
-	module, instance, err := newWasmerModule(envCall, code)
+	module, instance, err := newWasmerModule(envCall, code, engineConfig)
 	if err != nil {
 		panic(err)
 	}
