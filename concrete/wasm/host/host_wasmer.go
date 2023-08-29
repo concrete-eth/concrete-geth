@@ -164,9 +164,12 @@ func NewWasmerEnvironmentCaller(apiGetter func() api.Environment) WasmerHostFunc
 		opcode.Decode(args[0])
 		args = args[1:]
 
-		out, _ := env.Execute(opcode, args)
-		retPointer := memory.PutValues(mem, out)
+		out, err := env.Execute(opcode, args)
+		if err != nil {
+			return nil, err
+		}
 
+		retPointer := memory.PutValues(mem, out)
 		return []wasmer.Value{wasmer.NewI64(int64(retPointer))}, nil
 	}
 }

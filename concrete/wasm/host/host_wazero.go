@@ -23,8 +23,6 @@ import (
 	wz_api "github.com/tetratelabs/wazero/api"
 )
 
-// TODO: how is wasm panic handled?
-
 type wazeroAllocator struct {
 	ctx       context.Context
 	module    wz_api.Module
@@ -129,9 +127,10 @@ func NewWazeroEnvironmentCaller(apiGetter func() api.Environment) WazeroHostFunc
 		opcode.Decode(args[0])
 		args = args[1:]
 
-		out, _ := env.Execute(opcode, args)
-
-		// TODO: halt execution on error [?]
+		out, err := env.Execute(opcode, args)
+		if err != nil {
+			panic(err)
+		}
 
 		return memory.PutValues(mem, out).Uint64()
 	}

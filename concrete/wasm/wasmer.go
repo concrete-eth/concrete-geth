@@ -35,8 +35,6 @@ func newWasmerModule(envCall host.WasmerHostFunc, code []byte) (*wasmer.Module, 
 	store := wasmer.NewStore(engine)
 	module, err := wasmer.NewModule(store, code)
 
-	// TODO: memory size [?]
-
 	if err != nil {
 		return nil, nil, err
 	}
@@ -120,10 +118,6 @@ func newWasmerPrecompile(code []byte) *wasmerPrecompile {
 	}
 
 	return pc
-}
-
-func (p *wasmerPrecompile) close() {
-	return // TODO
 }
 
 func (p *wasmerPrecompile) call__Uint64(expFunc wasmer.NativeFunction) uint64 {
