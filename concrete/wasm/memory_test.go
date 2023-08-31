@@ -24,12 +24,17 @@ import (
 	"github.com/ethereum/go-ethereum/concrete/wasm/host"
 	"github.com/ethereum/go-ethereum/concrete/wasm/memory"
 	"github.com/stretchr/testify/require"
+	"github.com/wasmerio/wasmer-go/wasmer"
 )
 
 type mockMemory []byte
 
 func newMockMemory() memory.Memory {
 	return &mockMemory{}
+}
+
+func (mem *mockMemory) Allocator() memory.Allocator {
+	return nil
 }
 
 func (mem *mockMemory) Read(pointer memory.MemPointer) []byte {
@@ -79,7 +84,7 @@ func testMemoryPutGetValues(t *testing.T, mem memory.Memory) {
 	values := [][]byte{{0x01, 0x02}, {0x03, 0x04}, {0x05, 0x06, 0x07}}
 	pointer = memory.PutValues(mem, values)
 	r.NotEqual(memory.NullPointer, pointer)
-	resultValues := memory.GetValues(mem, pointer)
+	resultValues := memory.GetValues(mem, pointer, false)
 	r.Equal(values, resultValues)
 
 	// Test PutValues with empty slice
@@ -87,7 +92,7 @@ func testMemoryPutGetValues(t *testing.T, mem memory.Memory) {
 	r.Equal(memory.NullPointer, pointer)
 
 	// Test GetValues with null pointer
-	resultValues = memory.GetValues(mem, memory.NullPointer)
+	resultValues = memory.GetValues(mem, memory.NullPointer, false)
 	r.Equal([][]byte{}, resultValues)
 }
 
@@ -114,30 +119,49 @@ func newWazeroMemory() (memory.Memory, memory.Allocator) {
 	return host.NewWazeroMemory(ctx, mod)
 }
 
-func TestWazeroMemoryFree(t *testing.T) {
-	mem, alloc := newWazeroMemory()
-	data := []byte{1, 2, 3, 4, 5}
-	ptr := mem.Write(data)
-	alloc.Free(ptr)
-	require.Panics(t, func() { alloc.Free(ptr) })
+func newWasmerMemory() (memory.Memory, memory.Allocator) {
+	envCall := host.NewWasmerEnvironmentCaller(func() api.Environment { return nil })
+	_, instance, err := newWasmerModule(envCall, blankCode, wasmer.NewConfig())
+	if err != nil {
+		panic(err)
+	}
+	return host.NewWasmerMemory(instance)
 }
 
-func TestWazeroMemoryPrune(t *testing.T) {
-	mem, alloc := newWazeroMemory()
-	data := []byte{1, 2, 3, 4, 5}
-	ptr1 := mem.Write(data)
-	ptr2 := mem.Write(data)
-	alloc.Prune()
-	require.Panics(t, func() { alloc.Free(ptr1) })
-	require.Panics(t, func() { alloc.Free(ptr2) })
-}
-
-func TestWazeroMemoryReadWrite(t *testing.T) {
-	mem, _ := newWazeroMemory()
-	testMemoryReadWrite(t, mem)
-}
-
-func TestWazeroMemoryPutGetValues(t *testing.T) {
-	mem, _ := newWazeroMemory()
-	testMemoryPutGetValues(t, mem)
+func TestWasmMemory(t *testing.T) {
+	rts := []struct {
+		name string
+		new  func() (memory.Memory, memory.Allocator)
+	}{
+		{
+			"wazero",
+			newWazeroMemory,
+		}, {
+			"wasmer",
+			newWasmerMemory,
+		},
+	}
+	for _, rt := range rts {
+		t.Run(rt.name, func(t *testing.T) {
+			mem, alloc := rt.new()
+			t.Run("readwrite", func(t *testing.T) {
+				testMemoryReadWrite(t, mem)
+				testMemoryPutGetValues(t, mem)
+			})
+			t.Run("free", func(t *testing.T) {
+				data := []byte{1, 2, 3, 4, 5}
+				ptr := mem.Write(data)
+				alloc.Free(ptr)
+				require.Panics(t, func() { alloc.Free(ptr) })
+			})
+			t.Run("prune", func(t *testing.T) {
+				data := []byte{1, 2, 3, 4, 5}
+				ptr1 := mem.Write(data)
+				ptr2 := mem.Write(data)
+				alloc.Prune()
+				require.Panics(t, func() { alloc.Free(ptr1) })
+				require.Panics(t, func() { alloc.Free(ptr2) })
+			})
+		})
+	}
 }
