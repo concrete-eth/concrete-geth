@@ -16,8 +16,6 @@
 package memory
 
 import (
-	"fmt"
-
 	"github.com/ethereum/go-ethereum/concrete/utils"
 )
 
@@ -110,7 +108,6 @@ func PutValues(memory Memory, values [][]byte) MemPointer {
 }
 
 func GetValues(memory Memory, pointer MemPointer, free bool) [][]byte {
-	fmt.Println("GetValues")
 	if pointer.IsNull() {
 		return [][]byte{}
 	}
@@ -118,13 +115,11 @@ func GetValues(memory Memory, pointer MemPointer, free bool) [][]byte {
 	var values [][]byte
 	valPointers := UnpackPointers(GetValue(memory, pointer))
 	if free {
-		fmt.Println("freeing main pointer")
 		allocator.Free(pointer)
 	}
 	for _, p := range valPointers {
 		values = append(values, GetValue(memory, p))
 		if free {
-			fmt.Println("freeing sub pointer")
 			allocator.Free(p)
 		}
 	}

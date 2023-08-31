@@ -57,6 +57,9 @@ func malloc(size int) (memory.MemPointer, []byte) {
 }
 
 func free(pointer memory.MemPointer) {
+	if pointer.IsNull() {
+		return
+	}
 	ptr := uintptr(pointer.Offset())
 	if _, ok := allocs[ptr]; ok {
 		delete(allocs, ptr)

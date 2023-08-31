@@ -29,9 +29,6 @@ func NewWasmProxyEnvironment(mem memory.Memory, allocator memory.Allocator, envC
 			argsPointer := memory.PutArgs(mem, args)
 			retPointer := memory.MemPointer(envCaller(argsPointer.Uint64()))
 			retValues := memory.GetValues(mem, retPointer, true)
-			if !retPointer.IsNull() {
-				allocator.Free(retPointer)
-			}
 			return retValues, nil
 		},
 	)

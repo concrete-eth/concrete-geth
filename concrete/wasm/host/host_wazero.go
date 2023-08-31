@@ -17,7 +17,6 @@ package host
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/ethereum/go-ethereum/concrete/api"
 	"github.com/ethereum/go-ethereum/concrete/wasm/memory"
@@ -144,8 +143,6 @@ func NewWazeroEnvironmentCaller(apiGetter func() api.Environment) WazeroHostFunc
 		if err != nil {
 			panic(err)
 		}
-
-		fmt.Println("envCaller", opcode, args)
 
 		return memory.PutValues(mem, out).Uint64()
 	}
