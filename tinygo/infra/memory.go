@@ -23,7 +23,7 @@ import (
 )
 
 var Memory memory.Memory = &mem{}
-var Allocator memory.Allocator = &allocator{}
+var Allocator memory.Allocator = &alloc{}
 
 var allocs = make(map[uintptr][]byte)
 
@@ -80,19 +80,19 @@ func (m *mem) Read(pointer memory.MemPointer) []byte {
 	}))
 }
 
-type allocator struct{}
+type alloc struct{}
 
-func (m *allocator) Malloc(size uint32) memory.MemPointer {
+func (m *alloc) Malloc(size uint32) memory.MemPointer {
 	offset := Malloc(uint64(size))
 	var pointer memory.MemPointer
 	pointer.Pack(uint32(offset), size)
 	return pointer
 }
 
-func (m *allocator) Free(pointer memory.MemPointer) {
+func (m *alloc) Free(pointer memory.MemPointer) {
 	Free(uint64(pointer.Offset()))
 }
 
-func (m *allocator) Prune() {
+func (m *alloc) Prune() {
 	Prune()
 }
