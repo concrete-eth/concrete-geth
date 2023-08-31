@@ -22,13 +22,13 @@ import (
 
 type HostFuncCaller func(pointer uint64) uint64
 
-func NewProxyEnvironment(mem memory.Memory, allocator memory.Allocator, envCaller HostFuncCaller) *api.Env {
+func NewWasmProxyEnvironment(mem memory.Memory, allocator memory.Allocator, envCaller HostFuncCaller) *api.Env {
 	return api.NewProxyEnvironment(
 		func(op api.OpCode, env *api.Env, args [][]byte) ([][]byte, error) {
 			args = append([][]byte{op.Encode()}, args...)
 			argsPointer := memory.PutArgs(mem, args)
 			retPointer := memory.MemPointer(envCaller(argsPointer.Uint64()))
-			retValues := memory.GetValues(mem, retPointer)
+			retValues := memory.GetValues(mem, retPointer, true)
 			if !retPointer.IsNull() {
 				allocator.Free(retPointer)
 			}

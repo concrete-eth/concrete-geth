@@ -17,6 +17,7 @@ package host
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/ethereum/go-ethereum/concrete/api"
 	"github.com/ethereum/go-ethereum/concrete/wasm/memory"
@@ -35,19 +36,21 @@ func NewWazeroAllocator(ctx context.Context, module wz_api.Module) memory.Alloca
 	return &wazeroAllocator{ctx: ctx, module: module}
 }
 
-func (a *wazeroAllocator) Malloc(size uint32) memory.MemPointer {
+func (a *wazeroAllocator) Malloc(size int) memory.MemPointer {
 	if size == 0 {
 		return memory.NullPointer
 	}
 	if a.expMalloc == nil {
 		a.expMalloc = a.module.ExportedFunction(Malloc_WasmFuncName)
+		if a.expMalloc == nil {
+			panic("malloc not exported")
+		}
 	}
-	_offset, err := a.expMalloc.Call(a.ctx, uint64(size))
+	_pointer, err := a.expMalloc.Call(a.ctx, uint64(size))
 	if err != nil {
 		panic(err)
 	}
-	var pointer memory.MemPointer
-	pointer.Pack(uint32(_offset[0]), size)
+	pointer := memory.MemPointer(_pointer[0])
 	return pointer
 }
 
@@ -57,8 +60,11 @@ func (a *wazeroAllocator) Free(pointer memory.MemPointer) {
 	}
 	if a.expFree == nil {
 		a.expFree = a.module.ExportedFunction(Free_WasmFuncName)
+		if a.expFree == nil {
+			panic("free not exported")
+		}
 	}
-	_, err := a.expFree.Call(a.ctx, uint64(pointer.Offset()))
+	_, err := a.expFree.Call(a.ctx, pointer.Uint64())
 	if err != nil {
 		panic(err)
 	}
@@ -67,6 +73,9 @@ func (a *wazeroAllocator) Free(pointer memory.MemPointer) {
 func (a *wazeroAllocator) Prune() {
 	if a.expPrune == nil {
 		a.expPrune = a.module.ExportedFunction(Prune_WasmFuncName)
+		if a.expPrune == nil {
+			panic("prune not exported")
+		}
 	}
 	_, err := a.expPrune.Call(a.ctx)
 	if err != nil {
@@ -89,11 +98,15 @@ func NewWazeroMemoryFromAlloc(alloc *wazeroAllocator) memory.Allocator {
 	return &wazeroMemory{*alloc}
 }
 
+func (m *wazeroMemory) Allocator() memory.Allocator {
+	return &m.wazeroAllocator
+}
+
 func (m *wazeroMemory) Write(data []byte) memory.MemPointer {
 	if len(data) == 0 {
 		return memory.NullPointer
 	}
-	pointer := m.Malloc(uint32(len(data)))
+	pointer := m.Malloc(len(data))
 	ok := m.module.Memory().Write(pointer.Offset(), data)
 	if !ok {
 		panic(ErrMemoryReadOutOfRange)
@@ -122,7 +135,7 @@ func NewWazeroEnvironmentCaller(apiGetter func() api.Environment) WazeroHostFunc
 		env := apiGetter()
 		mem, _ := NewWazeroMemory(ctx, module)
 
-		args := memory.GetArgs(mem, pointer)
+		args := memory.GetArgs(mem, pointer, true)
 		var opcode api.OpCode
 		opcode.Decode(args[0])
 		args = args[1:]
@@ -131,6 +144,8 @@ func NewWazeroEnvironmentCaller(apiGetter func() api.Environment) WazeroHostFunc
 		if err != nil {
 			panic(err)
 		}
+
+		fmt.Println("envCaller", opcode, args)
 
 		return memory.PutValues(mem, out).Uint64()
 	}

@@ -29,18 +29,35 @@ var allocs = make(map[uintptr][]byte)
 
 //export concrete_Malloc
 func Malloc(size uint64) uint64 {
+	pointer, _ := malloc(int(size))
+	return pointer.Uint64()
+}
+
+//export concrete_Free
+func Free(_pointer uint64) {
+	pointer := memory.MemPointer(_pointer)
+	free(pointer)
+}
+
+//export concrete_Prune
+func Prune() {
+	prune()
+}
+
+func malloc(size int) (memory.MemPointer, []byte) {
 	if size == 0 {
-		return 0
+		return 0, []byte{}
 	}
 	buf := make([]byte, size)
 	ptr := uintptr(unsafe.Pointer(&buf[0]))
 	allocs[ptr] = buf
-	return uint64(ptr)
+	var pointer memory.MemPointer
+	pointer.Pack(uint32(ptr), uint32(size))
+	return pointer, buf
 }
 
-//export concrete_Free
-func Free(pointer uint64) {
-	ptr := uintptr(pointer)
+func free(pointer memory.MemPointer) {
+	ptr := uintptr(pointer.Offset())
 	if _, ok := allocs[ptr]; ok {
 		delete(allocs, ptr)
 	} else {
@@ -48,21 +65,22 @@ func Free(pointer uint64) {
 	}
 }
 
-//export concrete_Prune
-func Prune() {
+func prune() {
 	allocs = make(map[uintptr][]byte)
 }
 
 type mem struct{}
 
+func (m *mem) Allocator() memory.Allocator {
+	return Allocator
+}
+
 func (m *mem) Write(data []byte) memory.MemPointer {
 	if len(data) == 0 {
 		return memory.NullPointer
 	}
-	offset := uint32(uintptr(unsafe.Pointer(&data[0])))
-	size := uint32(len(data))
-	var pointer memory.MemPointer
-	pointer.Pack(offset, size)
+	pointer, buf := malloc(len(data))
+	copy(buf, data)
 	return pointer
 }
 
@@ -71,28 +89,29 @@ func (m *mem) Read(pointer memory.MemPointer) []byte {
 		return []byte{}
 	}
 	offset, size := pointer.Unpack()
-	return *(*[]byte)(unsafe.Pointer(&reflect.SliceHeader{
+	buf := *(*[]byte)(unsafe.Pointer(&reflect.SliceHeader{
 		Data: uintptr(offset),
 		//nolint:typecheck
 		Len: uintptr(size),
 		//nolint:typecheck
 		Cap: uintptr(size),
 	}))
+	data := make([]byte, size)
+	copy(data, buf)
+	return data
 }
 
 type alloc struct{}
 
-func (m *alloc) Malloc(size uint32) memory.MemPointer {
-	offset := Malloc(uint64(size))
-	var pointer memory.MemPointer
-	pointer.Pack(uint32(offset), size)
+func (m *alloc) Malloc(size int) memory.MemPointer {
+	pointer, _ := malloc(size)
 	return pointer
 }
 
 func (m *alloc) Free(pointer memory.MemPointer) {
-	Free(uint64(pointer.Offset()))
+	free(pointer)
 }
 
 func (m *alloc) Prune() {
-	Prune()
+	prune()
 }

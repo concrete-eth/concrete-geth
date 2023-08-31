@@ -41,7 +41,7 @@ func environment(pointer uint64) uint64 {
 }
 
 func newEnvironment() *api.Env {
-	return proxy.NewProxyEnvironment(infra.Memory, infra.Allocator, environment)
+	return proxy.NewWasmProxyEnvironment(infra.Memory, infra.Allocator, environment)
 }
 
 //export concrete_IsStatic

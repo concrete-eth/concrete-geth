@@ -40,7 +40,7 @@ func NewWasmerAllocator(instance *wasmer.Instance) memory.Allocator {
 	return &wasmerAllocator{instance: instance, memory: mem}
 }
 
-func (a *wasmerAllocator) Malloc(size uint32) memory.MemPointer {
+func (a *wasmerAllocator) Malloc(size int) memory.MemPointer {
 	if size == 0 {
 		return memory.NullPointer
 	}
@@ -51,13 +51,12 @@ func (a *wasmerAllocator) Malloc(size uint32) memory.MemPointer {
 			panic(err)
 		}
 	}
-	_offset, err := a.expMalloc(int64(size))
+	_pointer, err := a.expMalloc(int64(size))
 	if err != nil {
 		panic(err)
 	}
-	var pointer memory.MemPointer
-	offset, _ := _offset.(int64)
-	pointer.Pack(uint32(offset), size)
+	pointerInt64, _ := _pointer.(int64)
+	pointer := memory.MemPointer(pointerInt64)
 	return pointer
 }
 
@@ -72,7 +71,7 @@ func (a *wasmerAllocator) Free(pointer memory.MemPointer) {
 			panic(err)
 		}
 	}
-	_, err := a.expFree(int64(pointer.Offset()))
+	_, err := a.expFree(int64(pointer))
 	if err != nil {
 		panic(err)
 	}
@@ -107,11 +106,15 @@ func NewWasmerMemoryFromAlloc(alloc *wasmerAllocator) memory.Allocator {
 	return &wasmerMemory{*alloc}
 }
 
+func (m *wasmerMemory) Allocator() memory.Allocator {
+	return &m.wasmerAllocator
+}
+
 func (m *wasmerMemory) Write(data []byte) memory.MemPointer {
 	if len(data) == 0 {
 		return memory.NullPointer
 	}
-	pointer := m.Malloc(uint32(len(data)))
+	pointer := m.Malloc(len(data))
 	offset, size := pointer.Unpack()
 	memSize := m.memory.Size()
 	if uint(offset+size) >= memSize.ToBytes() {
@@ -159,7 +162,7 @@ func NewWasmerEnvironmentCaller(apiGetter func() api.Environment) WasmerHostFunc
 		env := apiGetter()
 		mem, _ := NewWasmerMemory(wasmerEnv.(*WasmerEnvironment).instance)
 
-		args := memory.GetArgs(mem, pointer)
+		args := memory.GetArgs(mem, pointer, true)
 		var opcode api.OpCode
 		opcode.Decode(args[0])
 		args = args[1:]

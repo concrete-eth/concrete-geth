@@ -82,17 +82,23 @@ func newWazeroPrecompile(code []byte) *wazeroPrecompile {
 	pc.memory, pc.allocator = host.NewWazeroMemory(context.Background(), mod)
 
 	pc.expIsStatic = mod.ExportedFunction(IsStatic_WasmFuncName)
+	if pc.expIsStatic == nil {
+		panic("isStatic not exported")
+	}
 	pc.expFinalise = mod.ExportedFunction(Finalise_WasmFuncName)
+	if pc.expFinalise == nil {
+		panic("finalise not exported")
+	}
 	pc.expCommit = mod.ExportedFunction(Commit_WasmFuncName)
+	if pc.expCommit == nil {
+		panic("commit not exported")
+	}
 	pc.expRun = mod.ExportedFunction(Run_WasmFuncName)
+	if pc.expRun == nil {
+		panic("run not exported")
+	}
 
 	return pc
-}
-
-func (p *wazeroPrecompile) close() {
-	ctx := context.Background()
-	p.runtime.Close(ctx)
-	p.module.Close(ctx)
 }
 
 func (p *wazeroPrecompile) call__Uint64(expFunc wz_api.Function) uint64 {
@@ -108,6 +114,7 @@ func (p *wazeroPrecompile) call__Err(expFunc wz_api.Function) error {
 	_retPointer := p.call__Uint64(expFunc)
 	retPointer := memory.MemPointer(_retPointer)
 	retErr := memory.GetError(p.memory, retPointer)
+	p.allocator.Free(retPointer)
 	return retErr
 }
 
@@ -125,7 +132,7 @@ func (p *wazeroPrecompile) call_Bytes_Uint64(expFunc wz_api.Function, input []by
 func (p *wazeroPrecompile) call_Bytes_BytesErr(expFunc wz_api.Function, input []byte) ([]byte, error) {
 	_retPointer := p.call_Bytes_Uint64(expFunc, input)
 	retPointer := memory.MemPointer(_retPointer)
-	retValues, retErr := memory.GetReturnWithError(p.memory, retPointer)
+	retValues, retErr := memory.GetReturnWithError(p.memory, retPointer, true)
 	return retValues[0], retErr
 }
 
@@ -145,7 +152,7 @@ func (p *wazeroPrecompile) before(env api.Environment) {
 
 func (p *wazeroPrecompile) after(env api.Environment) {
 	p.environment = nil
-	p.allocator.Prune()
+	// p.allocator.Prune()
 	p.mutex.Unlock()
 }
 

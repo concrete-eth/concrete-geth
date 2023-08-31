@@ -137,13 +137,14 @@ func (p *wasmerPrecompile) call__Err(expFunc wasmer.NativeFunction) error {
 	_retPointer := p.call__Uint64(expFunc)
 	retPointer := memory.MemPointer(_retPointer)
 	retErr := memory.GetError(p.memory, retPointer)
+	p.allocator.Free(retPointer)
 	return retErr
 }
 
 func (p *wasmerPrecompile) call_Bytes_Uint64(expFunc wasmer.NativeFunction, input []byte) uint64 {
 	pointer := memory.PutValue(p.memory, input)
 	defer p.allocator.Free(pointer)
-	_ret, err := expFunc(int64(pointer.Uint64()))
+	_ret, err := expFunc(int64(pointer))
 	if err != nil {
 		panic(err)
 	}
@@ -154,7 +155,7 @@ func (p *wasmerPrecompile) call_Bytes_Uint64(expFunc wasmer.NativeFunction, inpu
 func (p *wasmerPrecompile) call_Bytes_BytesErr(expFunc wasmer.NativeFunction, input []byte) ([]byte, error) {
 	_retPointer := p.call_Bytes_Uint64(expFunc, input)
 	retPointer := memory.MemPointer(_retPointer)
-	retValues, retErr := memory.GetReturnWithError(p.memory, retPointer)
+	retValues, retErr := memory.GetReturnWithError(p.memory, retPointer, true)
 	return retValues[0], retErr
 }
 
@@ -174,7 +175,7 @@ func (p *wasmerPrecompile) before(env api.Environment) {
 
 func (p *wasmerPrecompile) after(env api.Environment) {
 	p.environment = nil
-	p.allocator.Prune()
+	// p.allocator.Prune()
 	p.mutex.Unlock()
 }
 

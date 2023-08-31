@@ -16,6 +16,8 @@
 package memory
 
 import (
+	"fmt"
+
 	"github.com/ethereum/go-ethereum/concrete/utils"
 )
 
@@ -76,12 +78,13 @@ func UnpackPointers(data []byte) []MemPointer {
 }
 
 type Memory interface {
+	Allocator() Allocator
 	Read(MemPointer) []byte
 	Write(data []byte) MemPointer
 }
 
 type Allocator interface {
-	Malloc(size uint32) MemPointer
+	Malloc(size int) MemPointer
 	Free(pointer MemPointer)
 	Prune()
 }
@@ -106,14 +109,24 @@ func PutValues(memory Memory, values [][]byte) MemPointer {
 	return PutValue(memory, packedPointers)
 }
 
-func GetValues(memory Memory, pointer MemPointer) [][]byte {
+func GetValues(memory Memory, pointer MemPointer, free bool) [][]byte {
+	fmt.Println("GetValues")
 	if pointer.IsNull() {
 		return [][]byte{}
 	}
+	allocator := memory.Allocator()
 	var values [][]byte
 	valPointers := UnpackPointers(GetValue(memory, pointer))
+	if free {
+		fmt.Println("freeing main pointer")
+		allocator.Free(pointer)
+	}
 	for _, p := range valPointers {
 		values = append(values, GetValue(memory, p))
+		if free {
+			fmt.Println("freeing sub pointer")
+			allocator.Free(p)
+		}
 	}
 	return values
 }
@@ -122,16 +135,16 @@ func PutArgs(memory Memory, args [][]byte) MemPointer {
 	return PutValues(memory, args)
 }
 
-func GetArgs(memory Memory, pointer MemPointer) [][]byte {
-	return GetValues(memory, pointer)
+func GetArgs(memory Memory, pointer MemPointer, free bool) [][]byte {
+	return GetValues(memory, pointer, free)
 }
 
 func PutReturn(memory Memory, retValues [][]byte) MemPointer {
 	return PutValues(memory, retValues)
 }
 
-func GetReturn(memory Memory, retPointer MemPointer) [][]byte {
-	return GetValues(memory, retPointer)
+func GetReturn(memory Memory, retPointer MemPointer, free bool) [][]byte {
+	return GetValues(memory, retPointer, free)
 }
 
 func PutError(memory Memory, err error) MemPointer {
@@ -147,8 +160,8 @@ func PutReturnWithError(memory Memory, retValues [][]byte, retErr error) MemPoin
 	return PutReturn(memory, retValues)
 }
 
-func GetReturnWithError(memory Memory, retPointer MemPointer) ([][]byte, error) {
-	retValues := GetReturn(memory, retPointer)
+func GetReturnWithError(memory Memory, retPointer MemPointer, free bool) ([][]byte, error) {
+	retValues := GetReturn(memory, retPointer, free)
 	err := utils.DecodeError(retValues[len(retValues)-1])
 	return retValues[:len(retValues)-1], err
 }
