@@ -278,8 +278,6 @@ func newEnvironmentMethods() JumpTable {
 	return tbl
 }
 
-// TODO: handle invalid args
-
 func opUndefined(env *Env, args [][]byte) ([][]byte, error) {
 	return nil, ErrInvalidOpCode
 }
@@ -337,6 +335,9 @@ func opEphemeralStore(env *Env, args [][]byte) ([][]byte, error) {
 	if !env.config.Ephemeral {
 		return nil, ErrFeatureDisabled
 	}
+	if len(args[0]) != 32 || len(args[1]) != 32 {
+		return nil, ErrInvalidInput
+	}
 	key := common.BytesToHash(args[0])
 	value := common.BytesToHash(args[1])
 	env.statedb.SetEphemeralState(env.address, key, value)
@@ -349,6 +350,9 @@ func opEphemeralLoad(env *Env, args [][]byte) ([][]byte, error) {
 	}
 	if !env.config.Ephemeral {
 		return nil, ErrFeatureDisabled
+	}
+	if len(args[0]) != 32 {
+		return nil, ErrInvalidInput
 	}
 	key := common.BytesToHash(args[0])
 	data := env.statedb.GetEphemeralState(env.address, key)
@@ -381,6 +385,9 @@ func opPersistentPreimageLoad(env *Env, args [][]byte) ([][]byte, error) {
 	if !env.config.Preimages {
 		return nil, ErrFeatureDisabled
 	}
+	if len(args[0]) != 32 {
+		return nil, ErrInvalidInput
+	}
 	key := common.BytesToHash(args[0])
 	data := env.statedb.GetPersistentPreimage(key)
 	return [][]byte{data}, nil
@@ -392,6 +399,9 @@ func opPersistentPreimageLoadSize(env *Env, args [][]byte) ([][]byte, error) {
 	}
 	if !env.config.Preimages {
 		return nil, ErrFeatureDisabled
+	}
+	if len(args[0]) != 32 {
+		return nil, ErrInvalidInput
 	}
 	key := common.BytesToHash(args[0])
 	size := env.statedb.GetPersistentPreimageSize(key)
@@ -418,6 +428,9 @@ func opEphemeralPreimageLoad(env *Env, args [][]byte) ([][]byte, error) {
 	if !env.config.Ephemeral || !env.config.Preimages {
 		return nil, ErrFeatureDisabled
 	}
+	if len(args[0]) != 32 {
+		return nil, ErrInvalidInput
+	}
 	key := common.BytesToHash(args[0])
 	data := env.statedb.GetEphemeralPreimage(key)
 	return [][]byte{data}, nil
@@ -429,6 +442,9 @@ func opEphemeralPreimageLoadSize(env *Env, args [][]byte) ([][]byte, error) {
 	}
 	if !env.config.Ephemeral || !env.config.Preimages {
 		return nil, ErrFeatureDisabled
+	}
+	if len(args[0]) != 32 {
+		return nil, ErrInvalidInput
 	}
 	key := common.BytesToHash(args[0])
 	size := env.statedb.GetEphemeralPreimageSize(key)
@@ -533,6 +549,9 @@ func opGetBlockHash(env *Env, args [][]byte) ([][]byte, error) {
 	if env.block == nil {
 		return nil, ErrNoData
 	}
+	if len(args[0]) != 8 {
+		return nil, ErrInvalidInput
+	}
 	number := utils.BytesToUint64(args[0])
 	var upper, lower uint64
 	upper = env.block.BlockNumber()
@@ -626,6 +645,9 @@ func gasStorageLoad(env *Env, args [][]byte) (uint64, error) {
 	if len(args) != 1 {
 		return 0, ErrInvalidInput
 	}
+	if len(args[0]) != 32 {
+		return 0, ErrInvalidInput
+	}
 	statedb := env.statedb
 	address := env.address
 	key := common.BytesToHash(args[0])
@@ -662,6 +684,9 @@ func opUseGas(env *Env, args [][]byte) ([][]byte, error) {
 	if len(args) != 1 {
 		return nil, ErrInvalidInput
 	}
+	if len(args[0]) != 8 {
+		return nil, ErrInvalidInput
+	}
 	gas := utils.BytesToUint64(args[0])
 	if ok := env.useGas(gas); !ok {
 		return nil, ErrOutOfGas
@@ -671,6 +696,9 @@ func opUseGas(env *Env, args [][]byte) ([][]byte, error) {
 
 func gasStorageStore(env *Env, args [][]byte) (uint64, error) {
 	if len(args) != 2 {
+		return 0, ErrInvalidInput
+	}
+	if len(args[0]) != 32 || len(args[1]) != 32 {
 		return 0, ErrInvalidInput
 	}
 	return 0, nil
@@ -688,13 +716,18 @@ func gasLog(env *Env, args [][]byte) (uint64, error) {
 		return 0, ErrInvalidInput
 	}
 	nTopics := len(args) - 1
+	for _, arg := range args[:nTopics] {
+		if len(arg) != 32 {
+			return 0, ErrInvalidInput
+		}
+	}
 	size := len(args[nTopics])
 	return params.LogGas + params.LogTopicGas*uint64(nTopics) + params.LogDataGas*uint64(size), nil
 }
 
 func opLog(env *Env, args [][]byte) ([][]byte, error) {
 	topics := make([]common.Hash, len(args)-1)
-	for i, arg := range args[1:] {
+	for i, arg := range args[:len(topics)] {
 		topics[i] = common.BytesToHash(arg)
 	}
 	data := args[len(args)-1]
@@ -709,6 +742,9 @@ func opLog(env *Env, args [][]byte) ([][]byte, error) {
 
 func gasGetExternalBalance(env *Env, args [][]byte) (uint64, error) {
 	if len(args) != 1 {
+		return 0, ErrInvalidInput
+	}
+	if len(args[0]) != 20 {
 		return 0, ErrInvalidInput
 	}
 	address := common.BytesToAddress(args[0])
@@ -729,6 +765,12 @@ func opCallStatic(env *Env, args [][]byte) ([][]byte, error) {
 	if len(args) != 3 {
 		return nil, ErrInvalidInput
 	}
+	if len(args[0]) != 20 {
+		return nil, ErrInvalidInput
+	}
+	if len(args[2]) != 8 {
+		return nil, ErrInvalidInput
+	}
 	if env.caller == nil {
 		return nil, ErrNoData
 	}
@@ -744,6 +786,9 @@ func opGetExternalCode(env *Env, args [][]byte) ([][]byte, error) {
 	if len(args) != 1 {
 		return nil, ErrInvalidInput
 	}
+	if len(args[0]) != 20 {
+		return nil, ErrInvalidInput
+	}
 	address := common.BytesToAddress(args[0])
 	code := env.statedb.GetCode(address)
 	return [][]byte{code}, nil
@@ -751,6 +796,9 @@ func opGetExternalCode(env *Env, args [][]byte) ([][]byte, error) {
 
 func opGetExternalCodeSize(env *Env, args [][]byte) ([][]byte, error) {
 	if len(args) != 1 {
+		return nil, ErrInvalidInput
+	}
+	if len(args[0]) != 20 {
 		return nil, ErrInvalidInput
 	}
 	address := common.BytesToAddress(args[0])
@@ -762,6 +810,9 @@ func opGetExternalCodeHash(env *Env, args [][]byte) ([][]byte, error) {
 	if len(args) != 1 {
 		return nil, ErrInvalidInput
 	}
+	if len(args[0]) != 20 {
+		return nil, ErrInvalidInput
+	}
 	address := common.BytesToAddress(args[0])
 	hash := env.statedb.GetCodeHash(address)
 	return [][]byte{hash.Bytes()}, nil
@@ -769,6 +820,15 @@ func opGetExternalCodeHash(env *Env, args [][]byte) ([][]byte, error) {
 
 func opCall(env *Env, args [][]byte) ([][]byte, error) {
 	if len(args) != 4 {
+		return nil, ErrInvalidInput
+	}
+	if len(args[0]) != 20 {
+		return nil, ErrInvalidInput
+	}
+	if len(args[2]) != 8 {
+		return nil, ErrInvalidInput
+	}
+	if len(args[3]) != 32 {
 		return nil, ErrInvalidInput
 	}
 	if env.caller == nil {
@@ -787,6 +847,12 @@ func opCallDelegate(env *Env, args [][]byte) ([][]byte, error) {
 	if len(args) != 3 {
 		return nil, ErrInvalidInput
 	}
+	if len(args[0]) != 20 {
+		return nil, ErrInvalidInput
+	}
+	if len(args[2]) != 8 {
+		return nil, ErrInvalidInput
+	}
 	if env.caller == nil {
 		return nil, ErrNoData
 	}
@@ -802,6 +868,9 @@ func opCreate(env *Env, args [][]byte) ([][]byte, error) {
 	if len(args) != 2 {
 		return nil, ErrInvalidInput
 	}
+	if len(args[1]) != 32 {
+		return nil, ErrInvalidInput
+	}
 	if env.caller == nil {
 		return nil, ErrNoData
 	}
@@ -814,6 +883,9 @@ func opCreate(env *Env, args [][]byte) ([][]byte, error) {
 
 func opCreate2(env *Env, args [][]byte) ([][]byte, error) {
 	if len(args) != 3 {
+		return nil, ErrInvalidInput
+	}
+	if len(args[1]) != 32 || len(args[2]) != 32 {
 		return nil, ErrInvalidInput
 	}
 	if env.caller == nil {
