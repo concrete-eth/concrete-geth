@@ -37,12 +37,22 @@ devtools:
 	@type "solc" 2> /dev/null || echo 'Please install solc'
 	@type "protoc" 2> /dev/null || echo 'Please install protoc'
 
-.PHONY: concrete-solidity
+.PHONY: concrete concrete-wasm concrete-solidity
 
-PC_SOL_DIR = ./concrete/precompiles/sol
+concrete: concrete-wasm concrete-solidity
+
+FIXTURE_DIR = ./concrete/fixtures
+WASM_TESTDATA_DIR = ./concrete/wasm/testdata
+
+concrete-wasm:
+	mkdir -p $(FIXTURE_DIR)/build
+	mkdir -p $(FIXTURE_DIR)/add
+	mkdir -p $(FIXTURE_DIR)/kvv
+	mkdir -p $(WASM_TESTDATA_DIR)
+	tinygo build -opt=2 -o $(FIXTURE_DIR)/build/blank.wasm -target=wasi ./tinygo/precompiles/blank/blank.go
+	cp $(FIXTURE_DIR)/build/blank.wasm $(WASM_TESTDATA_DIR)/blank.wasm
+	tinygo build -opt=2 -o $(FIXTURE_DIR)/build/add.wasm -target=wasi ./tinygo/precompiles/add/add.go
+	tinygo build -opt=2 -o $(FIXTURE_DIR)/build/kkv.wasm -target=wasi ./tinygo/precompiles/kkv/kkv.go
 
 concrete-solidity:
-	mkdir -p $(PC_SOL_DIR)/tmp
-	cd $(PC_SOL_DIR) && solcjs --abi -o ./tmp/ *.sol --pretty-json
-	cd $(PC_SOL_DIR)/tmp/ && for file in ./*; do mv "$$file" "../abi/$${file%%_*}.$${file##*.}"; done
-	rm -rf $(PC_SOL_DIR)/tmp
+	cd ./concrete/testtool/testdata && forge build
