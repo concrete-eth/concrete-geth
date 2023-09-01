@@ -48,8 +48,10 @@ func (m *mockStateDB) AddressInAccessList(addr common.Address) bool { return fal
 func (m *mockStateDB) SlotInAccessList(addr common.Address, slot common.Hash) (bool, bool) {
 	return false, false
 }
+func (m *mockStateDB) HashInAccessList(hash common.Hash) bool                                     { return false }
 func (m *mockStateDB) AddAddressToAccessList(addr common.Address)                                 {}
 func (m *mockStateDB) AddSlotToAccessList(addr common.Address, slot common.Hash)                  {}
+func (m *mockStateDB) AddHashToAccessList(hash common.Hash)                                       {}
 func (m *mockStateDB) GetCode(addr common.Address) []byte                                         { return []byte{} }
 func (m *mockStateDB) GetCodeSize(addr common.Address) int                                        { return 0 }
 func (m *mockStateDB) GetCodeHash(addr common.Address) common.Hash                                { return common.Hash{} }
@@ -113,10 +115,10 @@ func (m *mockCaller) Call(common.Address, []byte, uint64, *big.Int) ([]byte, uin
 func (m *mockCaller) CallDelegate(common.Address, []byte, uint64) ([]byte, uint64, error) {
 	return []byte{}, 0, nil
 }
-func (m *mockCaller) Create([]byte, *big.Int) (common.Address, uint64, error) {
+func (m *mockCaller) Create([]byte, uint64, *big.Int) (common.Address, uint64, error) {
 	return common.Address{}, 0, nil
 }
-func (m *mockCaller) Create2([]byte, common.Hash, *big.Int) (common.Address, uint64, error) {
+func (m *mockCaller) Create2([]byte, common.Hash, uint64, *big.Int) (common.Address, uint64, error) {
 	return common.Address{}, 0, nil
 }
 

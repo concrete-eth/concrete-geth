@@ -705,14 +705,14 @@ func (c *concreteCaller) CallDelegate(addr common.Address, input []byte, gas uin
 	return ret, gasLeft, err
 }
 
-func (c *concreteCaller) Create(input []byte, value *big.Int) (common.Address, uint64, error) {
-	ret, address, gasLeft, err := c.evm.Create(c.contract, input, c.contract.Gas, value)
+func (c *concreteCaller) Create(input []byte, gas uint64, value *big.Int) (common.Address, uint64, error) {
+	ret, address, gasLeft, err := c.evm.Create(c.contract, input, gas, value)
 	return address, gasLeft, addReasonToErr(err, ret)
 }
 
-func (c *concreteCaller) Create2(input []byte, salt common.Hash, value *big.Int) (common.Address, uint64, error) {
+func (c *concreteCaller) Create2(input []byte, salt common.Hash, gas uint64, value *big.Int) (common.Address, uint64, error) {
 	saltUint := new(uint256.Int).SetBytes32(salt.Bytes())
-	ret, address, gasLeft, err := c.evm.Create2(c.contract, input, c.contract.Gas, value, saltUint)
+	ret, address, gasLeft, err := c.evm.Create2(c.contract, input, gas, value, saltUint)
 	return address, gasLeft, addReasonToErr(err, ret)
 }
 
