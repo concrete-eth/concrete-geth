@@ -1,6 +1,12 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.0;
 
+address constant PrecompileRegistryAddress = address(
+    0xCc00000000000000000000000000000000000000
+);
+
+string constant PrecompileRegistryName = "PrecompileRegistry";
+
 struct Version {
     uint256 major;
     uint256 minor;
