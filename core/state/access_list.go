@@ -23,6 +23,7 @@ import (
 type accessList struct {
 	addresses map[common.Address]int
 	slots     []map[common.Hash]struct{}
+	hashes    map[common.Hash]struct{}
 }
 
 // ContainsAddress returns true if the address is in the access list.
@@ -45,6 +46,11 @@ func (al *accessList) Contains(address common.Address, slot common.Hash) (addres
 	}
 	_, slotPresent = al.slots[idx][slot]
 	return true, slotPresent
+}
+
+func (al *accessList) ContainsHash(hash common.Hash) bool {
+	_, ok := al.hashes[hash]
+	return ok
 }
 
 // newAccessList creates a new accessList.
@@ -106,6 +112,14 @@ func (al *accessList) AddSlot(address common.Address, slot common.Hash) (addrCha
 	return false, false
 }
 
+func (al *accessList) AddHash(hash common.Hash) bool {
+	if _, present := al.hashes[hash]; present {
+		return false
+	}
+	al.hashes[hash] = struct{}{}
+	return true
+}
+
 // DeleteSlot removes an (address, slot)-tuple from the access list.
 // This operation needs to be performed in the same order as the addition happened.
 // This method is meant to be used  by the journal, which maintains ordering of
@@ -133,4 +147,8 @@ func (al *accessList) DeleteSlot(address common.Address, slot common.Hash) {
 // operations.
 func (al *accessList) DeleteAddress(address common.Address) {
 	delete(al.addresses, address)
+}
+
+func (al *accessList) DeleteHash(hash common.Hash) {
+	delete(al.hashes, hash)
 }

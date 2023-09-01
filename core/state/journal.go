@@ -138,6 +138,9 @@ type (
 		address *common.Address
 		slot    *common.Hash
 	}
+	accessListAddHashChange struct {
+		hash *common.Hash
+	}
 
 	transientStorageChange struct {
 		account       *common.Address
@@ -288,6 +291,14 @@ func (ch accessListAddSlotChange) revert(s *StateDB) {
 }
 
 func (ch accessListAddSlotChange) dirtied() *common.Address {
+	return nil
+}
+
+func (ch accessListAddHashChange) revert(s *StateDB) {
+	s.accessList.DeleteHash(*ch.hash)
+}
+
+func (ch accessListAddHashChange) dirtied() *common.Address {
 	return nil
 }
 
