@@ -48,3 +48,7 @@ profile.cov
 
 **/yarn-error.log
 logs/
+
+# concrete
+/concrete/**/*.wasm
+/tinygo/**/*.wasm
