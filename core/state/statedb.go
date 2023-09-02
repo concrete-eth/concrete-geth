@@ -1235,12 +1235,13 @@ func (s *StateDB) Commit(deleteEmptyObjects bool) (common.Hash, error) {
 
 	// Commit objects to the trie, measuring the elapsed time
 	var (
-		accountTrieNodesUpdated int
-		accountTrieNodesDeleted int
-		storageTrieNodesUpdated int
-		storageTrieNodesDeleted int
-		nodes                   = trienode.NewMergedNodeSet()
-		codeWriter              = s.db.DiskDB().NewBatch()
+		accountTrieNodesUpdated  int
+		accountTrieNodesDeleted  int
+		storageTrieNodesUpdated  int
+		storageTrieNodesDeleted  int
+		nodes                    = trienode.NewMergedNodeSet()
+		codeWriter               = s.db.DiskDB().NewBatch()
+		persistentPreimageWriter = s.db.DiskDB().NewBatch()
 	)
 	for addr := range s.stateObjectsDirty {
 		if obj := s.stateObjects[addr]; !obj.deleted {
@@ -1279,7 +1280,6 @@ func (s *StateDB) Commit(deleteEmptyObjects bool) (common.Hash, error) {
 			log.Crit("Failed to commit dirty codes", "error", err)
 		}
 	}
-	persistentPreimageWriter := s.db.DiskDB().NewBatch()
 	for hash := range s.persistentPreimagesPending {
 		s.persistentPreimagesRead[hash] = struct{}{}
 		preimage := s.persistentPreimages[hash]
