@@ -1127,7 +1127,6 @@ func (s *StateDB) Commit(deleteEmptyObjects bool) (common.Hash, error) {
 		nodes                   = trienode.NewMergedNodeSet()
 		codeWriter              = s.db.DiskDB().NewBatch()
 	)
-	codeWriter := s.db.DiskDB().NewBatch()
 	persistentPreimageWriter := s.db.DiskDB().NewBatch()
 	for addr := range s.stateObjectsDirty {
 		if obj := s.stateObjects[addr]; !obj.deleted {
