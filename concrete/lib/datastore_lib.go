@@ -30,7 +30,7 @@ func NewCounter(ref StorageSlot) *Counter {
 }
 
 func (c *Counter) Get() *big.Int {
-	return c.StorageSlot.GetBig()
+	return c.StorageSlot.Big()
 }
 
 func (c *Counter) Set(value *big.Int) {

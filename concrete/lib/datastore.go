@@ -128,19 +128,19 @@ var _ Datastore = (*datastore)(nil)
 
 type StorageSlot interface {
 	Slot() common.Hash
-	GetBytes32() common.Hash
+	Bytes32() common.Hash
 	SetBytes32(value common.Hash)
-	GetBool() bool
+	Bool() bool
 	SetBool(value bool)
-	GetAddress() common.Address
+	Address() common.Address
 	SetAddress(value common.Address)
-	GetBig() *big.Int
+	Big() *big.Int
 	SetBig(value *big.Int)
-	GetUint64() uint64
+	Uint64() uint64
 	SetUint64(value uint64)
-	GetInt64() int64
+	Int64() int64
 	SetInt64(value int64)
-	GetBytes() []byte
+	Bytes() []byte
 	SetBytes(value []byte)
 	SlotArray(length []int) SlotArray
 	BytesArray(length []int, itemSize int) BytesArray
@@ -226,7 +226,7 @@ func (r *storedValue) Slot() common.Hash {
 	return r.slot
 }
 
-func (r *storedValue) GetBytes32() common.Hash {
+func (r *storedValue) Bytes32() common.Hash {
 	return r.getBytes32()
 }
 
@@ -234,7 +234,7 @@ func (r *storedValue) SetBytes32(value common.Hash) {
 	r.setBytes32(value)
 }
 
-func (r *storedValue) GetBool() bool {
+func (r *storedValue) Bool() bool {
 	return r.getBytes32().Big().Cmp(common.Big0) != 0
 }
 
@@ -246,7 +246,7 @@ func (r *storedValue) SetBool(value bool) {
 	}
 }
 
-func (r *storedValue) GetAddress() common.Address {
+func (r *storedValue) Address() common.Address {
 	return common.BytesToAddress(r.getBytes32().Bytes())
 }
 
@@ -254,7 +254,7 @@ func (r *storedValue) SetAddress(value common.Address) {
 	r.setBytes32(common.BytesToHash(value.Bytes()))
 }
 
-func (r *storedValue) GetBig() *big.Int {
+func (r *storedValue) Big() *big.Int {
 	return r.getBytes32().Big()
 }
 
@@ -266,19 +266,19 @@ func (r *storedValue) SetUint64(value uint64) {
 	r.SetBig(new(big.Int).SetUint64(value))
 }
 
-func (r *storedValue) GetUint64() uint64 {
-	return r.GetBig().Uint64()
+func (r *storedValue) Uint64() uint64 {
+	return r.Big().Uint64()
 }
 
 func (r *storedValue) SetInt64(value int64) {
 	r.SetBig(big.NewInt(value))
 }
 
-func (r *storedValue) GetInt64() int64 {
-	return r.GetBig().Int64()
+func (r *storedValue) Int64() int64 {
+	return r.Big().Int64()
 }
 
-func (r *storedValue) GetBytes() []byte {
+func (r *storedValue) Bytes() []byte {
 	return r.getBytes()
 }
 

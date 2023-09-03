@@ -13,13 +13,12 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with the concrete library. If not, see <http://www.gnu.org/licenses/>.
 
-package testing
+package testtool
 
 import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"math/big"
 	"os"
 	"path/filepath"
@@ -32,14 +31,15 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 )
 
 func runTestMethod(bytecode []byte, method abi.Method, shouldFail bool) (uint64, error) {
 	var (
-		key, _          = crypto.HexToECDSA("b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291")
+		key, _          = crypto.HexToECDSA("d17bd946feb884d463d58fb702b94dd0457ca349338da1d732a57856cf777ccd") // 0xCcca11AbAC28D9b6FceD3a9CA73C434f6b33B215
 		senderAddress   = crypto.PubkeyToAddress(key.PublicKey)
-		contractAddress = common.HexToAddress("0x0000000000000000000000000000000000c0ffee")
+		contractAddress = common.HexToAddress("cc73570000000000000000000000000000000000")
 		gspec           = &core.Genesis{
 			GasLimit: 2e7,
 			Config:   params.TestChainConfig,
@@ -118,7 +118,7 @@ func extractTestData(contractJsonBytes []byte) ([]byte, abi.ABI, string, error) 
 }
 
 func extractTestDataFromPath(contractJsonPath string) ([]byte, abi.ABI, string, error) {
-	contractJsonBytes, err := ioutil.ReadFile(contractJsonPath)
+	contractJsonBytes, err := os.ReadFile(contractJsonPath)
 	if err != nil {
 		return nil, abi.ABI{}, "", err
 	}
@@ -128,7 +128,7 @@ func extractTestDataFromPath(contractJsonPath string) ([]byte, abi.ABI, string, 
 func getFileNames(dir string, ext string) ([]string, error) {
 	var fileNames []string
 
-	files, err := ioutil.ReadDir(dir)
+	files, err := os.ReadDir(dir)
 	if err != nil {
 		return fileNames, err
 	}
@@ -205,13 +205,26 @@ func runTestPaths(contractJsonPaths []string) (int, int) {
 	return totalPassed, totalFailed
 }
 
+func setGethVerbosity(lvl log.Lvl) {
+	glogger := log.NewGlogHandler(log.StreamHandler(os.Stderr, log.TerminalFormat(false)))
+	glogger.Verbosity(lvl)
+	log.Root().SetHandler(glogger)
+}
+
 type TestConfig struct {
 	Contract string
 	TestDir  string
 	OutDir   string
 }
 
+func RunTestContract(bytecode []byte, ABI abi.ABI) (int, int) {
+	setGethVerbosity(log.LvlWarn)
+	return runTestContract(bytecode, ABI)
+}
+
 func Test(config TestConfig) (int, int) {
+	setGethVerbosity(log.LvlWarn)
+
 	// Get test paths
 	var testPaths []string
 
@@ -239,6 +252,8 @@ func Test(config TestConfig) (int, int) {
 }
 
 func TestCmd() {
+	setGethVerbosity(log.LvlWarn)
+
 	// Define optional parameters
 	contract := flag.String("contract", "", "Specific contract to test")
 	testDir := flag.String("testDir", "test", "Directory containing test files")

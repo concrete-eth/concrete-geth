@@ -80,7 +80,7 @@ func (a *KeyKeyValuePrecompile) Run(env api.Environment, input []byte) ([]byte, 
 		k1 := data[:32]
 		k2 := data[32:]
 		kkv := lib.NewDatastore(env).Mapping([]byte("map.kkv.v1"))
-		v := kkv.Mapping(k1).Value(k2).GetBytes32()
+		v := kkv.Mapping(k1).Value(k2).Bytes32()
 		return v.Bytes(), nil
 	} else if bytes.Equal(methodID, kkvSetMethodID) {
 		if len(data) != 96 {

@@ -85,7 +85,7 @@ func TestAddPrecompileFixture(t *testing.T) {
 		precompiles.AddPrecompile(impl.address, impl.pc)
 	}
 	for _, impl := range addImplementations {
-		env := mock.NewMockEnv(impl.address, api.EnvConfig{Trusted: true}, false, 0)
+		env := mock.NewMockEnvironment(impl.address, api.EnvConfig{Trusted: true}, false, 0)
 		t.Run(impl.name, func(t *testing.T) {
 			input, err := ABI.Pack("add", x, y)
 			r.NoError(err)
@@ -144,7 +144,7 @@ func TestKkvPrecompileFixture(t *testing.T) {
 		precompiles.AddPrecompile(impl.address, impl.pc)
 	}
 	for _, impl := range kkvImplementations {
-		env := mock.NewMockEnv(impl.address, api.EnvConfig{Trusted: true}, false, 0)
+		env := mock.NewMockEnvironment(impl.address, api.EnvConfig{Trusted: true}, false, 0)
 		t.Run(impl.name, func(t *testing.T) {
 			input, err := ABI.Pack("set", k1, k2, v)
 			r.NoError(err)
@@ -232,7 +232,7 @@ func TestE2EKkvPrecompile(t *testing.T) {
 				k1 := common.BigToHash(big.NewInt(int64(ii)))
 				k2 := common.BigToHash(big.NewInt(int64(ii + 1)))
 				v := common.BigToHash(big.NewInt(int64(ii + 2)))
-				value := kkv.Mapping(k1.Bytes()).Value(k2.Bytes()).GetBytes32()
+				value := kkv.Mapping(k1.Bytes()).Value(k2.Bytes()).Bytes32()
 				r.Equal(v, value)
 			}
 		})

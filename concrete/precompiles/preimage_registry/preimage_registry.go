@@ -64,7 +64,7 @@ func (p *PreimageRegistry) IsStatic(input []byte) bool {
 	methodID, _ := utils.SplitInput(input)
 	method, err := ABI.MethodById(methodID)
 	if err != nil {
-		return false
+		return true
 	}
 	return method.IsConstant()
 }
@@ -101,7 +101,7 @@ func (p *PreimageRegistry) Run(env api.Environment, input []byte) ([]byte, error
 		if hash == EmptyPreimageHash {
 			result = true
 		} else {
-			result = preimageMap.Value(hash.Bytes()).GetBig().Uint64() > 0
+			result = preimageMap.Value(hash.Bytes()).Big().Uint64() > 0
 		}
 
 	case "getPreimageSize":
@@ -109,7 +109,7 @@ func (p *PreimageRegistry) Run(env api.Environment, input []byte) ([]byte, error
 		if hash == EmptyPreimageHash {
 			result = big.NewInt(0)
 		} else {
-			result = preimageMap.Value(hash.Bytes()).GetBig()
+			result = preimageMap.Value(hash.Bytes()).Big()
 		}
 
 	case "getPreimage":
@@ -117,7 +117,7 @@ func (p *PreimageRegistry) Run(env api.Environment, input []byte) ([]byte, error
 		if hash == EmptyPreimageHash {
 			result = []byte{}
 		} else {
-			size := preimageMap.Value(hash.Bytes()).GetBig().Int64()
+			size := preimageMap.Value(hash.Bytes()).Big().Int64()
 			if size < 0 {
 				result = []byte{}
 			}

@@ -70,7 +70,7 @@ func (p *PrecompileRegistry) IsStatic(input []byte) bool {
 	methodID, _ := utils.SplitInput(input)
 	method, err := ABI.MethodById(methodID)
 	if err != nil {
-		return false
+		return true
 	}
 	return method.IsConstant()
 }
