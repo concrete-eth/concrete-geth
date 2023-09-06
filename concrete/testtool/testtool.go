@@ -205,10 +205,14 @@ func runTestPaths(contractJsonPaths []string) (int, int) {
 	return totalPassed, totalFailed
 }
 
-func setGethVerbosity(lvl log.Lvl) {
+func setGethVerbosity(lvl log.Lvl) func() {
+	handler := log.Root().GetHandler()
 	glogger := log.NewGlogHandler(log.StreamHandler(os.Stderr, log.TerminalFormat(false)))
 	glogger.Verbosity(lvl)
 	log.Root().SetHandler(glogger)
+	return func() {
+		log.Root().SetHandler(handler)
+	}
 }
 
 type TestConfig struct {
@@ -218,12 +222,14 @@ type TestConfig struct {
 }
 
 func RunTestContract(bytecode []byte, ABI abi.ABI) (int, int) {
-	setGethVerbosity(log.LvlWarn)
+	resetGethLogger := setGethVerbosity(log.LvlWarn)
+	defer resetGethLogger()
 	return runTestContract(bytecode, ABI)
 }
 
 func Test(config TestConfig) (int, int) {
-	setGethVerbosity(log.LvlWarn)
+	resetGethLogger := setGethVerbosity(log.LvlWarn)
+	defer resetGethLogger()
 
 	// Get test paths
 	var testPaths []string
@@ -252,7 +258,8 @@ func Test(config TestConfig) (int, int) {
 }
 
 func TestCmd() {
-	setGethVerbosity(log.LvlWarn)
+	resetGethLogger := setGethVerbosity(log.LvlWarn)
+	defer resetGethLogger()
 
 	// Define optional parameters
 	contract := flag.String("contract", "", "Specific contract to test")

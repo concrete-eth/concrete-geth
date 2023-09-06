@@ -85,7 +85,7 @@ func newDatastore(kv KeyValueStore) *datastore {
 	return &datastore{kv: kv}
 }
 
-func (ds *datastore) value(key []byte) *storedValue {
+func (ds *datastore) value(key []byte) *storageSlot {
 	slot := keyToHash(key)
 	return newStorageSlot(ds, slot)
 }
@@ -146,32 +146,32 @@ type StorageSlot interface {
 	BytesArray(length []int, itemSize int) BytesArray
 }
 
-type storedValue struct {
+type storageSlot struct {
 	ds       *datastore
 	slot     common.Hash
 	slotHash common.Hash
 }
 
-func newStorageSlot(ds *datastore, slot common.Hash) *storedValue {
-	return &storedValue{ds: ds, slot: slot}
+func newStorageSlot(ds *datastore, slot common.Hash) *storageSlot {
+	return &storageSlot{ds: ds, slot: slot}
 }
 
-func (r *storedValue) getSlotHash() common.Hash {
+func (r *storageSlot) getSlotHash() common.Hash {
 	if r.slotHash == (common.Hash{}) {
 		r.slotHash = crypto.Keccak256Hash(r.slot.Bytes())
 	}
 	return r.slotHash
 }
 
-func (r *storedValue) getBytes32() common.Hash {
+func (r *storageSlot) getBytes32() common.Hash {
 	return r.ds.kv.Get(r.slot)
 }
 
-func (r *storedValue) setBytes32(value common.Hash) {
+func (r *storageSlot) setBytes32(value common.Hash) {
 	r.ds.kv.Set(r.slot, value)
 }
 
-func (r *storedValue) getBytes() []byte {
+func (r *storageSlot) getBytes() []byte {
 	slotWord := r.ds.kv.Get(r.slot)
 	lsb := slotWord[len(slotWord)-1]
 	isShort := lsb&1 == 0
@@ -192,7 +192,7 @@ func (r *storedValue) getBytes() []byte {
 	return data
 }
 
-func (r *storedValue) setBytes(value []byte) {
+func (r *storageSlot) setBytes(value []byte) {
 	isShort := len(value) <= 31
 	if isShort {
 		var data common.Hash
@@ -214,31 +214,31 @@ func (r *storedValue) setBytes(value []byte) {
 	}
 }
 
-func (r *storedValue) slotArray(length []int) *slotArray {
+func (r *storageSlot) slotArray(length []int) *slotArray {
 	return newSlotArray(r.ds, r.slot, length)
 }
 
-func (r *storedValue) bytesArray(length []int, itemSize int) *bytesArray {
+func (r *storageSlot) bytesArray(length []int, itemSize int) *bytesArray {
 	return newBytesArray(r.ds, r.slot, length, itemSize)
 }
 
-func (r *storedValue) Slot() common.Hash {
+func (r *storageSlot) Slot() common.Hash {
 	return r.slot
 }
 
-func (r *storedValue) Bytes32() common.Hash {
+func (r *storageSlot) Bytes32() common.Hash {
 	return r.getBytes32()
 }
 
-func (r *storedValue) SetBytes32(value common.Hash) {
+func (r *storageSlot) SetBytes32(value common.Hash) {
 	r.setBytes32(value)
 }
 
-func (r *storedValue) Bool() bool {
+func (r *storageSlot) Bool() bool {
 	return r.getBytes32().Big().Cmp(common.Big0) != 0
 }
 
-func (r *storedValue) SetBool(value bool) {
+func (r *storageSlot) SetBool(value bool) {
 	if value {
 		r.setBytes32(common.BigToHash(common.Big0))
 	} else {
@@ -246,55 +246,55 @@ func (r *storedValue) SetBool(value bool) {
 	}
 }
 
-func (r *storedValue) Address() common.Address {
+func (r *storageSlot) Address() common.Address {
 	return common.BytesToAddress(r.getBytes32().Bytes())
 }
 
-func (r *storedValue) SetAddress(value common.Address) {
+func (r *storageSlot) SetAddress(value common.Address) {
 	r.setBytes32(common.BytesToHash(value.Bytes()))
 }
 
-func (r *storedValue) Big() *big.Int {
+func (r *storageSlot) Big() *big.Int {
 	return r.getBytes32().Big()
 }
 
-func (r *storedValue) SetBig(value *big.Int) {
+func (r *storageSlot) SetBig(value *big.Int) {
 	r.setBytes32(common.BigToHash(value))
 }
 
-func (r *storedValue) SetUint64(value uint64) {
+func (r *storageSlot) SetUint64(value uint64) {
 	r.SetBig(new(big.Int).SetUint64(value))
 }
 
-func (r *storedValue) Uint64() uint64 {
+func (r *storageSlot) Uint64() uint64 {
 	return r.Big().Uint64()
 }
 
-func (r *storedValue) SetInt64(value int64) {
+func (r *storageSlot) SetInt64(value int64) {
 	r.SetBig(big.NewInt(value))
 }
 
-func (r *storedValue) Int64() int64 {
+func (r *storageSlot) Int64() int64 {
 	return r.Big().Int64()
 }
 
-func (r *storedValue) Bytes() []byte {
+func (r *storageSlot) Bytes() []byte {
 	return r.getBytes()
 }
 
-func (r *storedValue) SetBytes(value []byte) {
+func (r *storageSlot) SetBytes(value []byte) {
 	r.setBytes(value)
 }
 
-func (r *storedValue) SlotArray(length []int) SlotArray {
+func (r *storageSlot) SlotArray(length []int) SlotArray {
 	return r.slotArray(length)
 }
 
-func (r *storedValue) BytesArray(length []int, itemSize int) BytesArray {
+func (r *storageSlot) BytesArray(length []int, itemSize int) BytesArray {
 	return r.bytesArray(length, itemSize)
 }
 
-var _ StorageSlot = (*storedValue)(nil)
+var _ StorageSlot = (*storageSlot)(nil)
 
 type SlotArray interface {
 	Length() int
@@ -340,7 +340,7 @@ func (a *slotArray) getLength() int {
 	return a.length[0]
 }
 
-func (a *slotArray) value(index []int) *storedValue {
+func (a *slotArray) value(index []int) *storageSlot {
 	if len(index) != len(a.length) {
 		return nil
 	}
@@ -495,12 +495,12 @@ func (m *mapping) keySlot(key []byte) common.Hash {
 	return crypto.Keccak256Hash(keyToHash(key).Bytes(), m.slot.Bytes())
 }
 
-func (m *mapping) value(key []byte) *storedValue {
+func (m *mapping) value(key []byte) *storageSlot {
 	slot := m.keySlot(key)
 	return newStorageSlot(m.ds, slot)
 }
 
-func (m *mapping) nestedValue(keys [][]byte) *storedValue {
+func (m *mapping) nestedValue(keys [][]byte) *storageSlot {
 	currentMapping := m
 	for _, key := range keys {
 		currentMapping = currentMapping.mapping(key)
@@ -575,7 +575,7 @@ func (a *dynamicArray) getLength() int {
 	return int(a.ds.kv.Get(a.slot).Big().Int64())
 }
 
-func (a *dynamicArray) value(index int) *storedValue {
+func (a *dynamicArray) value(index int) *storageSlot {
 	if index >= a.getLength() {
 		return nil
 	}
@@ -583,7 +583,7 @@ func (a *dynamicArray) value(index int) *storedValue {
 	return newStorageSlot(a.ds, slot)
 }
 
-func (a *dynamicArray) nestedValue(indexes []int) *storedValue {
+func (a *dynamicArray) nestedValue(indexes []int) *storageSlot {
 	currentArray := a
 	for _, index := range indexes {
 		currentArray = currentArray.array(index)
