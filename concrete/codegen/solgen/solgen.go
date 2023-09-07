@@ -135,12 +135,13 @@ func generateSolidityLibrary(ABI abi.ABI, cABI customABI, config Config) (string
 
 		methodData := map[string]interface{}{
 			"Name":        method.Name,
+			"Signature":   method.Sig,
+			"IsStatic":    method.IsConstant(),
 			"Inputs":      strings.Join(inputSig, ", "),
 			"Outputs":     strings.Join(outputSig, ", "),
 			"InputTypes":  strings.Join(inputTypes, ", "),
 			"OutputTypes": strings.Join(outputTypes, ", "),
 			"InputNames":  strings.Join(inputNames, ", "),
-			"IsStatic":    method.StateMutability == "view" || method.StateMutability == "pure",
 		}
 		data["Methods"] = append(data["Methods"].([]map[string]interface{}), methodData)
 	}

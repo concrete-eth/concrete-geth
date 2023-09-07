@@ -28,8 +28,8 @@ import (
 	"unicode"
 )
 
-//go:embed schema.tpl
-var schemaTpl string
+//go:embed table.tpl
+var tableTpl string
 
 func lowerFirstLetter(str string) string {
 	if len(str) == 0 {
@@ -64,28 +64,26 @@ type FieldSchema struct {
 	Type  FieldType
 }
 
-type MappingSchema struct {
+type TableSchema struct {
 	Name   string
 	Keys   []FieldSchema
 	Values []FieldSchema
 }
 
-type ModelSchema []MappingSchema
-
-type MappingUnmarshal struct {
-	KeySchema map[string]string `json:"keySchema"`
-	Schema    map[string]string `json:"schema"`
+type TableSchemaUnmarshal struct {
+	Keys   map[string]string `json:"keySchema"`
+	Values map[string]string `json:"schema"`
 }
 
-type ModelUnmarshal map[string]MappingUnmarshal
+type TableSchemasUnmarshal map[string]TableSchemaUnmarshal
 
 func newFieldSchema(name string, index int, typeStr string) (FieldSchema, error) {
 	if !isValidName(name) {
-		return FieldSchema{}, fmt.Errorf("invalid name: %s", name)
+		return FieldSchema{}, fmt.Errorf("invalid field name: %s", name)
 	}
-	fieldType, ok := NameToFieldType[typeStr]
-	if !ok {
-		return FieldSchema{}, fmt.Errorf("invalid type: %s", typeStr)
+	fieldType, err := nameToFieldType(typeStr)
+	if err != nil {
+		return FieldSchema{}, err
 	}
 	return FieldSchema{
 		Name:  lowerFirstLetter(name),
@@ -95,36 +93,42 @@ func newFieldSchema(name string, index int, typeStr string) (FieldSchema, error)
 	}, nil
 }
 
-func unmarshalModel(jsonContent []byte) (ModelSchema, error) {
-	var unmarshaledModel ModelUnmarshal
-	err := json.Unmarshal(jsonContent, &unmarshaledModel)
+func unmarshalTableSchemas(jsonContent []byte) ([]TableSchema, error) {
+	var unmarshaledSchemas TableSchemasUnmarshal
+	err := json.Unmarshal(jsonContent, &unmarshaledSchemas)
 	if err != nil {
-		return ModelSchema{}, err
+		return []TableSchema{}, err
 	}
 
-	var model ModelSchema
-	for name, mapping := range unmarshaledModel {
-		if !isValidName(name) {
-			return ModelSchema{}, fmt.Errorf("invalid name: %s", name)
+	var tableSchemas []TableSchema
+	for tableName, unmarshaledTableSchema := range unmarshaledSchemas {
+		if !isValidName(tableName) {
+			return []TableSchema{}, fmt.Errorf("invalid table name: %s", tableName)
 		}
-		newMapping := MappingSchema{Name: upperFirstLetter(name)}
-		for keyName, keyType := range mapping.KeySchema {
-			fieldSchema, err := newFieldSchema(keyName, len(newMapping.Keys), keyType)
+		if len(unmarshaledTableSchema.Values) == 0 {
+			return []TableSchema{}, fmt.Errorf("no values in table: '%s'", tableName)
+		}
+
+		tableSchema := TableSchema{
+			Name: upperFirstLetter(tableName),
+		}
+		for keyName, keyType := range unmarshaledTableSchema.Keys {
+			fieldSchema, err := newFieldSchema(keyName, len(tableSchema.Keys), keyType)
 			if err != nil {
-				return ModelSchema{}, err
+				return []TableSchema{}, err
 			}
-			newMapping.Keys = append(newMapping.Keys, fieldSchema)
+			tableSchema.Keys = append(tableSchema.Keys, fieldSchema)
 		}
-		for valueName, valueType := range mapping.Schema {
-			fieldSchema, err := newFieldSchema(valueName, len(newMapping.Values), valueType)
+		for valueName, valueType := range unmarshaledTableSchema.Values {
+			fieldSchema, err := newFieldSchema(valueName, len(tableSchema.Values), valueType)
 			if err != nil {
-				return ModelSchema{}, err
+				return []TableSchema{}, err
 			}
-			newMapping.Values = append(newMapping.Values, fieldSchema)
+			tableSchema.Values = append(tableSchema.Values, fieldSchema)
 		}
-		model = append(model, newMapping)
+		tableSchemas = append(tableSchemas, tableSchema)
 	}
-	return model, nil
+	return tableSchemas, nil
 }
 
 type Config struct {
@@ -142,7 +146,7 @@ func GenerateDataModel(config Config) error {
 	if err != nil {
 		return err
 	}
-	model, err := unmarshalModel(jsonContent)
+	schemas, err := unmarshalTableSchemas(jsonContent)
 	if err != nil {
 		return err
 	}
@@ -150,44 +154,43 @@ func GenerateDataModel(config Config) error {
 	funcMap := template.FuncMap{
 		"sub": func(a, b int) int { return a - b },
 	}
-	tmpl, err := template.New("struct").Funcs(funcMap).Parse(schemaTpl)
+	tpl, err := template.New("table").Funcs(funcMap).Parse(tableTpl)
 	if err != nil {
 		return err
 	}
 
-	for _, mapping := range model {
-		mappingName := mapping.Name
-		structName := mapping.Name + "Item"
+	for _, schema := range schemas {
+		tableName := schema.Name
+		rowName := schema.Name + "Row"
 
-		_sizes := make([]string, len(mapping.Values))
-		for i, field := range mapping.Values {
+		_sizes := make([]string, len(schema.Values))
+		for i, field := range schema.Values {
 			_sizes[i] = fmt.Sprint(field.Type.Size)
 		}
 		sizesStr := fmt.Sprintf("[]int{%s}", strings.Join(_sizes, ", "))
 
-		_keys := make([]string, len(mapping.Keys))
-		for i, field := range mapping.Keys {
+		_keys := make([]string, len(schema.Keys))
+		for i, field := range schema.Keys {
 			_keys[i] = fmt.Sprint(field.Type.Size)
 		}
 
 		data := map[string]interface{}{
-			"Package":     config.Package,
-			"Schema":      mapping,
-			"MappingName": mappingName,
-			"StructName":  structName,
-			"SizesStr":    sizesStr,
+			"Package":         config.Package,
+			"Schema":          schema,
+			"TableStructName": tableName,
+			"RowStructName":   rowName,
+			"SizesStr":        sizesStr,
 		}
 
 		var buf bytes.Buffer
-		if err := tmpl.Execute(&buf, data); err != nil {
+		if err := tpl.Execute(&buf, data); err != nil {
 			return err
 		}
-		outPath := filepath.Join(config.Out, lowerFirstLetter(mapping.Name)+".go")
+		outPath := filepath.Join(config.Out, tableName+".go")
 		err := os.WriteFile(outPath, buf.Bytes(), 0644)
 		if err != nil {
 			return err
 		}
 	}
-
 	return nil
 }
