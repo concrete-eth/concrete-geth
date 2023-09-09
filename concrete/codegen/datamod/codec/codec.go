@@ -19,9 +19,14 @@ import (
 	"encoding/binary"
 	"math/big"
 
-	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/math"
+)
+
+var (
+	// Redeclare constant from go-ethereum/accounts/abi to avoid importing
+	// the module and having issues with tinygo.
+	MaxUint256 = new(big.Int).Sub(new(big.Int).Lsh(common.Big1, 256), common.Big1)
 )
 
 func EncodeAddress(_ int, address common.Address) []byte {
@@ -90,7 +95,7 @@ func EncodeInt256(_ int, i *big.Int) []byte {
 func DecodeInt256(_ int, data []byte) *big.Int {
 	ret := new(big.Int).SetBytes(data)
 	if ret.Bit(255) == 1 {
-		ret.Add(abi.MaxUint256, new(big.Int).Neg(ret))
+		ret.Add(MaxUint256, new(big.Int).Neg(ret))
 		ret.Add(ret, common.Big1)
 		ret.Neg(ret)
 	}
