@@ -21,8 +21,15 @@ import (
 	"strings"
 )
 
+const (
+	ValueType = iota
+	BytesType
+	TableType
+)
+
 type FieldType struct {
 	Name       string
+	Type       int
 	Size       int
 	GoType     string
 	EncodeFunc string
@@ -30,6 +37,8 @@ type FieldType struct {
 }
 
 func nameToFieldType(name string) (FieldType, error) {
+	name = strings.ToLower(name)
+
 	switch name {
 	case "address":
 		return FieldType{
@@ -52,9 +61,23 @@ func nameToFieldType(name string) (FieldType, error) {
 	case "int":
 		break
 	case "bytes":
-		return FieldType{}, fmt.Errorf("bytes field type not supported")
+		return FieldType{
+			Name:       "bytes",
+			Size:       32,
+			GoType:     "[]byte",
+			EncodeFunc: "EncodeFixedBytes",
+			DecodeFunc: "DecodeFixedBytes",
+			Type:       BytesType,
+		}, nil
 	case "string":
-		return FieldType{}, fmt.Errorf("string field type not supported")
+		return FieldType{
+			Name:       "string",
+			Size:       32,
+			GoType:     "string",
+			EncodeFunc: "EncodeString",
+			DecodeFunc: "DecodeString",
+			Type:       BytesType,
+		}, nil
 	default:
 	}
 
@@ -75,8 +98,8 @@ func nameToFieldType(name string) (FieldType, error) {
 			Name:       name,
 			Size:       size,
 			GoType:     "[]byte",
-			EncodeFunc: "EncodeBytes",
-			DecodeFunc: "DecodeBytes",
+			EncodeFunc: "EncodeFixedBytes",
+			DecodeFunc: "DecodeFixedBytes",
 		}
 		if size == 32 {
 			fieldType.GoType = "common.Hash"
@@ -130,5 +153,19 @@ func nameToFieldType(name string) (FieldType, error) {
 		fieldType.DecodeFunc = "Decode" + codecSufix
 		return fieldType, nil
 	}
+
+	if strings.HasPrefix(name, "table ") {
+		tableName := strings.TrimPrefix(name, "table ")
+		if !isValidName(tableName) {
+			return FieldType{}, fmt.Errorf("invalid table name %s", tableName)
+		}
+		return FieldType{
+			Name:   tableName,
+			Size:   32,
+			GoType: upperFirstLetter(tableName),
+			Type:   TableType,
+		}, nil
+	}
+
 	return FieldType{}, fmt.Errorf("unknown field type %s", name)
 }

@@ -26,6 +26,8 @@ import (
 	"strings"
 	"text/template"
 	"unicode"
+
+	"github.com/iancoleman/orderedmap"
 )
 
 //go:embed table.tpl
@@ -49,6 +51,15 @@ func upperFirstLetter(str string) string {
 	return string(runes)
 }
 
+func contains(tableNames []string, tableName string) bool {
+	for _, _tableName := range tableNames {
+		if tableName == _tableName {
+			return true
+		}
+	}
+	return false
+}
+
 func isValidName(name string) bool {
 	if len(name) == 0 {
 		return false
@@ -70,16 +81,9 @@ type TableSchema struct {
 	Values []FieldSchema
 }
 
-type TableSchemaUnmarshal struct {
-	Keys   map[string]string `json:"keySchema"`
-	Values map[string]string `json:"schema"`
-}
-
-type TableSchemasUnmarshal map[string]TableSchemaUnmarshal
-
 func newFieldSchema(name string, index int, typeStr string) (FieldSchema, error) {
 	if !isValidName(name) {
-		return FieldSchema{}, fmt.Errorf("invalid field name: %s", name)
+		return FieldSchema{}, fmt.Errorf("invalid field name '%s'", name)
 	}
 	fieldType, err := nameToFieldType(typeStr)
 	if err != nil {
@@ -94,35 +98,74 @@ func newFieldSchema(name string, index int, typeStr string) (FieldSchema, error)
 }
 
 func unmarshalTableSchemas(jsonContent []byte) ([]TableSchema, error) {
-	var unmarshaledSchemas TableSchemasUnmarshal
-	err := json.Unmarshal(jsonContent, &unmarshaledSchemas)
+	jsonSchemas := orderedmap.New()
+	err := json.Unmarshal(jsonContent, &jsonSchemas)
 	if err != nil {
 		return []TableSchema{}, err
 	}
 
 	var tableSchemas []TableSchema
-	for tableName, unmarshaledTableSchema := range unmarshaledSchemas {
-		if !isValidName(tableName) {
-			return []TableSchema{}, fmt.Errorf("invalid table name: %s", tableName)
-		}
-		if len(unmarshaledTableSchema.Values) == 0 {
-			return []TableSchema{}, fmt.Errorf("no values in table: '%s'", tableName)
+	for _, tableName := range jsonSchemas.Keys() {
+		_jsonTableSchema, _ := jsonSchemas.Get(tableName)
+		jsonTableSchema, ok := _jsonTableSchema.(orderedmap.OrderedMap)
+		if !ok {
+			return []TableSchema{}, fmt.Errorf("invalid schema for table '%s'", tableName)
 		}
 
-		tableSchema := TableSchema{
-			Name: upperFirstLetter(tableName),
+		if !isValidName(tableName) {
+			return []TableSchema{}, fmt.Errorf("invalid table name '%s'", tableName)
 		}
-		for keyName, keyType := range unmarshaledTableSchema.Keys {
-			fieldSchema, err := newFieldSchema(keyName, len(tableSchema.Keys), keyType)
-			if err != nil {
-				return []TableSchema{}, err
+		if len(jsonTableSchema.Keys()) == 0 {
+			return []TableSchema{}, fmt.Errorf("no schema for table '%s'", tableName)
+		}
+
+		tableSchema := TableSchema{Name: upperFirstLetter(tableName)}
+
+		_jsonKeySchema, ok := jsonTableSchema.Get("keySchema")
+		if ok {
+			jsonKeySchema, ok := _jsonKeySchema.(orderedmap.OrderedMap)
+			if !ok {
+				return []TableSchema{}, fmt.Errorf("invalid key schema for table '%s'", tableName)
 			}
-			tableSchema.Keys = append(tableSchema.Keys, fieldSchema)
+			for _, keyName := range jsonKeySchema.Keys() {
+				_keyType, _ := jsonKeySchema.Get(keyName)
+				keyType, ok := _keyType.(string)
+				if !ok {
+					return []TableSchema{}, fmt.Errorf("invalid schema for key '%s' in table '%s'", keyName, tableName)
+				}
+				fieldSchema, err := newFieldSchema(keyName, len(tableSchema.Keys), keyType)
+				if err != nil {
+					return []TableSchema{}, err
+				}
+				if fieldSchema.Type.Type == TableType {
+					return []TableSchema{}, fmt.Errorf("table '%s' cannot have table keys", tableName)
+				}
+				tableSchema.Keys = append(tableSchema.Keys, fieldSchema)
+			}
 		}
-		for valueName, valueType := range unmarshaledTableSchema.Values {
+
+		_jsonValueSchema, ok := jsonTableSchema.Get("schema")
+		if !ok {
+			return []TableSchema{}, fmt.Errorf("no value schema for table '%s'", tableName)
+		}
+		jsonValueSchema, ok := _jsonValueSchema.(orderedmap.OrderedMap)
+		if !ok {
+			return []TableSchema{}, fmt.Errorf("invalid value schema for table '%s'", tableName)
+		}
+		for _, valueName := range jsonValueSchema.Keys() {
+			_valueType, _ := jsonValueSchema.Get(valueName)
+			valueType, ok := _valueType.(string)
+			if !ok {
+				return []TableSchema{}, fmt.Errorf("invalid schema for value '%s' in table '%s'", valueName, tableName)
+			}
 			fieldSchema, err := newFieldSchema(valueName, len(tableSchema.Values), valueType)
 			if err != nil {
 				return []TableSchema{}, err
+			}
+			if fieldSchema.Type.Type == TableType {
+				if !contains(jsonSchemas.Keys(), fieldSchema.Type.Name) {
+					return []TableSchema{}, fmt.Errorf("table name '%s' table in '%s' does not match any tables", fieldSchema.Type.Name, tableName)
+				}
 			}
 			tableSchema.Values = append(tableSchema.Values, fieldSchema)
 		}
@@ -186,7 +229,7 @@ func GenerateDataModel(config Config) error {
 		if err := tpl.Execute(&buf, data); err != nil {
 			return err
 		}
-		outPath := filepath.Join(config.Out, tableName+".go")
+		outPath := filepath.Join(config.Out, lowerFirstLetter(tableName)+".go")
 		err := os.WriteFile(outPath, buf.Bytes(), 0644)
 		if err != nil {
 			return err

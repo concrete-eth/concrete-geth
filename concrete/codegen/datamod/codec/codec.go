@@ -51,12 +51,28 @@ func DecodeHash(_ int, data []byte) common.Hash {
 	return common.BytesToHash(data)
 }
 
-func EncodeBytes(size int, b []byte) []byte {
+func EncodeFixedBytes(size int, b []byte) []byte {
 	return common.RightPadBytes(b, size)
+}
+
+func DecodeFixedBytes(_ int, data []byte) []byte {
+	return data
+}
+
+func EncodeBytes(_ int, b []byte) []byte {
+	return b
 }
 
 func DecodeBytes(_ int, data []byte) []byte {
 	return data
+}
+
+func EncodeString(_ int, s string) []byte {
+	return []byte(s)
+}
+
+func DecodeString(_ int, data []byte) string {
+	return string(data)
 }
 
 func EncodeUint256(_ int, i *big.Int) []byte {

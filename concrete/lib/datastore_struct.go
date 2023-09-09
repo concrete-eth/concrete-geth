@@ -15,54 +15,102 @@
 
 package lib
 
-type StorageStruct struct {
+import (
+	"bytes"
+)
+
+type DatastoreStruct struct {
+	store   DatastoreSlot
 	arr     SlotArray
 	offsets []int
 	sizes   []int
+	cache   [][]byte
 }
 
-func NewStorageStruct(slot StorageSlot, sizes []int) *StorageStruct {
+func NewDatastoreStruct(store DatastoreSlot, sizes []int) *DatastoreStruct {
 	var (
-		offset = 0
-		nSlots = 0
+		offset  = 0
+		offsets = make([]int, len(sizes))
+		size    = sizes[0]
 	)
-	offsets := make([]int, len(sizes))
-	for i := 1; i < len(sizes); i++ {
-		size := sizes[i]
+	for ii := 1; ii < len(sizes); ii++ {
+		size = sizes[ii]
 		if offset/32 < (offset+size)/32 {
 			offset = (offset/32 + 1) * 32
-			nSlots++
 		}
 		offset += size
-		offsets[i] = offset
+		offsets[ii] = offset
 	}
-	if offset%32 != 0 {
-		nSlots++
-	}
-	return &StorageStruct{
-		arr:     slot.SlotArray([]int{nSlots}),
+	nSlots := (offset + size + 31) / 32
+
+	return &DatastoreStruct{
+		store:   store,
+		arr:     store.SlotArray([]int{nSlots}),
 		offsets: offsets,
 		sizes:   sizes,
+		cache:   make([][]byte, len(sizes)),
 	}
 }
 
-func (s *StorageStruct) GetField(index int) []byte {
+func (s *DatastoreStruct) GetField(index int) []byte {
+	fieldSize := s.sizes[index]
+	if fieldSize == 0 {
+		return nil
+	}
+
+	if len(s.cache[index]) == 0 {
+		s.cache[index] = make([]byte, fieldSize)
+	} else {
+		data := make([]byte, fieldSize)
+		copy(data, s.cache[index])
+		return data
+	}
+
 	absOffset := s.offsets[index]
 	slotIndex, slotOffset := absOffset/32, absOffset%32
-
-	slotData := s.arr.Value(slotIndex).Bytes32()
-	fieldSize := s.sizes[index]
+	slotData := s.arr.Get(slotIndex).Bytes32()
 	return slotData[slotOffset : slotOffset+fieldSize]
 }
 
-func (s *StorageStruct) SetField(index int, data []byte) {
+func (s *DatastoreStruct) SetField(index int, data []byte) {
+	fieldSize := s.sizes[index]
+	if fieldSize == 0 {
+		return
+	}
+
+	if len(s.cache[index]) == 0 {
+		s.cache[index] = make([]byte, fieldSize)
+	} else if bytes.Equal(s.cache[index], data) {
+		return
+	}
+
 	absOffset := s.offsets[index]
 	slotIndex, slotOffset := absOffset/32, absOffset%32
-
-	slotRef := s.arr.Value(slotIndex)
+	slotRef := s.arr.Get(slotIndex)
 	slotData := slotRef.Bytes32()
-	fieldSize := s.sizes[index]
-	copy(slotData[slotOffset:slotOffset+fieldSize], data)
 
+	copy(slotData[slotOffset:slotOffset+fieldSize], data)
+	copy(s.cache[index], data)
 	slotRef.SetBytes32(slotData)
+}
+
+func (s *DatastoreStruct) GetField_slot(index int) DatastoreSlot {
+	absOffset := s.offsets[index]
+	slotIndex := absOffset / 32
+	return s.arr.Get(slotIndex)
+}
+
+func (s *DatastoreStruct) GetField_bytes(index int) []byte {
+	slotRef := s.GetField_slot(index)
+	return slotRef.Bytes()
+}
+
+func (s *DatastoreStruct) SetField_bytes(index int, data []byte) {
+	if bytes.Equal(s.cache[index], data) {
+		return
+	}
+	s.cache[index] = make([]byte, len(data))
+	copy(s.cache[index], data)
+	slotRef := s.GetField_slot(index)
+	slotRef.SetBytes(data)
 }

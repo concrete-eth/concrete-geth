@@ -23,57 +23,73 @@ var (
 )
 
 type {{.RowStructName}} struct {
-	lib.StorageStruct
+	lib.DatastoreStruct
 }
 
-func New{{.RowStructName}}(slot lib.StorageSlot) *{{.RowStructName}} {
+func New{{.RowStructName}}(store lib.DatastoreSlot) *{{.RowStructName}} {
 	sizes := {{.SizesStr}}
-	return &{{.RowStructName}}{*lib.NewStorageStruct(slot, sizes)}
+	return &{{.RowStructName}}{*lib.NewDatastoreStruct(store, sizes)}
 }
 
 func (v *{{$.RowStructName}}) Get() (
 {{- range .Schema.Values }}
-	{{.Type.GoType}},
+	{{if eq .Type.Type 2}}*{{end}}{{.Type.GoType}},
 {{- end }}
 ) {
-	return {{ range .Schema.Values -}}
-		codec.{{.Type.DecodeFunc}}(
-			{{- .Type.Size }}, v.GetField({{.Index}}))
-			{{- if eq .Index (sub (len $.Schema.Values) 1) }}{{else}}, {{end}}
+	return {{ range .Schema.Values }}
+		{{- if lt .Type.Type 2 -}}
+		codec.{{.Type.DecodeFunc}}({{.Type.Size}}, {{if eq .Type.Type 0}}v.GetField{{else}}v.GetField_bytes{{end}}({{.Index}}))
+		{{- else -}}
+		&{{.Type.GoType}}{v.GetField_slot({{.Index}})}
+		{{- end }}
+		{{- if ne .Index (sub (len $.Schema.Values) 1) }},
+		{{end}}
 	{{- end }}
 }
 
 func (v *{{$.RowStructName}}) Set(
 {{- range .Schema.Values }}
+{{- if lt .Type.Type 2 }}
 	{{.Name}} {{.Type.GoType}},
+{{- end }}
 {{- end }}
 ) {
 {{- range .Schema.Values }}
-	v.SetField({{.Index}}, codec.{{.Type.EncodeFunc}}({{.Type.Size}}, {{.Name}}))
+{{- if lt .Type.Type 2 }}
+	{{if eq .Type.Type 0}}v.SetField{{else if eq .Type.Type 1}}v.SetField_bytes{{end -}}
+	({{ .Index }}, codec.{{.Type.EncodeFunc}}({{.Type.Size}}, {{.Name}}))
+{{- end }}
 {{- end }}
 }
 {{range .Schema.Values}}
+{{- if lt .Type.Type 2 }}
 func (v *{{$.RowStructName}}) Get{{.Title}}() {{.Type.GoType}} {
-	data := v.GetField({{.Index}})
+	data := {{if eq .Type.Type 0}}v.GetField{{else}}v.GetField_bytes{{end}}({{.Index}})
 	return codec.{{.Type.DecodeFunc}}({{.Type.Size}}, data)
 }
 
 func (v *{{$.RowStructName}}) Set{{.Title}}(value {{.Type.GoType}}) {
 	data := codec.{{.Type.EncodeFunc}}({{.Type.Size}}, value)
-	v.SetField({{.Index}}, data)
+	{{if eq .Type.Type 0}}v.SetField{{else}}v.SetField_bytes{{end}}({{.Index}}, data)
 }
-{{end}}
+{{ else }}
+func (v *{{$.RowStructName}}) Get{{.Title}}() *{{.Type.GoType}} {
+	dsSlot := v.GetField_slot({{.Index}})
+	return &{{.Type.GoType}}{dsSlot}
+}
+{{ end}}
+{{- end}}
 {{- if .Schema.Keys }}
 type {{.TableStructName}} struct {
-	mapping lib.Mapping
+	store lib.DatastoreSlot
 }
 
 func New{{.TableStructName}}(ds lib.Datastore) *{{.TableStructName}} {
-	return &{{.TableStructName}}{ds.Mapping({{.TableStructName}}DefaultKey)}
+	return &{{.TableStructName}}{ds.Get({{.TableStructName}}DefaultKey)}
 }
 
 func New{{.TableStructName}}WithKey(ds lib.Datastore, key []byte) *{{.TableStructName}} {
-	return &{{.TableStructName}}{ds.Mapping(key)}
+	return &{{.TableStructName}}{ds.Get(key)}
 }
 
 func (m *{{.TableStructName}}) Get(
@@ -81,25 +97,23 @@ func (m *{{.TableStructName}}) Get(
 	{{.Name}} {{.Type.GoType}},
 {{- end }}
 ) *{{.RowStructName}} {
-	return New{{.RowStructName}}(
-		m.mapping.
-		{{- range .Schema.Keys -}}
-		{{- if eq .Index (sub (len $.Schema.Keys) 1) -}}
-			Value(codec.{{.Type.EncodeFunc}}({{.Type.Size}}, {{.Name}})),
-		{{- else -}}
-			Mapping(codec.{{.Type.EncodeFunc}}({{.Type.Size}}, {{.Name}})).
-		{{- end -}}
-		{{end}}
+	store := m.store.Mapping().GetNested(
+		{{- range .Schema.Keys }}
+		codec.{{.Type.EncodeFunc}}({{.Type.Size}}, {{.Name}}),
+		{{- end }}
 	)
+	return New{{.RowStructName}}(store)
 }
 {{- else }}
 type {{.TableStructName}} = {{.RowStructName}}
 
 func New{{.TableStructName}}(ds lib.Datastore) *{{.TableStructName}} {
-	return New{{.RowStructName}}(ds.Value({{.TableStructName}}DefaultKey))
+	store := ds.Get({{.TableStructName}}DefaultKey)
+	return New{{.RowStructName}}(store)
 }
 
 func New{{.TableStructName}}WithKey(ds lib.Datastore, key []byte) *{{.TableStructName}} {
-	return New{{.RowStructName}}(ds.Value(key))
+	store := ds.Get(key)
+	return New{{.RowStructName}}(store)
 }
 {{- end }}

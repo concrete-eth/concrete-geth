@@ -1,0 +1,11 @@
+{
+    "kkv": {
+        "keySchema": {
+            "key1": "bytes32",
+            "key2": "bytes32"
+        },
+        "schema": {
+            "value": "bytes32"
+        }
+    }
+}

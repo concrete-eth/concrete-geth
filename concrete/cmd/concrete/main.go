@@ -24,6 +24,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/concrete/codegen/datamod"
 	"github.com/ethereum/go-ethereum/concrete/codegen/solgen"
+	"github.com/ethereum/go-ethereum/internal/version"
 	"github.com/spf13/cobra"
 )
 
@@ -54,6 +55,16 @@ func fileName(path string) string {
 
 func main() {
 	var rootCmd = &cobra.Command{Use: "concrete"}
+
+	var versionCmd = &cobra.Command{
+		Use:   "version",
+		Short: "Print version info",
+		Run: func(cmd *cobra.Command, args []string) {
+			fmt.Println(version.Info())
+		},
+	}
+
+	rootCmd.AddCommand(versionCmd)
 
 	var cmdSolgen = &cobra.Command{
 		Use:   "solgen",

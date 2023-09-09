@@ -21,6 +21,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/concrete/api"
+	fixture_datamod "github.com/ethereum/go-ethereum/concrete/fixtures/datamod"
 	"github.com/ethereum/go-ethereum/concrete/lib"
 	"github.com/ethereum/go-ethereum/concrete/precompiles"
 	"github.com/ethereum/go-ethereum/concrete/utils"
@@ -77,20 +78,20 @@ func (a *KeyKeyValuePrecompile) Run(env api.Environment, input []byte) ([]byte, 
 		if len(data) != 64 {
 			return nil, precompiles.ErrInvalidInput
 		}
-		k1 := data[:32]
-		k2 := data[32:]
-		kkv := lib.NewDatastore(env).Mapping([]byte("map.kkv.v1"))
-		v := kkv.Mapping(k1).Value(k2).Bytes32()
+		k1 := common.BytesToHash(data[:32])
+		k2 := common.BytesToHash(data[32:])
+		kkv := fixture_datamod.NewKkv(lib.NewDatastore(env))
+		v := kkv.Get(k1, k2).GetValue()
 		return v.Bytes(), nil
 	} else if bytes.Equal(methodID, kkvSetMethodID) {
 		if len(data) != 96 {
 			return nil, precompiles.ErrInvalidInput
 		}
-		k1 := data[:32]
-		k2 := data[32:64]
-		v := data[64:]
-		kkv := lib.NewDatastore(env).Mapping([]byte("map.kkv.v1"))
-		kkv.Mapping(k1).Value(k2).SetBytes32(common.BytesToHash(v))
+		k1 := common.BytesToHash(data[:32])
+		k2 := common.BytesToHash(data[32:64])
+		v := common.BytesToHash(data[64:])
+		kkv := fixture_datamod.NewKkv(lib.NewDatastore(env))
+		kkv.Get(k1, k2).SetValue(v)
 		return nil, nil
 	}
 	return nil, precompiles.ErrMethodNotFound

@@ -25,6 +25,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/concrete/api"
 	"github.com/ethereum/go-ethereum/concrete/fixtures"
+	fixture_datamod "github.com/ethereum/go-ethereum/concrete/fixtures/datamod"
 	"github.com/ethereum/go-ethereum/concrete/lib"
 	"github.com/ethereum/go-ethereum/concrete/mock"
 	"github.com/ethereum/go-ethereum/concrete/precompiles"
@@ -227,12 +228,12 @@ func TestE2EKkvPrecompile(t *testing.T) {
 			statedb, err := state.New(root, state.NewDatabase(db), nil)
 			r.NoError(err)
 			env := api.NewNoCallEnvironment(impl.address, api.EnvConfig{}, statedb, false, 0)
-			kkv := lib.NewDatastore(env).Mapping([]byte("map.kkv.v1"))
+			kkv := fixture_datamod.NewKkv(lib.NewDatastore(env))
 			for ii := 0; ii < nBlocks; ii++ {
 				k1 := common.BigToHash(big.NewInt(int64(ii)))
 				k2 := common.BigToHash(big.NewInt(int64(ii + 1)))
 				v := common.BigToHash(big.NewInt(int64(ii + 2)))
-				value := kkv.Mapping(k1.Bytes()).Value(k2.Bytes()).Bytes32()
+				value := kkv.Get(k1, k2).GetValue()
 				r.Equal(v, value)
 			}
 		})

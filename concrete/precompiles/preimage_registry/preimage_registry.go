@@ -81,7 +81,7 @@ func (p *PreimageRegistry) Run(env api.Environment, input []byte) ([]byte, error
 	}
 	var result interface{}
 
-	preimageMap := lib.NewDatastore(env).Mapping([]byte("map.size.v1"))
+	preimageMap := lib.NewDatastore(env).Get([]byte("map.size.v1")).Mapping()
 
 	switch method.Name {
 
@@ -92,7 +92,7 @@ func (p *PreimageRegistry) Run(env api.Environment, input []byte) ([]byte, error
 			result = EmptyPreimageHash
 		} else {
 			hash := env.PersistentPreimageStore_Unsafe(preimage)
-			preimageMap.Value(hash.Bytes()).SetInt64(int64(length))
+			preimageMap.Get(hash.Bytes()).SetInt64(int64(length))
 			result = hash
 		}
 
@@ -101,7 +101,7 @@ func (p *PreimageRegistry) Run(env api.Environment, input []byte) ([]byte, error
 		if hash == EmptyPreimageHash {
 			result = true
 		} else {
-			result = preimageMap.Value(hash.Bytes()).Big().Uint64() > 0
+			result = preimageMap.Get(hash.Bytes()).Big().Uint64() > 0
 		}
 
 	case "getPreimageSize":
@@ -109,7 +109,7 @@ func (p *PreimageRegistry) Run(env api.Environment, input []byte) ([]byte, error
 		if hash == EmptyPreimageHash {
 			result = big.NewInt(0)
 		} else {
-			result = preimageMap.Value(hash.Bytes()).Big()
+			result = preimageMap.Get(hash.Bytes()).Big()
 		}
 
 	case "getPreimage":
@@ -117,7 +117,7 @@ func (p *PreimageRegistry) Run(env api.Environment, input []byte) ([]byte, error
 		if hash == EmptyPreimageHash {
 			result = []byte{}
 		} else {
-			size := preimageMap.Value(hash.Bytes()).Big().Int64()
+			size := preimageMap.Get(hash.Bytes()).Big().Int64()
 			if size < 0 {
 				result = []byte{}
 			}
