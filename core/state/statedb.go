@@ -270,7 +270,10 @@ func (s *StateDB) addEphemeralPreimage(hash common.Hash, preimage []byte) {
 }
 
 func (s *StateDB) getEphemeralPreimage(hash common.Hash) []byte {
-	return s.ephemeralPreimages[hash]
+	preimage := s.ephemeralPreimages[hash]
+	pi := make([]byte, len(preimage))
+	copy(pi, preimage)
+	return pi
 }
 
 func (s *StateDB) AddEphemeralPreimage(hash common.Hash, preimage []byte) {
@@ -315,30 +318,33 @@ func (s *StateDB) AddPersistentPreimage(hash common.Hash, preimage []byte) {
 	if _, ok := s.persistentPreimagesSize[hash]; ok {
 		// The size was read from the DB, but the preimage was not.
 		// The preimage is already committed, so it can be added as if it was read.
-		s.persistentPreimagesRead[hash] = struct{}{}
-		s.persistentPreimages[hash] = preimage
 		delete(s.persistentPreimagesSize, hash)
+		s.persistentPreimagesRead[hash] = struct{}{}
+	} else {
+		s.journal.append(persistentPreimageChange{hash: hash})
+		s.persistentPreimagesDirty[hash] = struct{}{}
 	}
-	s.journal.append(persistentPreimageChange{hash: hash})
-	s.persistentPreimagesDirty[hash] = struct{}{}
 	pi := make([]byte, len(preimage))
 	copy(pi, preimage)
 	s.persistentPreimages[hash] = pi
 }
 
 func (s *StateDB) GetPersistentPreimage(hash common.Hash) []byte {
+	var preimage []byte
 	if s.persistentPreimageCached(hash) {
-		preimage := s.persistentPreimages[hash]
-		return preimage
+		preimage = s.persistentPreimages[hash]
+	} else {
+		preimage, err := s.db.ConcretePreimage(hash)
+		if err != nil {
+			s.setError(fmt.Errorf("can't load persistent preimage %x: %v", hash, err))
+			return []byte{}
+		}
+		s.persistentPreimagesRead[hash] = struct{}{}
+		s.persistentPreimages[hash] = preimage
 	}
-	preimage, err := s.db.ConcretePreimage(hash)
-	if err != nil {
-		s.setError(fmt.Errorf("can't load persistent preimage %x: %v", hash, err))
-		return []byte{}
-	}
-	s.persistentPreimagesRead[hash] = struct{}{}
-	s.persistentPreimages[hash] = preimage
-	return preimage
+	pi := make([]byte, len(preimage))
+	copy(pi, preimage)
+	return pi
 }
 
 func (s *StateDB) GetPersistentPreimageSize(hash common.Hash) int {
@@ -358,7 +364,8 @@ func (s *StateDB) GetPersistentPreimageSize(hash common.Hash) int {
 		// All preimages marked as cached are in the map but not all preimages
 		// in the map are marked as cached as the transaction that added a
 		// dirty preimage may have been reverted.
-		// The preimage is in the DB, so it can be added as if it was read.
+		// The preimage is in the DB, otherwise it would not be possible to get the
+		// size without it being cached, so it can be added as if it was read.
 		s.persistentPreimagesRead[hash] = struct{}{}
 		return size
 	}

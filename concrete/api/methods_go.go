@@ -37,22 +37,19 @@ import (
 func newEnvironmentMethods() JumpTable {
 	tbl := JumpTable{
 		EnableGasMetering_OpCode: {
-			execute:     opEnableGasMetering,
-			constantGas: 0,
-			trusted:     true,
-			static:      true,
+			execute: opEnableGasMetering,
+			trusted: true,
+			static:  true,
 		},
 		Debug_OpCode: {
-			execute:     opDebug,
-			constantGas: 0,
-			trusted:     true,
-			static:      true,
+			execute: opDebug,
+			trusted: true,
+			static:  true,
 		},
 		TimeNow_OpCode: {
-			execute:     opTimeNow,
-			constantGas: 0,
-			trusted:     true,
-			static:      true,
+			execute: opTimeNow,
+			trusted: true,
+			static:  true,
 		},
 		Keccak256_OpCode: {
 			execute:     opKeccak256,
@@ -621,7 +618,9 @@ func opGetCallData(env *Env, args [][]byte) ([][]byte, error) {
 		return nil, ErrNoData
 	}
 	data := env.call.CallData()
-	return [][]byte{data}, nil
+	dataCopy := make([]byte, len(data))
+	copy(dataCopy, data)
+	return [][]byte{dataCopy}, nil
 }
 
 func opGetCallDataSize(env *Env, args [][]byte) ([][]byte, error) {
@@ -745,10 +744,12 @@ func opLog(env *Env, args [][]byte) ([][]byte, error) {
 		topics[i] = common.BytesToHash(arg)
 	}
 	data := args[len(args)-1]
+	dataCopy := make([]byte, len(data))
+	copy(dataCopy, data)
 	env.statedb.AddLog(&types.Log{
 		Address:     env.address,
 		Topics:      topics,
-		Data:        data,
+		Data:        dataCopy,
 		BlockNumber: env.block.BlockNumber(),
 	})
 	return nil, nil
@@ -824,7 +825,9 @@ func gasGetExternalCode(env *Env, args [][]byte) (uint64, error) {
 func opGetExternalCode(env *Env, args [][]byte) ([][]byte, error) {
 	address := common.BytesToAddress(args[0])
 	code := env.statedb.GetCode(address)
-	return [][]byte{code}, nil
+	codeCopy := make([]byte, len(code))
+	copy(codeCopy, code)
+	return [][]byte{codeCopy}, nil
 }
 
 func gasGetExternalCodeSize(env *Env, args [][]byte) (uint64, error) {

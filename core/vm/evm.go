@@ -657,7 +657,7 @@ func (b *concreteCallContext) TxOrigin() common.Address {
 }
 
 func (b *concreteCallContext) CallData() []byte {
-	return b.contract.Input // TODO
+	return b.contract.Input
 }
 
 func (b *concreteCallContext) CallDataSize() int {
