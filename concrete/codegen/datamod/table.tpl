@@ -26,9 +26,9 @@ type {{.RowStructName}} struct {
 	lib.DatastoreStruct
 }
 
-func New{{.RowStructName}}(store lib.DatastoreSlot) *{{.RowStructName}} {
+func New{{.RowStructName}}(dsSlot lib.DatastoreSlot) *{{.RowStructName}} {
 	sizes := {{.SizesStr}}
-	return &{{.RowStructName}}{*lib.NewDatastoreStruct(store, sizes)}
+	return &{{.RowStructName}}{*lib.NewDatastoreStruct(dsSlot, sizes)}
 }
 
 func (v *{{$.RowStructName}}) Get() (
@@ -40,7 +40,7 @@ func (v *{{$.RowStructName}}) Get() (
 		{{- if lt .Type.Type 2 -}}
 		codec.{{.Type.DecodeFunc}}({{.Type.Size}}, {{if eq .Type.Type 0}}v.GetField{{else}}v.GetField_bytes{{end}}({{.Index}}))
 		{{- else -}}
-		&{{.Type.GoType}}{v.GetField_slot({{.Index}})}
+		New{{.Type.GoType}}FromSlot(v.GetField_slot({{.Index}}))
 		{{- end }}
 		{{- if ne .Index (sub (len $.Schema.Values) 1) }},
 		{{end}}
@@ -75,21 +75,22 @@ func (v *{{$.RowStructName}}) Set{{.Title}}(value {{.Type.GoType}}) {
 {{ else }}
 func (v *{{$.RowStructName}}) Get{{.Title}}() *{{.Type.GoType}} {
 	dsSlot := v.GetField_slot({{.Index}})
-	return &{{.Type.GoType}}{dsSlot}
+	return New{{.Type.GoType}}FromSlot(dsSlot)
 }
 {{ end}}
 {{- end}}
 {{- if .Schema.Keys }}
 type {{.TableStructName}} struct {
-	store lib.DatastoreSlot
+	dsSlot lib.DatastoreSlot
 }
 
 func New{{.TableStructName}}(ds lib.Datastore) *{{.TableStructName}} {
-	return &{{.TableStructName}}{ds.Get({{.TableStructName}}DefaultKey)}
+	dsSlot := ds.Get({{.TableStructName}}DefaultKey)
+	return &{{.TableStructName}}{dsSlot}
 }
 
-func New{{.TableStructName}}WithKey(ds lib.Datastore, key []byte) *{{.TableStructName}} {
-	return &{{.TableStructName}}{ds.Get(key)}
+func New{{.TableStructName}}FromSlot(dsSlot lib.DatastoreSlot) *{{.TableStructName}} {
+	return &{{.TableStructName}}{dsSlot}
 }
 
 func (m *{{.TableStructName}}) Get(
@@ -97,23 +98,22 @@ func (m *{{.TableStructName}}) Get(
 	{{.Name}} {{.Type.GoType}},
 {{- end }}
 ) *{{.RowStructName}} {
-	store := m.store.Mapping().GetNested(
+	dsSlot := m.dsSlot.Mapping().GetNested(
 		{{- range .Schema.Keys }}
 		codec.{{.Type.EncodeFunc}}({{.Type.Size}}, {{.Name}}),
 		{{- end }}
 	)
-	return New{{.RowStructName}}(store)
+	return New{{.RowStructName}}(dsSlot)
 }
 {{- else }}
 type {{.TableStructName}} = {{.RowStructName}}
 
-func New{{.TableStructName}}(ds lib.Datastore) *{{.TableStructName}} {
-	store := ds.Get({{.TableStructName}}DefaultKey)
-	return New{{.RowStructName}}(store)
+func New{{.TableStructName}}(ds lib.Datastore) *{{.RowStructName}} {
+	dsSlot := ds.Get({{.TableStructName}}DefaultKey)
+	return New{{.RowStructName}}(dsSlot)
 }
 
-func New{{.TableStructName}}WithKey(ds lib.Datastore, key []byte) *{{.TableStructName}} {
-	store := ds.Get(key)
-	return New{{.RowStructName}}(store)
+func New{{.TableStructName}}FromSlot(dsSlot lib.DatastoreSlot) *{{.RowStructName}} {
+	return New{{.RowStructName}}(dsSlot)
 }
 {{- end }}

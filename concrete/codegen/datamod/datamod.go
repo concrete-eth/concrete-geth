@@ -22,10 +22,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"text/template"
-	"unicode"
 
 	"github.com/iancoleman/orderedmap"
 )
@@ -33,40 +31,9 @@ import (
 //go:embed table.tpl
 var tableTpl string
 
-func lowerFirstLetter(str string) string {
-	if len(str) == 0 {
-		return ""
-	}
-	runes := []rune(str)
-	runes[0] = unicode.ToLower(runes[0])
-	return string(runes)
-}
-
-func upperFirstLetter(str string) string {
-	if len(str) == 0 {
-		return ""
-	}
-	runes := []rune(str)
-	runes[0] = unicode.ToUpper(runes[0])
-	return string(runes)
-}
-
-func contains(tableNames []string, tableName string) bool {
-	for _, _tableName := range tableNames {
-		if tableName == _tableName {
-			return true
-		}
-	}
-	return false
-}
-
-func isValidName(name string) bool {
-	if len(name) == 0 {
-		return false
-	}
-	re := regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]*$`)
-	return re.MatchString(name) && len(strings.TrimSpace(name)) == len(name)
-}
+const (
+	AllowTableTypes = false
+)
 
 type FieldSchema struct {
 	Name  string
@@ -87,7 +54,7 @@ func newFieldSchema(name string, index int, typeStr string) (FieldSchema, error)
 	}
 	fieldType, err := nameToFieldType(typeStr)
 	if err != nil {
-		return FieldSchema{}, err
+		return FieldSchema{}, fmt.Errorf("invalid type '%s' for field '%s': %w", typeStr, name, err)
 	}
 	return FieldSchema{
 		Name:  lowerFirstLetter(name),
@@ -163,8 +130,12 @@ func unmarshalTableSchemas(jsonContent []byte) ([]TableSchema, error) {
 				return []TableSchema{}, err
 			}
 			if fieldSchema.Type.Type == TableType {
-				if !contains(jsonSchemas.Keys(), fieldSchema.Type.Name) {
-					return []TableSchema{}, fmt.Errorf("table name '%s' table in '%s' does not match any tables", fieldSchema.Type.Name, tableName)
+				if !AllowTableTypes {
+					return []TableSchema{}, fmt.Errorf("table values cannot be tables")
+				}
+				_, ok := jsonSchemas.Get(fieldSchema.Type.Name)
+				if !ok {
+					return []TableSchema{}, fmt.Errorf("table '%s' does not exist", fieldSchema.Type.Name)
 				}
 			}
 			tableSchema.Values = append(tableSchema.Values, fieldSchema)
@@ -203,8 +174,8 @@ func GenerateDataModel(config Config) error {
 	}
 
 	for _, schema := range schemas {
-		tableName := schema.Name
-		rowName := schema.Name + "Row"
+		tableName := formatTableName(schema.Name)
+		rowName := formatRowName(schema.Name)
 
 		_sizes := make([]string, len(schema.Values))
 		for i, field := range schema.Values {

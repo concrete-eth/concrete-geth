@@ -28,10 +28,16 @@ import (
 	"github.com/spf13/cobra"
 )
 
+func exit(msg string) {
+	fmt.Println("--------------------------------")
+	fmt.Println("[ERROR]")
+	fmt.Println(msg)
+	os.Exit(1)
+}
+
 func checkErr(err error) {
 	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		exit(err.Error())
 	}
 }
 
@@ -91,8 +97,7 @@ func main() {
 	rootCmd.AddCommand(cmdDatamod)
 
 	if err := rootCmd.Execute(); err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		exit(err.Error())
 	}
 }
 
@@ -109,19 +114,16 @@ func runSolgen(cmd *cobra.Command, args []string) {
 	checkErr(err)
 
 	if abiPath == "" {
-		fmt.Println("Missing ABI file path (--abi)")
-		os.Exit(1)
+		exit("ABI file path (--abi) must be provided")
 	}
 	if outPath == "" {
-		fmt.Println("Missing output file path (--out))")
-		os.Exit(1)
+		exit("Output file path (--out) must be provided")
 	}
 
 	if address == "" {
-		fmt.Println("Missing precompile address (--address)")
+		exit("Precompile address (--address) must be provided")
 	} else if !common.IsHexAddress(common.HexToAddress(address).Hex()) {
-		fmt.Println("Invalid address:", address)
-		os.Exit(1)
+		exit("Precompile address (--address) must be a valid hex address")
 	} else {
 		address = common.HexToAddress(address).Hex()
 	}
@@ -132,8 +134,7 @@ func runSolgen(cmd *cobra.Command, args []string) {
 	checkErr(err)
 
 	if abiIsDir {
-		fmt.Println("ABI path must be a file")
-		os.Exit(1)
+		exit("ABI path must be a file")
 	}
 
 	if name == "" {
@@ -176,15 +177,13 @@ func runDatamod(cmd *cobra.Command, args []string) {
 	jsonIsDir, err := isDir(jsonPath)
 	checkErr(err)
 	if jsonIsDir {
-		fmt.Println("JSON path must be a file")
-		os.Exit(1)
+		exit("JSON path must be a file")
 	}
 
 	outIsDir, err := isDir(outPath)
 	checkErr(err)
 	if !outIsDir {
-		fmt.Println("Output path must be a directory")
-		os.Exit(1)
+		exit("Output path must be a directory")
 	}
 
 	config := datamod.Config{
@@ -198,5 +197,5 @@ func runDatamod(cmd *cobra.Command, args []string) {
 	err = datamod.GenerateDataModel(config)
 	checkErr(err)
 
-	fmt.Println("Data model wrappers generated successfully.")
+	fmt.Println("Data model wrappers generated successfully.\nFiles written to:", outPath)
 }
