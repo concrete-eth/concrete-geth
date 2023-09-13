@@ -1,0 +1,59 @@
+{
+    "keyedTable": {
+        "keySchema": {
+            "keyUint": "uint",
+            "keyInt": "int",
+            "keyString": "string",
+            "keyBytes": "bytes",
+            "keyBool": "bool",
+            "keyAddress": "address",
+            "keyBytes16": "bytes16"
+        },
+        "schema": {
+            "valueUint": "uint",
+            "valueInt": "int",
+            "valueString": "string",
+            "valueBytes": "bytes",
+            "valueBool": "bool",
+            "valueAddress": "address",
+            "valueBytes16": "bytes16"
+        }
+    },
+    "keylessTable": {
+        "schema": {
+            "valueUint": "uint",
+            "valueInt": "int",
+            "valueString": "string",
+            "valueBytes": "bytes",
+            "valueBool": "bool",
+            "valueAddress": "address",
+            "valueBytes16": "bytes16"
+        }
+    },
+    "keyedWithKeyedTableValue": {
+        "keySchema": {
+            "keyUint": "uint"
+        },
+        "schema": {
+            "valueTable": "table keyedTable"
+        }
+    },
+    "keyedWithKeylessTableValue": {
+        "keySchema": {
+            "keyUint": "uint"
+        },
+        "schema": {
+            "valueTable": "table keylessTable"
+        }
+    },
+    "keylessWithKeyedTableValue": {
+        "schema": {
+            "valueTable": "table keyedTable"
+        }
+    },
+    "keylessWithKeylessTableValue": {
+        "schema": {
+            "valueTable": "table keylessTable"
+        }
+    }
+}

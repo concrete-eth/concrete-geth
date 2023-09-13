@@ -1,0 +1,8 @@
+{
+  "keySchema": {
+    "key": "uint"
+  },
+  "schema": {
+    "value": "badType"
+  }
+}

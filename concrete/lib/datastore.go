@@ -19,8 +19,15 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/concrete/api"
 	"github.com/ethereum/go-ethereum/concrete/crypto"
+)
+
+var (
+	// Redeclare constant from go-ethereum/accounts/abi to avoid importing
+	// the module and having issues with tinygo.
+	MaxUint256 = new(big.Int).Sub(new(big.Int).Lsh(common.Big1, 256), common.Big1)
 )
 
 type KeyValueStore interface {
@@ -119,8 +126,10 @@ type DatastoreSlot interface {
 	SetBool(value bool)
 	Address() common.Address
 	SetAddress(value common.Address)
-	Big() *big.Int
-	SetBig(value *big.Int)
+	BigUint() *big.Int
+	SetBigUint(value *big.Int)
+	BigInt() *big.Int
+	SetBigInt(value *big.Int)
 	Uint64() uint64
 	SetUint64(value uint64)
 	Int64() int64
@@ -252,9 +261,9 @@ func (r *dsSlot) Bool() bool {
 
 func (r *dsSlot) SetBool(value bool) {
 	if value {
-		r.setBytes32(common.BigToHash(common.Big0))
-	} else {
 		r.setBytes32(common.BigToHash(common.Big1))
+	} else {
+		r.setBytes32(common.BigToHash(common.Big0))
 	}
 }
 
@@ -266,28 +275,44 @@ func (r *dsSlot) SetAddress(value common.Address) {
 	r.setBytes32(common.BytesToHash(value.Bytes()))
 }
 
-func (r *dsSlot) Big() *big.Int {
+func (r *dsSlot) BigUint() *big.Int {
 	return r.getBytes32().Big()
 }
 
-func (r *dsSlot) SetBig(value *big.Int) {
+func (r *dsSlot) SetBigUint(value *big.Int) {
+	r.setBytes32(common.BigToHash(value))
+}
+
+func (r *dsSlot) BigInt() *big.Int {
+	ret := r.getBytes32().Big()
+	if ret.Bit(255) == 1 {
+		ret.Add(MaxUint256, new(big.Int).Neg(ret))
+		ret.Add(ret, common.Big1)
+		ret.Neg(ret)
+	}
+	return ret
+}
+
+func (r *dsSlot) SetBigInt(value *big.Int) {
+	value = new(big.Int).Set(value)
+	math.U256Bytes(value)
 	r.setBytes32(common.BigToHash(value))
 }
 
 func (r *dsSlot) SetUint64(value uint64) {
-	r.SetBig(new(big.Int).SetUint64(value))
+	r.SetBigUint(new(big.Int).SetUint64(value))
 }
 
 func (r *dsSlot) Uint64() uint64 {
-	return r.Big().Uint64()
+	return r.BigUint().Uint64()
 }
 
 func (r *dsSlot) SetInt64(value int64) {
-	r.SetBig(big.NewInt(value))
+	r.SetBigInt(big.NewInt(value))
 }
 
 func (r *dsSlot) Int64() int64 {
-	return r.Big().Int64()
+	return r.BigInt().Int64()
 }
 
 func (r *dsSlot) Bytes() []byte {
@@ -551,9 +576,9 @@ func (m *mapping) GetNested(keys ...[]byte) DatastoreSlot {
 var _ Mapping = (*mapping)(nil)
 
 type DynamicArray interface {
-	Length() int
-	Get(index int) DatastoreSlot
-	GetNested(indexes ...int) DatastoreSlot
+	Length() uint64
+	Get(index uint64) DatastoreSlot
+	GetNested(indexes ...uint64) DatastoreSlot
 	Push() DatastoreSlot
 	Pop() DatastoreSlot
 }
@@ -570,25 +595,23 @@ func newDynamicArray(dsSlot *dsSlot) *dynamicArray {
 // but storing the length of the array in the slot.
 // Note this is different from the layout of solidity dynamic arrays, which are laid out
 // contiguously.
-func (m *dynamicArray) indexKey(index int) []byte {
-	if index >= m.getLength() || index < 0 {
+func (m *dynamicArray) indexKey(index uint64) []byte {
+	if index >= m.getLength() {
 		return nil
 	}
-	bigIndex := big.NewInt(int64(index))
+	bigIndex := new(big.Int).SetUint64(index)
 	return common.BigToHash(bigIndex).Bytes()
 }
 
-func (a *dynamicArray) setLength(length int) {
-	bigLength := big.NewInt(int64(length))
-	a.dsSlot.SetBytes32(common.BigToHash(bigLength))
+func (a *dynamicArray) setLength(length uint64) {
+	a.dsSlot.SetUint64(length)
 }
 
-func (a *dynamicArray) getLength() int {
-	bigLength := a.dsSlot.Big()
-	return int(bigLength.Int64())
+func (a *dynamicArray) getLength() uint64 {
+	return a.dsSlot.Uint64()
 }
 
-func (a *dynamicArray) value(index int) *dsSlot {
+func (a *dynamicArray) value(index uint64) *dsSlot {
 	key := a.indexKey(index)
 	if key == nil {
 		return nil
@@ -596,11 +619,8 @@ func (a *dynamicArray) value(index int) *dsSlot {
 	return a.dsSlot.mapping().value(key)
 }
 
-func (a *dynamicArray) nestedValue(indexes []int) *dsSlot {
+func (a *dynamicArray) nestedValue(indexes []uint64) *dsSlot {
 	if len(indexes) == 0 {
-		return nil
-	}
-	if len(indexes) >= a.getLength() {
 		return nil
 	}
 	keys := make([][]byte, len(indexes))
@@ -613,15 +633,15 @@ func (a *dynamicArray) nestedValue(indexes []int) *dsSlot {
 	return a.dsSlot.mapping().nestedValue(keys)
 }
 
-func (a *dynamicArray) Length() int {
+func (a *dynamicArray) Length() uint64 {
 	return a.getLength()
 }
 
-func (a *dynamicArray) Get(index int) DatastoreSlot {
+func (a *dynamicArray) Get(index uint64) DatastoreSlot {
 	return a.value(index)
 }
 
-func (a *dynamicArray) GetNested(indexes ...int) DatastoreSlot {
+func (a *dynamicArray) GetNested(indexes ...uint64) DatastoreSlot {
 	return a.nestedValue(indexes)
 }
 

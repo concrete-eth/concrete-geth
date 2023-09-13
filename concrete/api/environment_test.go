@@ -41,7 +41,7 @@ func TestGas(t *testing.T) {
 		gas      = uint64(1e6)
 	)
 
-	env := NewMockEnv(address, config, meterGas, gas)
+	env := NewMockEnvironment(address, config, meterGas, gas)
 
 	r.Equal(gas, env.Gas())
 
@@ -68,7 +68,7 @@ func TestBlockOps_Minimal(t *testing.T) {
 		gas      = uint64(1e6)
 	)
 
-	env := NewMockEnv(address, config, meterGas, gas)
+	env := NewMockEnvironment(address, config, meterGas, gas)
 
 	r.Equal(env.block.GetHash(0), env.GetBlockHash(0))
 	r.Equal(env.block.GasLimit(), env.GetBlockGasLimit())
@@ -95,7 +95,7 @@ func TestCallOps_Minimal(t *testing.T) {
 		gas      = uint64(1e6)
 	)
 
-	env := NewMockEnv(address, config, meterGas, gas)
+	env := NewMockEnvironment(address, config, meterGas, gas)
 
 	r.Equal(env.call.TxGasPrice(), env.GetTxGasPrice())
 	r.Equal(env.call.TxOrigin(), env.GetTxOrigin())
@@ -120,7 +120,7 @@ func TestTrustAndWriteProtection(t *testing.T) {
 		gas      = uint64(1e6)
 	)
 
-	env := NewMockEnv(address, config, meterGas, gas)
+	env := NewMockEnvironment(address, config, meterGas, gas)
 	env.EnableGasMetering(false)
 
 	table := newEnvironmentMethods()

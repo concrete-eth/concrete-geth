@@ -11,7 +11,7 @@ import (
 	"github.com/ethereum/go-ethereum/concrete/lib"
 )
 
-// Reference imports to suppress errors if they are not otherwise used.
+// Reference imports to suppress errors if they are not used.
 var (
 	_ = big.NewInt
 	_ = common.Big1

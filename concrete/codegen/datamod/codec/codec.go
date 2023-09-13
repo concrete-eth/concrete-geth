@@ -81,7 +81,7 @@ func DecodeString(_ int, data []byte) string {
 }
 
 func EncodeUint256(_ int, i *big.Int) []byte {
-	return math.U256Bytes(i)
+	return math.U256Bytes(new(big.Int).Set(i))
 }
 
 func DecodeUint256(_ int, data []byte) *big.Int {
@@ -89,7 +89,7 @@ func DecodeUint256(_ int, data []byte) *big.Int {
 }
 
 func EncodeInt256(_ int, i *big.Int) []byte {
-	return math.U256Bytes(i)
+	return math.U256Bytes(new(big.Int).Set(i))
 }
 
 func DecodeInt256(_ int, data []byte) *big.Int {

@@ -31,10 +31,6 @@ import (
 //go:embed table.tpl
 var tableTpl string
 
-const (
-	AllowTableTypes = false
-)
-
 type FieldSchema struct {
 	Name  string
 	Title string
@@ -64,7 +60,7 @@ func newFieldSchema(name string, index int, typeStr string) (FieldSchema, error)
 	}, nil
 }
 
-func unmarshalTableSchemas(jsonContent []byte) ([]TableSchema, error) {
+func unmarshalTableSchemas(jsonContent []byte, allowTableTypes bool) ([]TableSchema, error) {
 	jsonSchemas := orderedmap.New()
 	err := json.Unmarshal(jsonContent, &jsonSchemas)
 	if err != nil {
@@ -130,8 +126,8 @@ func unmarshalTableSchemas(jsonContent []byte) ([]TableSchema, error) {
 				return []TableSchema{}, err
 			}
 			if fieldSchema.Type.Type == TableType {
-				if !AllowTableTypes {
-					return []TableSchema{}, fmt.Errorf("table values cannot be tables")
+				if !allowTableTypes {
+					return []TableSchema{}, fmt.Errorf("invalid type '%s' for field '%s': table values cannot be tables", fieldSchema.Type.Name, fieldSchema.Name)
 				}
 				_, ok := jsonSchemas.Get(fieldSchema.Type.Name)
 				if !ok {
@@ -151,7 +147,7 @@ type Config struct {
 	Package string
 }
 
-func GenerateDataModel(config Config) error {
+func GenerateDataModel(config Config, allowTableTypes bool) error {
 	if !isValidName(config.Package) {
 		return fmt.Errorf("invalid package name: %s", config.Package)
 	}
@@ -160,7 +156,7 @@ func GenerateDataModel(config Config) error {
 	if err != nil {
 		return err
 	}
-	schemas, err := unmarshalTableSchemas(jsonContent)
+	schemas, err := unmarshalTableSchemas(jsonContent, allowTableTypes)
 	if err != nil {
 		return err
 	}

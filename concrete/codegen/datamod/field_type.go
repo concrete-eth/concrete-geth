@@ -63,8 +63,8 @@ func nameToFieldType(name string) (FieldType, error) {
 			Name:       "bytes",
 			Size:       32,
 			GoType:     "[]byte",
-			EncodeFunc: "EncodeFixedBytes",
-			DecodeFunc: "DecodeFixedBytes",
+			EncodeFunc: "EncodeBytes",
+			DecodeFunc: "DecodeBytes",
 			Type:       BytesType,
 		}, nil
 	case "string":

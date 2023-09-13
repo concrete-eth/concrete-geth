@@ -42,7 +42,7 @@ type Config struct {
 }
 
 func isValidSolidityContractName(name string) bool {
-	if len(name) == 0 {
+	if len(name) == 0 || name == "_" {
 		return false
 	}
 	re := regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]*$`)

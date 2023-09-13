@@ -27,7 +27,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 )
 
-func NewMockEnv(addr common.Address, config EnvConfig, meterGas bool, gas uint64) *Env {
+func NewMockEnvironment(addr common.Address, config EnvConfig, meterGas bool, gas uint64) *Env {
 	return NewEnvironment(
 		addr,
 		config,

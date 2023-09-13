@@ -1,0 +1,6 @@
+{
+  "keySchema": "uint",
+  "schema": {
+    "valueUint": "uint"
+  }
+}

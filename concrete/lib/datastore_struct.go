@@ -31,17 +31,16 @@ func NewDatastoreStruct(store DatastoreSlot, sizes []int) *DatastoreStruct {
 	var (
 		offset  = 0
 		offsets = make([]int, len(sizes))
-		size    = sizes[0]
+		nSlots  int
 	)
-	for ii := 1; ii < len(sizes); ii++ {
-		size = sizes[ii]
-		if offset/32 < (offset+size)/32 {
+	for ii, size := range sizes {
+		if offset/32 != (offset+size-1)/32 {
 			offset = (offset/32 + 1) * 32
 		}
-		offset += size
 		offsets[ii] = offset
+		offset += size
 	}
-	nSlots := (offset + size + 31) / 32
+	nSlots = (offset + 31) / 32
 
 	return &DatastoreStruct{
 		store:   store,
