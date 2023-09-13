@@ -44,6 +44,7 @@ type StateDB interface {
 	// Logs
 	AddLog(*types.Log)
 	// Storage
+	GetCommittedState(addr common.Address, key common.Hash) common.Hash
 	SetPersistentState(addr common.Address, key common.Hash, value common.Hash)
 	GetPersistentState(addr common.Address, key common.Hash) common.Hash
 	SetEphemeralState(addr common.Address, key common.Hash, value common.Hash)
@@ -54,4 +55,8 @@ type StateDB interface {
 	AddEphemeralPreimage(hash common.Hash, preimage []byte)
 	GetEphemeralPreimage(hash common.Hash) []byte
 	GetEphemeralPreimageSize(hash common.Hash) int
+	// Refunds
+	AddRefund(uint64)
+	SubRefund(uint64)
+	GetRefund() uint64
 }

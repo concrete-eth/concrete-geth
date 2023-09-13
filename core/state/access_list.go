@@ -74,6 +74,10 @@ func (a *accessList) Copy() *accessList {
 		}
 		cp.slots[i] = newSlotmap
 	}
+	cp.hashes = make(map[common.Hash]struct{}, len(a.hashes))
+	for k := range a.hashes {
+		cp.hashes[k] = struct{}{}
+	}
 	return cp
 }
 

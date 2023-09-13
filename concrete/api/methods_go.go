@@ -21,18 +21,22 @@
 package api
 
 import (
+	"errors"
 	"math/big"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/concrete/crypto"
 	"github.com/ethereum/go-ethereum/concrete/utils"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
 )
 
-// TODO: memory expansion cost and code copy cost [?]
-// TODO: check for overflow uint256.safe
+const (
+	PreimageStoreGas uint64 = 100
+	PreimageDataGas  uint64 = 200
+)
 
 func newEnvironmentMethods() JumpTable {
 	tbl := JumpTable{
@@ -70,10 +74,11 @@ func newEnvironmentMethods() JumpTable {
 			static:      true,
 		},
 		PersistentPreimageStore_OpCode: {
-			execute:    opPersistentPreimageStore,
-			dynamicGas: gasPersistentPreimageStore,
-			trusted:    true,
-			static:     false,
+			execute:     opPersistentPreimageStore,
+			constantGas: PreimageStoreGas,
+			dynamicGas:  gasPersistentPreimageStore,
+			trusted:     true,
+			static:      false,
 		},
 		PersistentPreimageLoad_OpCode: {
 			execute:    opPersistentPreimageLoad,
@@ -223,39 +228,46 @@ func newEnvironmentMethods() JumpTable {
 			static:     false,
 		},
 		GetExternalBalance_OpCode: {
-			execute:    opGetExternalBalance,
-			dynamicGas: gasGetExternalBalance,
-			static:     true,
-		},
-		CallStatic_OpCode: {
-			execute:    opCallStatic,
-			dynamicGas: gasCallStatic,
-			static:     true,
+			execute:     opGetExternalBalance,
+			constantGas: params.WarmStorageReadCostEIP2929,
+			dynamicGas:  gasGetExternalBalance,
+			static:      true,
 		},
 		GetExternalCode_OpCode: {
-			execute:    opGetExternalCode,
-			dynamicGas: gasGetExternalCode,
-			static:     true,
+			execute:     opGetExternalCode,
+			constantGas: params.WarmStorageReadCostEIP2929,
+			dynamicGas:  gasGetExternalCode,
+			static:      true,
 		},
 		GetExternalCodeSize_OpCode: {
-			execute:    opGetExternalCodeSize,
-			dynamicGas: gasGetExternalCodeSize,
-			static:     true,
+			execute:     opGetExternalCodeSize,
+			constantGas: params.WarmStorageReadCostEIP2929,
+			dynamicGas:  gasGetExternalCodeSize,
+			static:      true,
 		},
 		GetExternalCodeHash_OpCode: {
-			execute:    opGetExternalCodeHash,
-			dynamicGas: gasGetExternalCodeHash,
-			static:     true,
+			execute:     opGetExternalCodeHash,
+			constantGas: params.WarmStorageReadCostEIP2929,
+			dynamicGas:  gasGetExternalCodeHash,
+			static:      true,
+		},
+		CallStatic_OpCode: {
+			execute:     opCallStatic,
+			constantGas: params.WarmStorageReadCostEIP2929,
+			dynamicGas:  gasCallStatic,
+			static:      true,
 		},
 		Call_OpCode: {
-			execute:    opCall,
-			dynamicGas: gasCall,
-			static:     false,
+			execute:     opCall,
+			constantGas: params.WarmStorageReadCostEIP2929,
+			dynamicGas:  gasCall,
+			static:      false,
 		},
 		CallDelegate_OpCode: {
-			execute:    opCallDelegate,
-			dynamicGas: gasCallDelegate,
-			static:     false,
+			execute:     opCallDelegate,
+			constantGas: params.WarmStorageReadCostEIP2929,
+			dynamicGas:  gasCallDelegate,
+			static:      false,
 		},
 		Create_OpCode: {
 			execute:     opCreate,
@@ -281,6 +293,45 @@ func newEnvironmentMethods() JumpTable {
 	}
 
 	return tbl
+}
+
+func toWordSize(size int) uint64 {
+	return uint64((size + 31) / 32)
+}
+
+func gasAccountAccessMinusWarm(env *Env, address common.Address) (uint64, error) {
+	if env.statedb.AddressInAccessList(address) {
+		env.statedb.AddAddressToAccessList(address)
+		return params.ColdAccountAccessCostEIP2929 - params.WarmStorageReadCostEIP2929, nil
+	}
+	return 0, nil
+}
+
+func gasHashAccess(env *Env, hash common.Hash) (uint64, error) {
+	if env.statedb.HashInAccessList(hash) {
+		env.statedb.AddHashToAccessList(hash)
+		return params.ColdSloadCostEIP2929, nil
+	}
+	return params.WarmStorageReadCostEIP2929, nil
+}
+
+func gasExternalCall(env *Env, address common.Address, callCost uint64) (uint64, error) {
+	baseCost, err := gasAccountAccessMinusWarm(env, address)
+	if err != nil {
+		return 0, err
+	}
+	gasAvailable, overflow := math.SafeSub(env.gas, baseCost)
+	if overflow {
+		return 0, ErrGasUintOverflow
+	}
+	gas := gasAvailable - gasAvailable/64
+	if gas < callCost {
+		env.callGasTemp = gas
+	} else {
+		env.callGasTemp = callCost
+	}
+	// baseCost < MAX_UINT64 / 64, so this cannot overflow
+	return env.callGasTemp + baseCost, nil
 }
 
 func opUndefined(env *Env, args [][]byte) ([][]byte, error) {
@@ -323,8 +374,10 @@ func gasKeccak256(env *Env, args [][]byte) (uint64, error) {
 	if len(args) != 1 {
 		return 0, ErrInvalidInput
 	}
-	wordSize := (len(args[0]) + 31) / 32
-	gas := uint64(wordSize) * params.Keccak256WordGas
+	// We assume len() to always be much smaller than MAX_UINT64 / Keccak256WordGas
+	// so this cannot overflow
+	wordSize := toWordSize(len(args[0]))
+	gas := wordSize * params.Keccak256WordGas
 	return gas, nil
 }
 
@@ -360,20 +413,26 @@ func opEphemeralLoad(env *Env, args [][]byte) ([][]byte, error) {
 		return nil, ErrFeatureDisabled
 	}
 	key := common.BytesToHash(args[0])
-	data := env.statedb.GetEphemeralState(env.address, key)
-	return [][]byte{data.Bytes()}, nil
+	value := env.statedb.GetEphemeralState(env.address, key)
+	return [][]byte{value.Bytes()}, nil
 }
 
-func gasPersistentPreimageStore(env *Env, args [][]byte) (uint64, error) { // TODO
+func gasPersistentPreimageStore(env *Env, args [][]byte) (uint64, error) {
 	if len(args) != 1 {
 		return 0, ErrInvalidInput
 	}
-	wordSize := (len(args[0]) + 31) / 32
-	gas := uint64(wordSize) * params.CreateDataGas
-	return gas, nil
+	preimage := args[0]
+	// We assume len() to always be much smaller than MAX_UINT64 / (Keccak256WordGas + PreimageDataGas + CopyGas)
+	// so this cannot overflow
+	size := uint64(len(preimage))
+	wordSize := toWordSize(len(preimage))
+	keccakGas := wordSize * params.Keccak256WordGas
+	dataGas := (size) * PreimageDataGas
+	copyGas := wordSize * params.CopyGas
+	return keccakGas + dataGas + copyGas, nil
 }
 
-func opPersistentPreimageStore(env *Env, args [][]byte) ([][]byte, error) { // TODO
+func opPersistentPreimageStore(env *Env, args [][]byte) ([][]byte, error) {
 	if !env.config.Preimages {
 		return nil, ErrFeatureDisabled
 	}
@@ -383,36 +442,38 @@ func opPersistentPreimageStore(env *Env, args [][]byte) ([][]byte, error) { // T
 	return [][]byte{hash.Bytes()}, nil
 }
 
-func gasPersistentPreimageLoad(env *Env, args [][]byte) (uint64, error) { // TODO
+func gasPersistentPreimageLoad(env *Env, args [][]byte) (uint64, error) {
 	if len(args) != 1 {
 		return 0, ErrInvalidInput
 	}
 	if len(args[0]) != 32 {
 		return 0, ErrInvalidInput
 	}
-	return params.ColdSloadCostEIP2929, nil
+	hash := common.BytesToHash(args[0])
+	return gasHashAccess(env, hash)
 }
 
-func opPersistentPreimageLoad(env *Env, args [][]byte) ([][]byte, error) { // TODO
+func opPersistentPreimageLoad(env *Env, args [][]byte) ([][]byte, error) {
 	if !env.config.Preimages {
 		return nil, ErrFeatureDisabled
 	}
 	key := common.BytesToHash(args[0])
-	data := env.statedb.GetPersistentPreimage(key)
-	return [][]byte{data}, nil
+	preimage := env.statedb.GetPersistentPreimage(key)
+	return [][]byte{preimage}, nil
 }
 
-func gasPersistentPreimageLoadSize(env *Env, args [][]byte) (uint64, error) { // TODO
+func gasPersistentPreimageLoadSize(env *Env, args [][]byte) (uint64, error) {
 	if len(args) != 1 {
 		return 0, ErrInvalidInput
 	}
 	if len(args[0]) != 32 {
 		return 0, ErrInvalidInput
 	}
-	return params.ColdSloadCostEIP2929, nil
+	hash := common.BytesToHash(args[0])
+	return gasHashAccess(env, hash)
 }
 
-func opPersistentPreimageLoadSize(env *Env, args [][]byte) ([][]byte, error) { // TODO
+func opPersistentPreimageLoadSize(env *Env, args [][]byte) ([][]byte, error) {
 	if !env.config.Preimages {
 		return nil, ErrFeatureDisabled
 	}
@@ -445,8 +506,8 @@ func opEphemeralPreimageLoad(env *Env, args [][]byte) ([][]byte, error) {
 		return nil, ErrFeatureDisabled
 	}
 	key := common.BytesToHash(args[0])
-	data := env.statedb.GetEphemeralPreimage(key)
-	return [][]byte{data}, nil
+	preimage := env.statedb.GetEphemeralPreimage(key)
+	return [][]byte{preimage}, nil
 }
 
 func opEphemeralPreimageLoadSize(env *Env, args [][]byte) ([][]byte, error) {
@@ -611,9 +672,6 @@ func opGetTxOrigin(env *Env, args [][]byte) ([][]byte, error) {
 }
 
 func opGetCallData(env *Env, args [][]byte) ([][]byte, error) {
-	if len(args) != 0 {
-		return nil, ErrInvalidInput
-	}
 	if env.call == nil {
 		return nil, ErrNoData
 	}
@@ -656,24 +714,22 @@ func opGetCallValue(env *Env, args [][]byte) ([][]byte, error) {
 	return [][]byte{value.Bytes()}, nil
 }
 
-func gasStorageLoad(env *Env, args [][]byte) (uint64, error) { // TODO
+func gasStorageLoad(env *Env, args [][]byte) (uint64, error) {
 	if len(args) != 1 {
 		return 0, ErrInvalidInput
 	}
 	if len(args[0]) != 32 {
 		return 0, ErrInvalidInput
 	}
-	statedb := env.statedb
-	address := env.address
 	key := common.BytesToHash(args[0])
-	if _, slotPresent := statedb.SlotInAccessList(address, key); !slotPresent {
-		env.statedb.AddSlotToAccessList(address, key)
+	if _, slotPresent := env.statedb.SlotInAccessList(env.address, key); slotPresent {
+		env.statedb.AddSlotToAccessList(env.address, key)
 		return params.ColdSloadCostEIP2929, nil
 	}
 	return params.WarmStorageReadCostEIP2929, nil
 }
 
-func opStorageLoad(env *Env, args [][]byte) ([][]byte, error) { // TODO
+func opStorageLoad(env *Env, args [][]byte) ([][]byte, error) {
 	key := common.BytesToHash(args[0])
 	value := env.statedb.GetPersistentState(env.address, key)
 	return [][]byte{value.Bytes()}, nil
@@ -687,9 +743,6 @@ func opGetCode(env *Env, args [][]byte) ([][]byte, error) {
 }
 
 func opGetCodeSize(env *Env, args [][]byte) ([][]byte, error) {
-	if len(args) != 0 {
-		return nil, ErrInvalidInput
-	}
 	return nil, ErrInvalidOpCode
 }
 
@@ -707,17 +760,57 @@ func opUseGas(env *Env, args [][]byte) ([][]byte, error) {
 	return nil, nil
 }
 
-func gasStorageStore(env *Env, args [][]byte) (uint64, error) { // TODO
+func gasStorageStore(env *Env, args [][]byte) (uint64, error) {
 	if len(args) != 2 {
 		return 0, ErrInvalidInput
 	}
 	if len(args[0]) != 32 || len(args[1]) != 32 {
 		return 0, ErrInvalidInput
 	}
-	return 0, nil
+	if env.gas <= params.SstoreSentryGasEIP2200 {
+		return 0, errors.New("not enough gas for reentrancy sentry")
+	}
+	var (
+		key     = common.BytesToHash(args[0])
+		current = env.statedb.GetPersistentState(env.address, key)
+		cost    = uint64(0)
+	)
+	if _, slotPresent := env.statedb.SlotInAccessList(env.address, key); !slotPresent {
+		cost = params.ColdSloadCostEIP2929
+		env.statedb.AddSlotToAccessList(env.address, key)
+	}
+	value := common.BytesToHash(args[1])
+	if current == value {
+		return cost + params.WarmStorageReadCostEIP2929, nil
+	}
+	original := env.statedb.GetCommittedState(env.address, key)
+	if original == current {
+		if original == (common.Hash{}) {
+			return cost + params.SstoreSetGasEIP2200, nil
+		}
+		if value == (common.Hash{}) {
+			env.statedb.AddRefund(params.SstoreClearsScheduleRefundEIP3529)
+		}
+		return cost + (params.SstoreResetGasEIP2200 - params.ColdSloadCostEIP2929), nil
+	}
+	if original != (common.Hash{}) {
+		if current == (common.Hash{}) {
+			env.statedb.SubRefund(params.SstoreClearsScheduleRefundEIP3529)
+		} else if value == (common.Hash{}) {
+			env.statedb.AddRefund(params.SstoreClearsScheduleRefundEIP3529)
+		}
+	}
+	if original == value {
+		if original == (common.Hash{}) {
+			env.statedb.AddRefund(params.SstoreSetGasEIP2200 - params.WarmStorageReadCostEIP2929)
+		} else {
+			env.statedb.AddRefund((params.SstoreResetGasEIP2200 - params.ColdSloadCostEIP2929) - params.WarmStorageReadCostEIP2929)
+		}
+	}
+	return cost + params.WarmStorageReadCostEIP2929, nil
 }
 
-func opStorageStore(env *Env, args [][]byte) ([][]byte, error) { // TODO
+func opStorageStore(env *Env, args [][]byte) ([][]byte, error) {
 	key := common.BytesToHash(args[0])
 	value := common.BytesToHash(args[1])
 	env.statedb.SetPersistentState(env.address, key, value)
@@ -734,8 +827,12 @@ func gasLog(env *Env, args [][]byte) (uint64, error) {
 			return 0, ErrInvalidInput
 		}
 	}
-	size := len(args[nTopics])
-	return params.LogGas + params.LogTopicGas*uint64(nTopics) + params.LogDataGas*uint64(size), nil
+	// We assume len() to always be much smaller than (MAX_UINT64 - LogGas - 4 * LogTopicGas) / LogDataGas
+	// so this cannot overflow
+	topicGas := uint64(nTopics) * params.LogTopicGas
+	dataSize := uint64(len(args[nTopics]))
+	dataGas := dataSize * params.LogDataGas
+	return params.LogGas + topicGas + dataGas, nil
 }
 
 func opLog(env *Env, args [][]byte) ([][]byte, error) {
@@ -763,48 +860,13 @@ func gasGetExternalBalance(env *Env, args [][]byte) (uint64, error) {
 		return 0, ErrInvalidInput
 	}
 	address := common.BytesToAddress(args[0])
-	if !env.statedb.AddressInAccessList(address) {
-		env.statedb.AddAddressToAccessList(address)
-		return params.ColdAccountAccessCostEIP2929, nil
-	}
-	return params.WarmStorageReadCostEIP2929, nil
+	return gasAccountAccessMinusWarm(env, address)
 }
 
 func opGetExternalBalance(env *Env, args [][]byte) ([][]byte, error) {
 	address := common.BytesToAddress(args[0])
 	balance := env.statedb.GetBalance(address)
 	return [][]byte{balance.Bytes()}, nil
-}
-
-func gasCallStatic(env *Env, args [][]byte) (uint64, error) {
-	if len(args) != 3 {
-		return 0, ErrInvalidInput
-	}
-	if len(args[0]) != 20 {
-		return 0, ErrInvalidInput
-	}
-	if len(args[2]) != 8 {
-		return 0, ErrInvalidInput
-	}
-	address := common.BytesToAddress(args[0])
-	gas := utils.BytesToUint64(args[2])
-	if !env.statedb.AddressInAccessList(address) {
-		env.statedb.AddAddressToAccessList(address)
-		return params.ColdAccountAccessCostEIP2929 + gas, nil
-	}
-	return params.WarmStorageReadCostEIP2929 + gas, nil
-}
-
-func opCallStatic(env *Env, args [][]byte) ([][]byte, error) {
-	if env.caller == nil {
-		return nil, ErrNoData
-	}
-	address := common.BytesToAddress(args[0])
-	input := args[1]
-	gas := utils.BytesToUint64(args[2])
-	output, gasLeft, err := env.caller.CallStatic(address, input, gas)
-	env.gas += gasLeft
-	return [][]byte{output, utils.EncodeError(err)}, nil
 }
 
 func gasGetExternalCode(env *Env, args [][]byte) (uint64, error) {
@@ -815,11 +877,7 @@ func gasGetExternalCode(env *Env, args [][]byte) (uint64, error) {
 		return 0, ErrInvalidInput
 	}
 	address := common.BytesToAddress(args[0])
-	if !env.statedb.AddressInAccessList(address) {
-		env.statedb.AddAddressToAccessList(address)
-		return params.ColdAccountAccessCostEIP2929, nil
-	}
-	return params.WarmStorageReadCostEIP2929, nil
+	return gasAccountAccessMinusWarm(env, address)
 }
 
 func opGetExternalCode(env *Env, args [][]byte) ([][]byte, error) {
@@ -838,11 +896,7 @@ func gasGetExternalCodeSize(env *Env, args [][]byte) (uint64, error) {
 		return 0, ErrInvalidInput
 	}
 	address := common.BytesToAddress(args[0])
-	if !env.statedb.AddressInAccessList(address) {
-		env.statedb.AddAddressToAccessList(address)
-		return params.ColdAccountAccessCostEIP2929, nil
-	}
-	return params.WarmStorageReadCostEIP2929, nil
+	return gasAccountAccessMinusWarm(env, address)
 }
 
 func opGetExternalCodeSize(env *Env, args [][]byte) ([][]byte, error) {
@@ -859,17 +913,44 @@ func gasGetExternalCodeHash(env *Env, args [][]byte) (uint64, error) {
 		return 0, ErrInvalidInput
 	}
 	address := common.BytesToAddress(args[0])
-	if !env.statedb.AddressInAccessList(address) {
-		env.statedb.AddAddressToAccessList(address)
-		return params.ColdAccountAccessCostEIP2929, nil
-	}
-	return params.WarmStorageReadCostEIP2929, nil
+	return gasAccountAccessMinusWarm(env, address)
 }
 
 func opGetExternalCodeHash(env *Env, args [][]byte) ([][]byte, error) {
 	address := common.BytesToAddress(args[0])
 	hash := env.statedb.GetCodeHash(address)
 	return [][]byte{hash.Bytes()}, nil
+}
+
+func gasCallStatic(env *Env, args [][]byte) (uint64, error) {
+	if len(args) != 3 {
+		return 0, ErrInvalidInput
+	}
+	if len(args[0]) != 20 {
+		return 0, ErrInvalidInput
+	}
+	if len(args[2]) != 8 {
+		return 0, ErrInvalidInput
+	}
+	address := common.BytesToAddress(args[0])
+	gas := utils.BytesToUint64(args[2])
+	return gasExternalCall(env, address, gas)
+}
+
+func opCallStatic(env *Env, args [][]byte) ([][]byte, error) {
+	if env.caller == nil {
+		return nil, ErrNoData
+	}
+	var (
+		address = common.BytesToAddress(args[0])
+		input   = args[1]
+		gas     = env.callGasTemp
+	)
+	inputCopy := make([]byte, len(input))
+	copy(inputCopy, input)
+	output, gasLeft, err := env.caller.CallStatic(address, inputCopy, gas)
+	env.gas += gasLeft
+	return [][]byte{output, utils.EncodeError(err)}, nil
 }
 
 func gasCall(env *Env, args [][]byte) (uint64, error) {
@@ -887,22 +968,22 @@ func gasCall(env *Env, args [][]byte) (uint64, error) {
 	}
 	address := common.BytesToAddress(args[0])
 	gas := utils.BytesToUint64(args[2])
-	if !env.statedb.AddressInAccessList(address) {
-		env.statedb.AddAddressToAccessList(address)
-		return params.ColdAccountAccessCostEIP2929 + gas, nil
-	}
-	return gas, nil
+	return gasExternalCall(env, address, gas)
 }
 
 func opCall(env *Env, args [][]byte) ([][]byte, error) {
 	if env.caller == nil {
 		return nil, ErrNoData
 	}
-	address := common.BytesToAddress(args[0])
-	input := args[1]
-	gas := utils.BytesToUint64(args[2])
-	value := new(big.Int).SetBytes(args[3])
-	output, gasLeft, err := env.caller.Call(address, input, gas, value)
+	var (
+		address = common.BytesToAddress(args[0])
+		input   = args[1]
+		gas     = env.callGasTemp
+		value   = new(big.Int).SetBytes(args[3])
+	)
+	inputCopy := make([]byte, len(input))
+	copy(inputCopy, input)
+	output, gasLeft, err := env.caller.Call(address, inputCopy, gas, value)
 	env.gas += gasLeft
 	return [][]byte{output, utils.EncodeError(err)}, nil
 }
@@ -919,21 +1000,21 @@ func gasCallDelegate(env *Env, args [][]byte) (uint64, error) {
 	}
 	address := common.BytesToAddress(args[0])
 	gas := utils.BytesToUint64(args[2])
-	if !env.statedb.AddressInAccessList(address) {
-		env.statedb.AddAddressToAccessList(address)
-		return params.ColdAccountAccessCostEIP2929 + gas, nil
-	}
-	return gas, nil
+	return gasExternalCall(env, address, gas)
 }
 
 func opCallDelegate(env *Env, args [][]byte) ([][]byte, error) {
 	if env.caller == nil {
 		return nil, ErrNoData
 	}
-	address := common.BytesToAddress(args[0])
-	input := args[1]
-	gas := utils.BytesToUint64(args[2])
-	output, gasLeft, err := env.caller.CallDelegate(address, input, gas)
+	var (
+		address = common.BytesToAddress(args[0])
+		input   = args[1]
+		gas     = env.callGasTemp
+	)
+	inputCopy := make([]byte, len(input))
+	copy(inputCopy, input)
+	output, gasLeft, err := env.caller.CallDelegate(address, inputCopy, gas)
 	env.gas += gasLeft
 	return [][]byte{output, utils.EncodeError(err)}, nil
 }
@@ -945,8 +1026,10 @@ func gasCreate(env *Env, args [][]byte) (uint64, error) {
 	if len(args[1]) != 32 {
 		return 0, ErrInvalidInput
 	}
-	size := uint64(len(args[0]))
-	gas := params.InitCodeWordGas * ((size + 31) / 32)
+	// We assume len() to always be much smaller than 32 * MAX_UINT64 / InitCodeWordGas
+	// so this cannot overflow
+	wordSize := toWordSize(len(args[0]))
+	gas := wordSize * params.InitCodeWordGas
 	return gas, nil
 }
 
@@ -954,12 +1037,16 @@ func opCreate(env *Env, args [][]byte) ([][]byte, error) {
 	if env.caller == nil {
 		return nil, ErrNoData
 	}
-	input := args[0]
-	value := new(big.Int).SetBytes(args[1])
-	gas := env.gas
+	var (
+		input = args[0]
+		value = new(big.Int).SetBytes(args[1])
+		gas   = env.gas
+	)
+	inputCopy := make([]byte, len(input))
+	copy(inputCopy, input)
 	gas -= gas / 64
 	env.useGas(gas) // This will always return true since we are using a fraction of the gas left
-	address, gasLeft, err := env.caller.Create(input, gas, value)
+	address, gasLeft, err := env.caller.Create(inputCopy, gas, value)
 	env.gas += gasLeft
 	return [][]byte{address.Bytes(), utils.EncodeError(err)}, nil
 }
@@ -971,20 +1058,34 @@ func gasCreate2(env *Env, args [][]byte) (uint64, error) {
 	if len(args[1]) != 32 || len(args[2]) != 32 {
 		return 0, ErrInvalidInput
 	}
-	return params.Create2Gas, nil
+	if len(args) != 2 {
+		return 0, ErrInvalidInput
+	}
+	if len(args[1]) != 32 {
+		return 0, ErrInvalidInput
+	}
+	// We assume len() to always be much smaller than 32 * MAX_UINT64 / (InitCodeWordGas + Keccak256WordGas)
+	// so this cannot overflow
+	wordSize := toWordSize(len(args[0]))
+	gas := wordSize * (params.InitCodeWordGas + params.Keccak256WordGas)
+	return gas, nil
 }
 
 func opCreate2(env *Env, args [][]byte) ([][]byte, error) {
 	if env.caller == nil {
 		return nil, ErrNoData
 	}
-	input := args[0]
-	value := new(big.Int).SetBytes(args[1])
-	salt := common.BytesToHash(args[2])
-	gas := env.gas
+	var (
+		input = args[0]
+		value = new(big.Int).SetBytes(args[1])
+		salt  = common.BytesToHash(args[2])
+		gas   = env.gas
+	)
+	inputCopy := make([]byte, len(input))
+	copy(inputCopy, input)
 	gas -= gas / 64
 	env.useGas(gas) // This will always return true since we are using a fraction of the gas left
-	address, gasLeft, err := env.caller.Create2(input, salt, gas, value)
+	address, gasLeft, err := env.caller.Create2(inputCopy, salt, gas, value)
 	env.gas += gasLeft
 	return [][]byte{address.Bytes(), utils.EncodeError(err)}, nil
 }

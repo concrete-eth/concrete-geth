@@ -21,6 +21,7 @@ var (
 	ErrEnvNotTrusted   = errors.New("environment not trusted")
 	ErrWriteProtection = errors.New("write protection")
 	ErrOutOfGas        = errors.New("out of gas")
+	ErrGasUintOverflow = errors.New("gas uint64 overflow")
 	ErrFeatureDisabled = errors.New("feature disabled")
 	ErrInvalidOpCode   = errors.New("invalid opcode")
 	ErrInvalidInput    = errors.New("invalid input")

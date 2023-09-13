@@ -93,12 +93,12 @@ type Environment interface {
 	// EXTERNAL - READ
 	// Balance
 	GetExternalBalance(address common.Address) *big.Int
-	// Call
-	CallStatic(address common.Address, data []byte, gas uint64) ([]byte, error)
 	// Code
 	GetExternalCode(address common.Address) []byte
 	GetExternalCodeSize(address common.Address) int
 	GetExternalCodeHash(address common.Address) common.Hash
+	// Call
+	CallStatic(address common.Address, data []byte, gas uint64) ([]byte, error)
 
 	// EXTERNAL - WRITE
 	// Call
@@ -141,6 +141,8 @@ type Env struct {
 	gas      uint64
 
 	envErr error
+
+	callGasTemp uint64
 }
 
 func NewEnvironment(
@@ -187,72 +189,65 @@ func NewProxyEnvironment(execute func(op OpCode, env *Env, args [][]byte) ([][]b
 	return env
 }
 
-func execute(op OpCode, env *Env, args [][]byte) (output [][]byte, retErr error) {
+func execute(op OpCode, env *Env, args [][]byte) ([][]byte, error) {
 	err := env.Error()
 	if err != nil {
 		return nil, err
 	}
 
-	defer func() {
-		err := env.Error()
-		if err == nil {
-			return
-		}
-		// Panicking is preferable in trusted execution, as mistakenly using a
-		// disabled feature should be caught during testing.
-		switch err {
-		case ErrFeatureDisabled:
-			if env.config.Trusted {
-				panic(fmt.Sprintf("%s [opcode=0x%x]", err.Error(), op))
-			}
-		case ErrInvalidOpCode:
-			if env.config.Trusted {
-				panic(fmt.Sprintf("%s [opcode=0x%x]", err.Error(), op))
-			}
-		case ErrNoData:
-			if env.config.Trusted {
-				panic(fmt.Sprintf("%s [opcode=0x%x]", err.Error(), op))
-			}
-		}
-		retErr = err
-	}()
-
 	operation := env.table[op]
 
 	if !env.config.Trusted && operation.trusted {
 		env.setError(ErrEnvNotTrusted)
-		return nil, nil
+		return nil, env.Error()
 	}
 
 	if env.config.Static && !operation.static {
 		env.setError(ErrWriteProtection)
-		return nil, nil
+		return nil, env.Error()
 	}
 
 	if env.meterGas {
 		gasConst := operation.constantGas
 		if ok := env.useGas(gasConst); !ok {
 			env.setError(ErrOutOfGas)
-			return nil, nil
+			return nil, env.Error()
 		}
 		if operation.dynamicGas != nil {
 			gasDyn, err := operation.dynamicGas(env, args)
 			if err != nil {
 				env.setError(err)
-				return nil, nil
+				return nil, env.Error()
 			}
-			if ok := env.useGas(gasDyn); !ok {
+			if err != nil || env.useGas(gasDyn) {
 				env.setError(ErrOutOfGas)
-				return nil, nil
+				return nil, env.Error()
 			}
 		}
 	}
 
-	output, err = operation.execute(env, args)
+	output, err := operation.execute(env, args)
+
+	// Panicking is preferable in trusted execution, as mistakenly using a
+	// disabled feature should be caught during testing.
+	switch err {
+	case ErrFeatureDisabled:
+		if env.config.Trusted {
+			panic(fmt.Sprintf("%s [opcode=0x%x]", err.Error(), op))
+		}
+	case ErrInvalidOpCode:
+		if env.config.Trusted {
+			panic(fmt.Sprintf("%s [opcode=0x%x]", err.Error(), op))
+		}
+	case ErrNoData:
+		if env.config.Trusted {
+			panic(fmt.Sprintf("%s [opcode=0x%x]", err.Error(), op))
+		}
+	}
 
 	if err != nil {
 		env.setError(err)
-		return nil, nil
+		return nil, env.Error()
 	}
 
 	return output, nil
@@ -270,7 +265,6 @@ func (env *Env) execute(op OpCode, args [][]byte) ([][]byte, error) {
 
 func (env *Env) useGas(gas uint64) bool {
 	if env.gas < gas {
-		env.gas = 0
 		return false
 	}
 	env.gas -= gas
