@@ -101,10 +101,13 @@ func GetPrecompileMetadataByName(name string) *PrecompileMetadata {
 }
 
 func RunPrecompile(p Precompile, env *api.Env, input []byte, static bool) (ret []byte, remainingGas uint64, err error) {
-	if static && !p.IsStatic(input) {
-		return nil, env.GetGasLeft(), api.ErrWriteProtection
+	// We can either copy the input or trust the end developer to not modify it.
+	inputCopy := make([]byte, len(input))
+	copy(inputCopy, input)
+	if static && !p.IsStatic(inputCopy) {
+		return nil, env.Gas(), api.ErrWriteProtection
 	}
-	output, err := p.Run(env, input)
+	output, err := p.Run(env, inputCopy)
 	if err == nil {
 		err = env.Error()
 	}

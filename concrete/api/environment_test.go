@@ -51,7 +51,7 @@ func TestGas(t *testing.T) {
 	gas -= getGasLeftOpCost
 	r.Equal(gas, env.GetGasLeft())
 	r.Equal(gas, env.Gas())
-	r.Nil(env.Error())
+	r.NoError(env.Error())
 }
 
 func TestBlockOps_Minimal(t *testing.T) {
@@ -78,7 +78,7 @@ func TestBlockOps_Minimal(t *testing.T) {
 	r.Equal(env.block.BaseFee(), env.GetBlockBaseFee())
 	r.Equal(env.block.Coinbase(), env.GetBlockCoinbase())
 	r.Equal(env.block.Random(), env.GetPrevRandom())
-	r.Nil(env.Error())
+	r.NoError(env.Error())
 }
 
 func TestCallOps_Minimal(t *testing.T) {
@@ -103,7 +103,7 @@ func TestCallOps_Minimal(t *testing.T) {
 	r.Equal(env.call.CallDataSize(), env.GetCallDataSize())
 	r.Equal(env.call.Caller(), env.GetCaller())
 	r.Equal(env.call.CallValue(), env.GetCallValue())
-	r.Nil(env.Error())
+	r.NoError(env.Error())
 }
 
 func TestTrustAndWriteProtection(t *testing.T) {

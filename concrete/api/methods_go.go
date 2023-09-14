@@ -300,7 +300,7 @@ func toWordSize(size int) uint64 {
 }
 
 func gasAccountAccessMinusWarm(env *Env, address common.Address) (uint64, error) {
-	if env.statedb.AddressInAccessList(address) {
+	if !env.statedb.AddressInAccessList(address) {
 		env.statedb.AddAddressToAccessList(address)
 		return params.ColdAccountAccessCostEIP2929 - params.WarmStorageReadCostEIP2929, nil
 	}
@@ -308,7 +308,7 @@ func gasAccountAccessMinusWarm(env *Env, address common.Address) (uint64, error)
 }
 
 func gasHashAccess(env *Env, hash common.Hash) (uint64, error) {
-	if env.statedb.HashInAccessList(hash) {
+	if !env.statedb.HashInAccessList(hash) {
 		env.statedb.AddHashToAccessList(hash)
 		return params.ColdSloadCostEIP2929, nil
 	}
@@ -722,7 +722,7 @@ func gasStorageLoad(env *Env, args [][]byte) (uint64, error) {
 		return 0, ErrInvalidInput
 	}
 	key := common.BytesToHash(args[0])
-	if _, slotPresent := env.statedb.SlotInAccessList(env.address, key); slotPresent {
+	if _, slotPresent := env.statedb.SlotInAccessList(env.address, key); !slotPresent {
 		env.statedb.AddSlotToAccessList(env.address, key)
 		return params.ColdSloadCostEIP2929, nil
 	}
@@ -946,9 +946,7 @@ func opCallStatic(env *Env, args [][]byte) ([][]byte, error) {
 		input   = args[1]
 		gas     = env.callGasTemp
 	)
-	inputCopy := make([]byte, len(input))
-	copy(inputCopy, input)
-	output, gasLeft, err := env.caller.CallStatic(address, inputCopy, gas)
+	output, gasLeft, err := env.caller.CallStatic(address, input, gas)
 	env.gas += gasLeft
 	return [][]byte{output, utils.EncodeError(err)}, nil
 }
@@ -981,9 +979,7 @@ func opCall(env *Env, args [][]byte) ([][]byte, error) {
 		gas     = env.callGasTemp
 		value   = new(big.Int).SetBytes(args[3])
 	)
-	inputCopy := make([]byte, len(input))
-	copy(inputCopy, input)
-	output, gasLeft, err := env.caller.Call(address, inputCopy, gas, value)
+	output, gasLeft, err := env.caller.Call(address, input, gas, value)
 	env.gas += gasLeft
 	return [][]byte{output, utils.EncodeError(err)}, nil
 }
@@ -1012,9 +1008,7 @@ func opCallDelegate(env *Env, args [][]byte) ([][]byte, error) {
 		input   = args[1]
 		gas     = env.callGasTemp
 	)
-	inputCopy := make([]byte, len(input))
-	copy(inputCopy, input)
-	output, gasLeft, err := env.caller.CallDelegate(address, inputCopy, gas)
+	output, gasLeft, err := env.caller.CallDelegate(address, input, gas)
 	env.gas += gasLeft
 	return [][]byte{output, utils.EncodeError(err)}, nil
 }
@@ -1042,11 +1036,9 @@ func opCreate(env *Env, args [][]byte) ([][]byte, error) {
 		value = new(big.Int).SetBytes(args[1])
 		gas   = env.gas
 	)
-	inputCopy := make([]byte, len(input))
-	copy(inputCopy, input)
 	gas -= gas / 64
 	env.useGas(gas) // This will always return true since we are using a fraction of the gas left
-	address, gasLeft, err := env.caller.Create(inputCopy, gas, value)
+	address, gasLeft, err := env.caller.Create(input, gas, value)
 	env.gas += gasLeft
 	return [][]byte{address.Bytes(), utils.EncodeError(err)}, nil
 }
@@ -1081,11 +1073,9 @@ func opCreate2(env *Env, args [][]byte) ([][]byte, error) {
 		salt  = common.BytesToHash(args[2])
 		gas   = env.gas
 	)
-	inputCopy := make([]byte, len(input))
-	copy(inputCopy, input)
 	gas -= gas / 64
 	env.useGas(gas) // This will always return true since we are using a fraction of the gas left
-	address, gasLeft, err := env.caller.Create2(inputCopy, salt, gas, value)
+	address, gasLeft, err := env.caller.Create2(input, salt, gas, value)
 	env.gas += gasLeft
 	return [][]byte{address.Bytes(), utils.EncodeError(err)}, nil
 }

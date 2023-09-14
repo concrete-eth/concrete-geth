@@ -16,7 +16,7 @@
 package lib
 
 import (
-	"bytes"
+	"github.com/ethereum/go-ethereum/common"
 )
 
 type DatastoreStruct struct {
@@ -24,7 +24,6 @@ type DatastoreStruct struct {
 	arr     SlotArray
 	offsets []int
 	sizes   []int
-	cache   [][]byte
 }
 
 func NewDatastoreStruct(store DatastoreSlot, sizes []int) *DatastoreStruct {
@@ -34,6 +33,12 @@ func NewDatastoreStruct(store DatastoreSlot, sizes []int) *DatastoreStruct {
 		nSlots  int
 	)
 	for ii, size := range sizes {
+		if size < 0 {
+			panic("negative field size")
+		}
+		if size > 32 {
+			panic("field size too large")
+		}
 		if offset/32 != (offset+size-1)/32 {
 			offset = (offset/32 + 1) * 32
 		}
@@ -47,24 +52,11 @@ func NewDatastoreStruct(store DatastoreSlot, sizes []int) *DatastoreStruct {
 		arr:     store.SlotArray([]int{nSlots}),
 		offsets: offsets,
 		sizes:   sizes,
-		cache:   make([][]byte, len(sizes)),
 	}
 }
 
 func (s *DatastoreStruct) GetField(index int) []byte {
 	fieldSize := s.sizes[index]
-	if fieldSize == 0 {
-		return nil
-	}
-
-	if len(s.cache[index]) == 0 {
-		s.cache[index] = make([]byte, fieldSize)
-	} else {
-		data := make([]byte, fieldSize)
-		copy(data, s.cache[index])
-		return data
-	}
-
 	absOffset := s.offsets[index]
 	slotIndex, slotOffset := absOffset/32, absOffset%32
 	slotData := s.arr.Get(slotIndex).Bytes32()
@@ -73,23 +65,23 @@ func (s *DatastoreStruct) GetField(index int) []byte {
 
 func (s *DatastoreStruct) SetField(index int, data []byte) {
 	fieldSize := s.sizes[index]
-	if fieldSize == 0 {
-		return
-	}
 
-	if len(s.cache[index]) == 0 {
-		s.cache[index] = make([]byte, fieldSize)
-	} else if bytes.Equal(s.cache[index], data) {
-		return
+	if len(data) != fieldSize {
+		panic("invalid data size")
 	}
 
 	absOffset := s.offsets[index]
 	slotIndex, slotOffset := absOffset/32, absOffset%32
 	slotRef := s.arr.Get(slotIndex)
-	slotData := slotRef.Bytes32()
 
-	copy(slotData[slotOffset:slotOffset+fieldSize], data)
-	copy(s.cache[index], data)
+	var slotData common.Hash
+	if fieldSize < 32 {
+		slotData = slotRef.Bytes32()
+		copy(slotData[slotOffset:slotOffset+fieldSize], data)
+	} else {
+		slotData = common.BytesToHash(data)
+	}
+
 	slotRef.SetBytes32(slotData)
 }
 
@@ -105,11 +97,6 @@ func (s *DatastoreStruct) GetField_bytes(index int) []byte {
 }
 
 func (s *DatastoreStruct) SetField_bytes(index int, data []byte) {
-	if bytes.Equal(s.cache[index], data) {
-		return
-	}
-	s.cache[index] = make([]byte, len(data))
-	copy(s.cache[index], data)
 	slotRef := s.GetField_slot(index)
 	slotRef.SetBytes(data)
 }

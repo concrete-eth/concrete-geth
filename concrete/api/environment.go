@@ -219,7 +219,7 @@ func execute(op OpCode, env *Env, args [][]byte) ([][]byte, error) {
 				env.setError(err)
 				return nil, env.Error()
 			}
-			if err != nil || env.useGas(gasDyn) {
+			if err != nil || !env.useGas(gasDyn) {
 				env.setError(ErrOutOfGas)
 				return nil, env.Error()
 			}

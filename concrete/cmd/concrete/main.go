@@ -94,7 +94,7 @@ func main() {
 
 	cmdDatamod.Flags().String("out", "./", "dir to write the generated files to")
 	cmdDatamod.Flags().String("pkg", "main", "package name for the generated files")
-	cmdDatamod.Flags().Bool("table-types-experimental", false, "whether to enable experimental table value type")
+	cmdDatamod.Flags().Bool("table-type-experimental", false, "whether to enable experimental table value type")
 	rootCmd.AddCommand(cmdDatamod)
 
 	if err := rootCmd.Execute(); err != nil {
@@ -174,7 +174,7 @@ func runDatamod(cmd *cobra.Command, args []string) {
 	checkErr(err)
 	pkg, err := cmd.Flags().GetString("pkg")
 	checkErr(err)
-	allowTableTypes, err := cmd.Flags().GetBool("table-types-experimental")
+	allowTableTypes, err := cmd.Flags().GetBool("table-type-experimental")
 	checkErr(err)
 
 	jsonIsDir, err := isDir(jsonPath)

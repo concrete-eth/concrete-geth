@@ -11,7 +11,7 @@ import (
 	"github.com/ethereum/go-ethereum/concrete/lib"
 )
 
-// Reference imports to suppress errors if they are not otherwise used.
+// Reference imports to suppress errors if they are not used.
 var (
 	_ = big.NewInt
 	_ = common.Big1
@@ -31,9 +31,7 @@ func NewKkvRow(dsSlot lib.DatastoreSlot) *KkvRow {
 	return &KkvRow{*lib.NewDatastoreStruct(dsSlot, sizes)}
 }
 
-func (v *KkvRow) Get() (
-	common.Hash,
-) {
+func (v *KkvRow) Get() common.Hash {
 	return codec.DecodeHash(32, v.GetField(0))
 }
 

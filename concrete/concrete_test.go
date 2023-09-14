@@ -23,6 +23,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/concrete/api"
 	"github.com/ethereum/go-ethereum/concrete/fixtures"
 	fixture_datamod "github.com/ethereum/go-ethereum/concrete/fixtures/datamod"
@@ -77,27 +78,40 @@ func getAddABI() abi.ABI {
 
 func TestAddPrecompileFixture(t *testing.T) {
 	var (
-		r   = require.New(t)
-		ABI = getAddABI()
-		x   = big.NewInt(1)
-		y   = big.NewInt(2)
+		r        = require.New(t)
+		ABI      = getAddABI()
+		config   = api.EnvConfig{Trusted: true}
+		meterGas = true
+		gas      = uint64(1e3)
+		x        = big.NewInt(1)
+		y        = big.NewInt(2)
 	)
+
+	pack := func(x, y *big.Int) []byte {
+		input, err := ABI.Pack("add", x, y)
+		r.NoError(err)
+		return input
+	}
+
+	unpack := func(output []byte) *big.Int {
+		values, err := ABI.Methods["add"].Outputs.Unpack(output)
+		r.NoError(err)
+		value := values[0].(*big.Int)
+		return value
+	}
+
 	for _, impl := range addImplementations {
 		precompiles.AddPrecompile(impl.address, impl.pc)
 	}
 	for _, impl := range addImplementations {
-		env := mock.NewMockEnvironment(impl.address, api.EnvConfig{Trusted: true}, false, 0)
 		t.Run(impl.name, func(t *testing.T) {
-			input, err := ABI.Pack("add", x, y)
-			r.NoError(err)
+			env := mock.NewMockEnvironment(impl.address, config, meterGas, gas)
+			input := pack(x, y)
 			isStatic := impl.pc.IsStatic(input)
-			r.NoError(err)
 			r.True(isStatic)
 			output, err := impl.pc.Run(env, input)
 			r.NoError(err)
-			values, err := ABI.Methods["add"].Outputs.Unpack(output)
-			r.NoError(err)
-			value := values[0].(*big.Int)
+			value := unpack(output)
 			r.True(value.Cmp(x.Add(x, y)) == 0)
 		})
 	}
@@ -141,30 +155,54 @@ func TestKkvPrecompileFixture(t *testing.T) {
 		k2  = common.HexToHash("0x02")
 		v   = common.HexToHash("0x03")
 	)
+
+	packSet := func(k1, k2, v common.Hash) []byte {
+		input, err := ABI.Pack("set", k1, k2, v)
+		r.NoError(err)
+		return input
+	}
+
+	packGet := func(k1, k2 common.Hash) []byte {
+		input, err := ABI.Pack("get", k1, k2)
+		r.NoError(err)
+		return input
+	}
+
+	unpackGet := func(output []byte) common.Hash {
+		values, err := ABI.Methods["get"].Outputs.Unpack(output)
+		r.NoError(err)
+		value := common.Hash(values[0].([32]byte))
+		return value
+	}
+
 	for _, impl := range kkvImplementations {
 		precompiles.AddPrecompile(impl.address, impl.pc)
 	}
 	for _, impl := range kkvImplementations {
-		env := mock.NewMockEnvironment(impl.address, api.EnvConfig{Trusted: true}, false, 0)
+		env := mock.NewMockEnvironment(impl.address, api.EnvConfig{Trusted: true}, true, 1e5)
 		t.Run(impl.name, func(t *testing.T) {
-			input, err := ABI.Pack("set", k1, k2, v)
-			r.NoError(err)
-			isStatic := impl.pc.IsStatic(input)
-			r.NoError(err)
-			r.False(isStatic)
-			_, err = impl.pc.Run(env, input)
-			r.NoError(err)
-			input, err = ABI.Pack("get", k1, k2)
-			r.NoError(err)
-			isStatic = impl.pc.IsStatic(input)
-			r.NoError(err)
-			r.True(isStatic)
-			output, err := impl.pc.Run(env, input)
-			r.NoError(err)
-			values, err := ABI.Methods["get"].Outputs.Unpack(output)
-			r.NoError(err)
-			value := common.Hash(values[0].([32]byte))
-			r.Equal(v, value)
+			{
+				input := packSet(k1, k2, v)
+				isStatic := impl.pc.IsStatic(input)
+				r.False(isStatic)
+				gasLeft := env.Gas()
+				_, _, err := precompiles.RunPrecompile(impl.pc, env, input, false)
+				r.NoError(err)
+				gasUsed := gasLeft - env.Gas()
+				r.Equal(params.ColdSloadCostEIP2929+params.SstoreSetGasEIP2200, gasUsed) // Cold SSTORE
+			}
+			{
+				input := packGet(k1, k2)
+				isStatic := impl.pc.IsStatic(input)
+				r.True(isStatic)
+				gasLeft := env.Gas()
+				output, _, err := precompiles.RunPrecompile(impl.pc, env, input, true)
+				r.NoError(err)
+				gasUsed := gasLeft - env.Gas()
+				r.Equal(params.WarmStorageReadCostEIP2929, gasUsed) // Warm SLOAD
+				value := unpackGet(output)
+				r.Equal(v, value)
+			}
 		})
 	}
 }
@@ -197,33 +235,40 @@ func TestE2EKkvPrecompile(t *testing.T) {
 		ABI           = getKkvABI()
 		key, _        = crypto.HexToECDSA("b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291")
 		senderAddress = crypto.PubkeyToAddress(key.PublicKey)
-		nBlocks       = 3
+		gspec         = &core.Genesis{
+			Config:   params.TestChainConfig,
+			GasLimit: 30_000_000,
+			Alloc: core.GenesisAlloc{
+				senderAddress: {Balance: math.MaxBig256},
+			},
+		}
+		signer     = types.LatestSigner(gspec.Config)
+		nBlocks    = 3
+		txGasLimit = uint64(1e5)
 	)
 	for _, impl := range kkvImplementationsE2E {
 		precompiles.AddPrecompile(impl.address, impl.pc)
 	}
 	for _, impl := range kkvImplementationsE2E {
 		t.Run(impl.name, func(t *testing.T) {
-			var (
-				gspec = &core.Genesis{
-					Config: params.TestChainConfig,
-					Alloc: core.GenesisAlloc{
-						senderAddress: {Balance: big.NewInt(1e15)},
-					},
-				}
-				signer = types.LatestSigner(gspec.Config)
-			)
-			db, blocks, _ := core.GenerateChainWithGenesis(gspec, ethash.NewFaker(), nBlocks, func(ii int, block *core.BlockGen) {
+			db, blocks, receipts := core.GenerateChainWithGenesis(gspec, ethash.NewFaker(), nBlocks, func(ii int, block *core.BlockGen) {
 				k1 := common.BigToHash(big.NewInt(int64(ii)))
 				k2 := common.BigToHash(big.NewInt(int64(ii + 1)))
 				v := common.BigToHash(big.NewInt(int64(ii + 2)))
 				input, err := ABI.Pack("set", k1, k2, v)
 				r.NoError(err)
-				tx := types.NewTransaction(block.TxNonce(senderAddress), impl.address, common.Big0, 1e5, block.BaseFee(), input)
+				tx := types.NewTransaction(block.TxNonce(senderAddress), impl.address, common.Big0, txGasLimit, block.BaseFee(), input)
 				signed, err := types.SignTx(tx, signer, key)
 				r.NoError(err)
 				block.AddTx(signed)
 			})
+
+			for _, blockReceipts := range receipts {
+				for _, receipt := range blockReceipts {
+					r.Equal(types.ReceiptStatusSuccessful, receipt.Status)
+				}
+			}
+
 			root := blocks[len(blocks)-1].Root()
 			statedb, err := state.New(root, state.NewDatabase(db), nil)
 			r.NoError(err)
