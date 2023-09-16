@@ -24,6 +24,7 @@ import (
 	"github.com/ethereum/go-ethereum/concrete/wasm/host"
 	"github.com/ethereum/go-ethereum/concrete/wasm/memory"
 	"github.com/stretchr/testify/require"
+	"github.com/tetratelabs/wazero"
 	"github.com/wasmerio/wasmer-go/wasmer"
 )
 
@@ -111,7 +112,8 @@ var blankCode []byte
 
 func newWazeroMemory() (memory.Memory, memory.Allocator) {
 	envCall := host.NewWazeroEnvironmentCaller(func() api.Environment { return nil })
-	mod, _, err := newWazeroModule(envCall, blankCode)
+	runtimeConfig := wazero.NewRuntimeConfigCompiler()
+	mod, _, err := newWazeroModule(envCall, blankCode, runtimeConfig)
 	if err != nil {
 		panic(err)
 	}

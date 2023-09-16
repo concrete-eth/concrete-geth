@@ -31,15 +31,16 @@ import (
 // Note: For trusted use only. Precompiles can trigger a panic in the host.
 
 func NewWazeroPrecompile(code []byte) precompiles.Precompile {
-	return newWazeroPrecompile(code)
+	config := wazero.NewRuntimeConfigCompiler()
+	return newWazeroPrecompile(code, config)
 }
 
-func newWazeroModule(envCall host.WazeroHostFunc, code []byte) (wz_api.Module, wazero.Runtime, error) {
+func NewWazeroPrecompileWithConfig(code []byte, config wazero.RuntimeConfig) precompiles.Precompile {
+	return newWazeroPrecompile(code, config)
+}
+
+func newWazeroModule(envCall host.WazeroHostFunc, code []byte, runtimeConfig wazero.RuntimeConfig) (wz_api.Module, wazero.Runtime, error) {
 	ctx := context.Background()
-	runtimeConfig := wazero.NewRuntimeConfigCompiler()
-	// runtimeConfig := wazero.NewRuntimeConfigCompiler().
-	// 	WithMemoryCapacityFromMax(true).
-	// 	WithMemoryLimitPages(128)
 	r := wazero.NewRuntimeWithConfig(ctx, runtimeConfig)
 	_, err := r.NewHostModuleBuilder("env").
 		NewFunctionBuilder().WithFunc(envCall).Export(Environment_WasmFuncName).
@@ -68,11 +69,11 @@ type wazeroPrecompile struct {
 	expRun      wz_api.Function
 }
 
-func newWazeroPrecompile(code []byte) *wazeroPrecompile {
+func newWazeroPrecompile(code []byte, runtimeConfig wazero.RuntimeConfig) *wazeroPrecompile {
 	pc := &wazeroPrecompile{}
 
 	envCall := host.NewWazeroEnvironmentCaller(func() api.Environment { return pc.environment })
-	mod, r, err := newWazeroModule(envCall, code)
+	mod, r, err := newWazeroModule(envCall, code, runtimeConfig)
 	if err != nil {
 		panic(err)
 	}

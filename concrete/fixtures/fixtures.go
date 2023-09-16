@@ -29,7 +29,7 @@ import (
 
 const AddAbiString = "[{\"inputs\":[{\"name\":\"x\",\"type\":\"uint256\"},{\"name\":\"y\",\"type\":\"uint256\"}],\"name\":\"add\",\"outputs\":[{\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"pure\",\"type\":\"function\"}]"
 
-var addMethodID = common.Hex2Bytes("771602f7")
+var AddMethodID = common.Hex2Bytes("771602f7")
 
 type AdditionPrecompile struct {
 	lib.BlankPrecompile
@@ -37,7 +37,7 @@ type AdditionPrecompile struct {
 
 func (a *AdditionPrecompile) Run(env api.Environment, input []byte) ([]byte, error) {
 	methodID, data := utils.SplitInput(input)
-	if !bytes.Equal(methodID, addMethodID) {
+	if !bytes.Equal(methodID, AddMethodID) {
 		return nil, precompiles.ErrMethodNotFound
 	}
 	if len(data) != 64 {
@@ -54,8 +54,8 @@ var _ precompiles.Precompile = &AdditionPrecompile{}
 const KkvAbiString = "[{\"inputs\":[{\"name\":\"k1\",\"type\":\"bytes32\"},{\"name\":\"k2\",\"type\":\"bytes32\"},{\"name\":\"v\",\"type\":\"bytes32\"}],\"name\":\"set\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"name\":\"k1\",\"type\":\"bytes32\"},{\"name\":\"k2\",\"type\":\"bytes32\"}],\"name\":\"get\",\"outputs\":[{\"name\":\"v\",\"type\":\"bytes32\"}],\"stateMutability\":\"view\",\"type\":\"function\"}]"
 
 var (
-	kkvSetMethodID = common.Hex2Bytes("bb40a4a9")
-	kkvGetMethodID = common.Hex2Bytes("658cc1f6")
+	KkvSetMethodID = common.Hex2Bytes("bb40a4a9")
+	KkvGetMethodID = common.Hex2Bytes("658cc1f6")
 )
 
 type KeyKeyValuePrecompile struct {
@@ -64,9 +64,9 @@ type KeyKeyValuePrecompile struct {
 
 func (a *KeyKeyValuePrecompile) IsStatic(input []byte) bool {
 	methodID, _ := utils.SplitInput(input)
-	if bytes.Equal(methodID, kkvGetMethodID) {
+	if bytes.Equal(methodID, KkvGetMethodID) {
 		return true
-	} else if bytes.Equal(methodID, kkvSetMethodID) {
+	} else if bytes.Equal(methodID, KkvSetMethodID) {
 		return false
 	}
 	return true
@@ -74,7 +74,7 @@ func (a *KeyKeyValuePrecompile) IsStatic(input []byte) bool {
 
 func (a *KeyKeyValuePrecompile) Run(env api.Environment, input []byte) ([]byte, error) {
 	methodID, data := utils.SplitInput(input)
-	if bytes.Equal(methodID, kkvGetMethodID) {
+	if bytes.Equal(methodID, KkvGetMethodID) {
 		if len(data) != 64 {
 			return nil, precompiles.ErrInvalidInput
 		}
@@ -83,7 +83,7 @@ func (a *KeyKeyValuePrecompile) Run(env api.Environment, input []byte) ([]byte, 
 		kkv := fixture_datamod.NewKkv(lib.NewDatastore(env))
 		v := kkv.Get(k1, k2).GetValue()
 		return v.Bytes(), nil
-	} else if bytes.Equal(methodID, kkvSetMethodID) {
+	} else if bytes.Equal(methodID, KkvSetMethodID) {
 		if len(data) != 96 {
 			return nil, precompiles.ErrInvalidInput
 		}
