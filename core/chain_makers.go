@@ -21,6 +21,7 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/concrete"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/misc"
 	"github.com/ethereum/go-ethereum/core/rawdb"
@@ -49,6 +50,8 @@ type BlockGen struct {
 
 	config *params.ChainConfig
 	engine consensus.Engine
+
+	concrete concrete.PrecompileRegistry
 }
 
 // SetCoinbase sets the coinbase of the generated block.
@@ -98,7 +101,8 @@ func (b *BlockGen) addTx(bc *BlockChain, vmConfig vm.Config, tx *types.Transacti
 		b.SetCoinbase(common.Address{})
 	}
 	b.statedb.SetTxContext(tx.Hash(), len(b.txs))
-	receipt, err := ApplyTransaction(b.config, bc, &b.header.Coinbase, b.gasPool, b.statedb, b.header, tx, &b.header.GasUsed, vmConfig)
+	concretePcs := b.concrete.Precompiles(b.header.Number.Uint64())
+	receipt, err := ApplyTransaction(b.config, bc, &b.header.Coinbase, b.gasPool, b.statedb, b.header, tx, &b.header.GasUsed, vmConfig, concretePcs)
 	if err != nil {
 		panic(err)
 	}
@@ -277,13 +281,17 @@ func (b *BlockGen) OffsetTime(seconds int64) {
 // values. Inserting them into BlockChain requires use of FakePow or
 // a similar non-validating proof of work implementation.
 func GenerateChain(config *params.ChainConfig, parent *types.Block, engine consensus.Engine, db ethdb.Database, n int, gen func(int, *BlockGen)) ([]*types.Block, []types.Receipts) {
+	return GenerateChainWithConcrete(config, parent, engine, db, n, &concrete.GenericPrecompileRegistry{}, gen)
+}
+
+func GenerateChainWithConcrete(config *params.ChainConfig, parent *types.Block, engine consensus.Engine, db ethdb.Database, n int, concreteRegistry concrete.PrecompileRegistry, gen func(int, *BlockGen)) ([]*types.Block, []types.Receipts) {
 	if config == nil {
 		config = params.TestChainConfig
 	}
 	blocks, receipts := make(types.Blocks, n), make([]types.Receipts, n)
 	chainreader := &fakeChainReader{config: config}
 	genblock := func(i int, parent *types.Block, statedb *state.StateDB) (*types.Block, types.Receipts) {
-		b := &BlockGen{i: i, chain: blocks, parent: parent, statedb: statedb, config: config, engine: engine}
+		b := &BlockGen{i: i, chain: blocks, parent: parent, statedb: statedb, config: config, engine: engine, concrete: concreteRegistry}
 		b.header = makeHeader(chainreader, parent, statedb, b.engine)
 
 		// Set the difficulty for clique block. The chain maker doesn't have access
@@ -333,7 +341,8 @@ func GenerateChain(config *params.ChainConfig, parent *types.Block, engine conse
 		return nil, nil
 	}
 	for i := 0; i < n; i++ {
-		statedb, err := state.New(parent.Root(), state.NewDatabase(db), nil)
+		concretePcs := concreteRegistry.Precompiles(parent.NumberU64() + 1)
+		statedb, err := state.NewWithConcrete(parent.Root(), state.NewDatabase(db), nil, concretePcs)
 		if err != nil {
 			panic(err)
 		}
@@ -348,14 +357,18 @@ func GenerateChain(config *params.ChainConfig, parent *types.Block, engine conse
 // GenerateChainWithGenesis is a wrapper of GenerateChain which will initialize
 // genesis block to database first according to the provided genesis specification
 // then generate chain on top.
-func GenerateChainWithGenesis(genesis *Genesis, engine consensus.Engine, n int, gen func(int, *BlockGen)) (ethdb.Database, []*types.Block, []types.Receipts) {
+func GenerateChainWithGenesisWithConcrete(genesis *Genesis, engine consensus.Engine, n int, concreteRegistry concrete.PrecompileRegistry, gen func(int, *BlockGen)) (ethdb.Database, []*types.Block, []types.Receipts) {
 	db := rawdb.NewMemoryDatabase()
 	_, err := genesis.Commit(db, trie.NewDatabase(db))
 	if err != nil {
 		panic(err)
 	}
-	blocks, receipts := GenerateChain(genesis.Config, genesis.ToBlock(), engine, db, n, gen)
+	blocks, receipts := GenerateChainWithConcrete(genesis.Config, genesis.ToBlock(), engine, db, n, concreteRegistry, gen)
 	return db, blocks, receipts
+}
+
+func GenerateChainWithGenesis(genesis *Genesis, engine consensus.Engine, n int, gen func(int, *BlockGen)) (ethdb.Database, []*types.Block, []types.Receipts) {
+	return GenerateChainWithGenesisWithConcrete(genesis, engine, n, &concrete.GenericPrecompileRegistry{}, gen)
 }
 
 func makeHeader(chain consensus.ChainReader, parent *types.Block, state *state.StateDB, engine consensus.Engine) *types.Header {

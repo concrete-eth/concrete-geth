@@ -29,6 +29,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/keystore"
 	"github.com/ethereum/go-ethereum/cmd/utils"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/concrete"
 	"github.com/ethereum/go-ethereum/console/prompt"
 	"github.com/ethereum/go-ethereum/eth"
 	"github.com/ethereum/go-ethereum/eth/downloader"
@@ -199,7 +200,6 @@ var (
 )
 
 var app = flags.NewApp("the go-ethereum command line interface")
-var App = app
 
 func init() {
 	// Initialize the CLI app and start Geth
@@ -341,6 +341,41 @@ func geth(ctx *cli.Context) error {
 	startNode(ctx, stack, backend, false)
 	stack.Wait()
 	return nil
+}
+
+func newConcreteGeth(concreteRegistry concrete.PrecompileRegistry) func(ctx *cli.Context) error {
+	return func(ctx *cli.Context) error {
+		if args := ctx.Args().Slice(); len(args) > 0 {
+			return fmt.Errorf("invalid command: %q", args[0])
+		}
+
+		prepare(ctx)
+		stack, backend := makeFullNode(ctx)
+		defer stack.Close()
+
+		if ctx.String(utils.SyncModeFlag.Name) != "light" {
+			backend.SetConcrete(concreteRegistry)
+		}
+
+		startNode(ctx, stack, backend, false)
+		stack.Wait()
+		return nil
+	}
+}
+
+func newConcreteGethApp(concreteRegistry concrete.PrecompileRegistry) *cli.App {
+	ccApp := flags.NewApp("the concrete-geth command line interface")
+	ccApp.Action = newConcreteGeth(concreteRegistry)
+	ccApp.Copyright = "Copyright 2013-2023 The go-ethereum Authors & 2023 The concrete-geth Authors"
+	ccApp.Commands = app.Commands
+	ccApp.Flags = app.Flags
+	ccApp.Before = app.Before
+	ccApp.After = app.After
+	return app
+}
+
+func NewConcreteGethApp(concreteRegistry concrete.PrecompileRegistry) *cli.App {
+	return newConcreteGethApp(concreteRegistry)
 }
 
 // startNode boots up the system node and all registered protocols, after which

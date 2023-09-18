@@ -19,8 +19,8 @@ import (
 	"context"
 	"sync"
 
+	"github.com/ethereum/go-ethereum/concrete"
 	"github.com/ethereum/go-ethereum/concrete/api"
-	"github.com/ethereum/go-ethereum/concrete/precompiles"
 	"github.com/ethereum/go-ethereum/concrete/wasm/host"
 	"github.com/ethereum/go-ethereum/concrete/wasm/memory"
 	"github.com/tetratelabs/wazero"
@@ -30,12 +30,12 @@ import (
 
 // Note: For trusted use only. Precompiles can trigger a panic in the host.
 
-func NewWazeroPrecompile(code []byte) precompiles.Precompile {
+func NewWazeroPrecompile(code []byte) concrete.Precompile {
 	config := wazero.NewRuntimeConfigCompiler()
 	return newWazeroPrecompile(code, config)
 }
 
-func NewWazeroPrecompileWithConfig(code []byte, config wazero.RuntimeConfig) precompiles.Precompile {
+func NewWazeroPrecompileWithConfig(code []byte, config wazero.RuntimeConfig) concrete.Precompile {
 	return newWazeroPrecompile(code, config)
 }
 
@@ -181,4 +181,4 @@ func (p *wazeroPrecompile) Run(env api.Environment, input []byte) ([]byte, error
 	return p.call_Bytes_BytesErr(p.expRun, input)
 }
 
-var _ precompiles.Precompile = (*wazeroPrecompile)(nil)
+var _ concrete.Precompile = (*wazeroPrecompile)(nil)

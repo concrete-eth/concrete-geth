@@ -33,6 +33,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/lru"
 	"github.com/ethereum/go-ethereum/common/mclock"
 	"github.com/ethereum/go-ethereum/common/prque"
+	"github.com/ethereum/go-ethereum/concrete"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
@@ -224,6 +225,8 @@ type BlockChain struct {
 	processor  Processor // Block transaction processor interface
 	forker     *ForkChoice
 	vmConfig   vm.Config
+
+	concrete concrete.PrecompileRegistry
 }
 
 // NewBlockChain returns a fully initialised block chain using information
@@ -1724,7 +1727,8 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 		if parent == nil {
 			parent = bc.GetHeader(block.ParentHash(), block.NumberU64()-1)
 		}
-		statedb, err := state.New(parent.Root, bc.stateCache, bc.snaps)
+		concretePcs := bc.GetConcrete().Precompiles(block.NumberU64())
+		statedb, err := state.NewWithConcrete(parent.Root, bc.stateCache, bc.snaps, concretePcs)
 		if err != nil {
 			return it.index, err
 		}
@@ -1738,7 +1742,8 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 		var followupInterrupt atomic.Bool
 		if !bc.cacheConfig.TrieCleanNoPrefetch {
 			if followup, err := it.peek(); followup != nil && err == nil {
-				throwaway, _ := state.New(parent.Root, bc.stateCache, bc.snaps)
+				concretePcs := bc.GetConcrete().Precompiles(followup.NumberU64())
+				throwaway, _ := state.NewWithConcrete(parent.Root, bc.stateCache, bc.snaps, concretePcs)
 
 				go func(start time.Time, followup *types.Block, throwaway *state.StateDB) {
 					bc.prefetcher.Prefetch(followup, throwaway, bc.vmConfig, &followupInterrupt)
@@ -2493,4 +2498,19 @@ func (bc *BlockChain) SetBlockValidatorAndProcessorForTesting(v Validator, p Pro
 // It is thread-safe and can be called repeatedly without side effects.
 func (bc *BlockChain) SetTrieFlushInterval(interval time.Duration) {
 	bc.flushInterval.Store(int64(interval))
+}
+
+func (bs *BlockChain) SetConcrete(concreteRegistry concrete.PrecompileRegistry) {
+	if concreteRegistry == nil {
+		bs.concrete = &concrete.GenericPrecompileRegistry{}
+	} else {
+		bs.concrete = concreteRegistry
+	}
+}
+
+func (bs *BlockChain) GetConcrete() concrete.PrecompileRegistry {
+	if bs.concrete == nil {
+		return &concrete.GenericPrecompileRegistry{}
+	}
+	return bs.concrete
 }

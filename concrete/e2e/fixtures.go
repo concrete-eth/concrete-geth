@@ -13,18 +13,24 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with the concrete library. If not, see <http://www.gnu.org/licenses/>.
 
-package fixtures
+package e2e
 
 import (
 	"bytes"
+	"errors"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/concrete"
 	"github.com/ethereum/go-ethereum/concrete/api"
-	fixture_datamod "github.com/ethereum/go-ethereum/concrete/fixtures/datamod"
+	fixture_datamod "github.com/ethereum/go-ethereum/concrete/e2e/datamod"
 	"github.com/ethereum/go-ethereum/concrete/lib"
-	"github.com/ethereum/go-ethereum/concrete/precompiles"
 	"github.com/ethereum/go-ethereum/concrete/utils"
+)
+
+var (
+	ErrMethodNotFound = errors.New("method not found")
+	ErrInvalidInput   = errors.New("invalid input")
 )
 
 const AddAbiString = "[{\"inputs\":[{\"name\":\"x\",\"type\":\"uint256\"},{\"name\":\"y\",\"type\":\"uint256\"}],\"name\":\"add\",\"outputs\":[{\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"pure\",\"type\":\"function\"}]"
@@ -38,10 +44,10 @@ type AdditionPrecompile struct {
 func (a *AdditionPrecompile) Run(env api.Environment, input []byte) ([]byte, error) {
 	methodID, data := utils.SplitInput(input)
 	if !bytes.Equal(methodID, AddMethodID) {
-		return nil, precompiles.ErrMethodNotFound
+		return nil, ErrMethodNotFound
 	}
 	if len(data) != 64 {
-		return nil, precompiles.ErrInvalidInput
+		return nil, ErrInvalidInput
 	}
 	x := new(big.Int).SetBytes(data[:32])
 	y := new(big.Int).SetBytes(data[32:])
@@ -49,7 +55,7 @@ func (a *AdditionPrecompile) Run(env api.Environment, input []byte) ([]byte, err
 	return common.BigToHash(z).Bytes(), nil
 }
 
-var _ precompiles.Precompile = &AdditionPrecompile{}
+var _ concrete.Precompile = &AdditionPrecompile{}
 
 const KkvAbiString = "[{\"inputs\":[{\"name\":\"k1\",\"type\":\"bytes32\"},{\"name\":\"k2\",\"type\":\"bytes32\"},{\"name\":\"v\",\"type\":\"bytes32\"}],\"name\":\"set\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"name\":\"k1\",\"type\":\"bytes32\"},{\"name\":\"k2\",\"type\":\"bytes32\"}],\"name\":\"get\",\"outputs\":[{\"name\":\"v\",\"type\":\"bytes32\"}],\"stateMutability\":\"view\",\"type\":\"function\"}]"
 
@@ -76,7 +82,7 @@ func (a *KeyKeyValuePrecompile) Run(env api.Environment, input []byte) ([]byte, 
 	methodID, data := utils.SplitInput(input)
 	if bytes.Equal(methodID, KkvGetMethodID) {
 		if len(data) != 64 {
-			return nil, precompiles.ErrInvalidInput
+			return nil, ErrInvalidInput
 		}
 		k1 := common.BytesToHash(data[:32])
 		k2 := common.BytesToHash(data[32:])
@@ -85,7 +91,7 @@ func (a *KeyKeyValuePrecompile) Run(env api.Environment, input []byte) ([]byte, 
 		return v.Bytes(), nil
 	} else if bytes.Equal(methodID, KkvSetMethodID) {
 		if len(data) != 96 {
-			return nil, precompiles.ErrInvalidInput
+			return nil, ErrInvalidInput
 		}
 		k1 := common.BytesToHash(data[:32])
 		k2 := common.BytesToHash(data[32:64])
@@ -94,5 +100,5 @@ func (a *KeyKeyValuePrecompile) Run(env api.Environment, input []byte) ([]byte, 
 		kkv.Get(k1, k2).SetValue(v)
 		return nil, nil
 	}
-	return nil, precompiles.ErrMethodNotFound
+	return nil, ErrMethodNotFound
 }

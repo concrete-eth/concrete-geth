@@ -25,9 +25,8 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/concrete/api"
+	"github.com/ethereum/go-ethereum/concrete"
 	cc_api "github.com/ethereum/go-ethereum/concrete/api"
-	cc_precompiles "github.com/ethereum/go-ethereum/concrete/precompiles"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state/snapshot"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -145,6 +144,8 @@ type StateDB struct {
 	StorageUpdated int
 	AccountDeleted int
 	StorageDeleted int
+
+	concretePrecompiles map[common.Address]concrete.Precompile
 }
 
 // New creates a new state from a given trie.
@@ -177,6 +178,7 @@ func New(root common.Hash, db Database, snaps *snapshot.Tree) (*StateDB, error) 
 		persistentPreimagesPending: make(map[common.Hash]struct{}),
 		ephemeralStorage:           newEphemeralStorage(),
 		hasher:                     crypto.NewKeccakState(),
+		concretePrecompiles:        nil,
 	}
 	if sdb.snaps != nil {
 		if sdb.snap = sdb.snaps.Snapshot(root); sdb.snap != nil {
@@ -184,6 +186,15 @@ func New(root common.Hash, db Database, snaps *snapshot.Tree) (*StateDB, error) 
 			sdb.snapStorage = make(map[common.Hash]map[common.Hash][]byte)
 		}
 	}
+	return sdb, nil
+}
+
+func NewWithConcrete(root common.Hash, db Database, snaps *snapshot.Tree, concretePcs concrete.PrecompileMap) (*StateDB, error) {
+	sdb, err := New(root, db, snaps)
+	if err != nil {
+		return nil, err
+	}
+	sdb.concretePrecompiles = concretePcs
 	return sdb, nil
 }
 
@@ -405,8 +416,7 @@ func (s *StateDB) GetPersistentState(addr common.Address, key common.Hash) commo
 }
 
 func (s *StateDB) FinaliseConcretePrecompiles() {
-	for _, addr := range cc_precompiles.ActivePrecompiles() {
-		p, _ := cc_precompiles.GetPrecompile(addr)
+	for addr, p := range s.concretePrecompiles {
 		env := cc_api.NewNoCallEnvironment(
 			addr,
 			cc_api.EnvConfig{
@@ -426,8 +436,7 @@ func (s *StateDB) FinaliseConcretePrecompiles() {
 }
 
 func (s *StateDB) CommitConcretePrecompiles() {
-	for _, addr := range cc_precompiles.ActivePrecompiles() {
-		p, _ := cc_precompiles.GetPrecompile(addr)
+	for addr, p := range s.concretePrecompiles {
 		env := cc_api.NewNoCallEnvironment(
 			addr,
 			cc_api.EnvConfig{
@@ -942,6 +951,7 @@ func (s *StateDB) Copy() *StateDB {
 		persistentPreimagesDirty:   make(map[common.Hash]struct{}, len(s.persistentPreimagesDirty)),
 		persistentPreimagesPending: make(map[common.Hash]struct{}, len(s.persistentPreimagesPending)),
 		hasher:                     crypto.NewKeccakState(),
+		concretePrecompiles:        s.concretePrecompiles,
 	}
 	// Copy the dirty states, logs, and preimages
 	for addr := range s.journal.dirties {
@@ -1116,7 +1126,7 @@ func (s *StateDB) Finalise(deleteEmptyObjects bool) {
 			// Thus, we can safely ignore it here
 			continue
 		}
-		_, isConcretePrecompile := cc_precompiles.GetPrecompile(addr)
+		_, isConcretePrecompile := s.concretePrecompiles[addr]
 		if obj.suicided || (deleteEmptyObjects && obj.empty() && !isConcretePrecompile) {
 			obj.deleted = true
 
@@ -1398,7 +1408,7 @@ func (s *StateDB) Prepare(rules params.Rules, sender, coinbase common.Address, d
 		for _, addr := range precompiles {
 			al.AddAddress(addr)
 		}
-		for _, addr := range cc_precompiles.ActivePrecompiles() {
+		for addr := range s.concretePrecompiles {
 			al.AddAddress(addr)
 		}
 		for _, el := range list {
@@ -1474,4 +1484,4 @@ func (s *StateDB) convertAccountSet(set map[common.Address]struct{}) map[common.
 	return ret
 }
 
-var _ api.StateDB = (*StateDB)(nil)
+var _ cc_api.StateDB = (*StateDB)(nil)

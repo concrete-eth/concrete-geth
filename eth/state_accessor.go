@@ -85,7 +85,8 @@ func (eth *Ethereum) StateAtBlock(ctx context.Context, block *types.Block, reexe
 			// Create an ephemeral trie.Database for isolating the live one. Otherwise
 			// the internal junks created by tracing will be persisted into the disk.
 			database = state.NewDatabaseWithConfig(eth.chainDb, &trie.Config{Cache: 16})
-			if statedb, err = state.New(block.Root(), database, nil); err == nil {
+			concretePcs := eth.blockchain.GetConcrete().Precompiles(block.NumberU64())
+			if statedb, err = state.NewWithConcrete(block.Root(), database, nil, concretePcs); err == nil {
 				log.Info("Found disk backend for state trie", "root", block.Root(), "number", block.Number())
 				return statedb, noopReleaser, nil
 			}
@@ -105,7 +106,8 @@ func (eth *Ethereum) StateAtBlock(ctx context.Context, block *types.Block, reexe
 		// otherwise we would rewind past a persisted block (specific corner case is
 		// chain tracing from the genesis).
 		if !readOnly {
-			statedb, err = state.New(current.Root(), database, nil)
+			concretePcs := eth.blockchain.GetConcrete().Precompiles(current.NumberU64())
+			statedb, err = state.NewWithConcrete(current.Root(), database, nil, concretePcs)
 			if err == nil {
 				return statedb, noopReleaser, nil
 			}
@@ -124,7 +126,8 @@ func (eth *Ethereum) StateAtBlock(ctx context.Context, block *types.Block, reexe
 			}
 			current = parent
 
-			statedb, err = state.New(current.Root(), database, nil)
+			concretePcs := eth.blockchain.GetConcrete().Precompiles(current.NumberU64())
+			statedb, err = state.NewWithConcrete(current.Root(), database, nil, concretePcs)
 			if err == nil {
 				break
 			}
@@ -169,7 +172,8 @@ func (eth *Ethereum) StateAtBlock(ctx context.Context, block *types.Block, reexe
 			return nil, nil, fmt.Errorf("stateAtBlock commit failed, number %d root %v: %w",
 				current.NumberU64(), current.Root().Hex(), err)
 		}
-		statedb, err = state.New(root, database, nil)
+		concretePcs := eth.blockchain.GetConcrete().Precompiles(current.NumberU64())
+		statedb, err = state.NewWithConcrete(root, database, nil, concretePcs)
 		if err != nil {
 			return nil, nil, fmt.Errorf("state reset after block %d failed: %v", current.NumberU64(), err)
 		}
@@ -219,7 +223,8 @@ func (eth *Ethereum) stateAtTransaction(ctx context.Context, block *types.Block,
 			return msg, context, statedb, release, nil
 		}
 		// Not yet the searched for transaction, execute on top of the current state
-		vmenv := vm.NewEVM(context, txContext, statedb, eth.blockchain.Config(), vm.Config{})
+		concretePcs := eth.blockchain.GetConcrete().Precompiles(block.NumberU64())
+		vmenv := vm.NewEVMWithConcrete(context, txContext, statedb, eth.blockchain.Config(), vm.Config{}, concretePcs)
 		statedb.SetTxContext(tx.Hash(), idx)
 		if _, err := core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(tx.Gas())); err != nil {
 			return nil, vm.BlockContext{}, nil, nil, fmt.Errorf("transaction %#x failed: %v", tx.Hash(), err)

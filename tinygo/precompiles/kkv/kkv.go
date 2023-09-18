@@ -16,12 +16,12 @@
 package main
 
 import (
-	"github.com/ethereum/go-ethereum/concrete/fixtures"
+	"github.com/ethereum/go-ethereum/concrete/e2e"
 	"github.com/ethereum/go-ethereum/tinygo"
 )
 
 func init() {
-	tinygo.WasmWrap(&fixtures.KeyKeyValuePrecompile{})
+	tinygo.WasmWrap(&e2e.KeyKeyValuePrecompile{})
 }
 
 // main is REQUIRED for TinyGo to compile to WASM

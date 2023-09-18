@@ -52,7 +52,8 @@ func (p *statePrefetcher) Prefetch(block *types.Block, statedb *state.StateDB, c
 		header       = block.Header()
 		gaspool      = new(GasPool).AddGas(block.GasLimit())
 		blockContext = NewEVMBlockContext(header, p.bc, nil, p.config, statedb)
-		evm          = vm.NewEVM(blockContext, vm.TxContext{}, statedb, p.config, cfg)
+		concretePcs  = p.bc.GetConcrete().Precompiles(header.Number.Uint64())
+		evm          = vm.NewEVMWithConcrete(blockContext, vm.TxContext{}, statedb, p.config, cfg, concretePcs)
 		signer       = types.MakeSigner(p.config, header.Number, header.Time)
 	)
 	// Iterate over and process the individual transactions

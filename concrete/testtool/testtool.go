@@ -17,7 +17,6 @@ package testtool
 
 import (
 	"encoding/json"
-	"flag"
 	"fmt"
 	"math/big"
 	"os"
@@ -27,6 +26,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/concrete"
 	"github.com/ethereum/go-ethereum/consensus/ethash"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -35,7 +35,7 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 )
 
-func runTestMethod(bytecode []byte, method abi.Method, shouldFail bool) (uint64, error) {
+func runTestMethod(concreteRegistry concrete.PrecompileRegistry, bytecode []byte, method abi.Method, shouldFail bool) (uint64, error) {
 	var (
 		key, _          = crypto.HexToECDSA("d17bd946feb884d463d58fb702b94dd0457ca349338da1d732a57856cf777ccd") // 0xCcca11AbAC28D9b6FceD3a9CA73C434f6b33B215
 		senderAddress   = crypto.PubkeyToAddress(key.PublicKey)
@@ -53,7 +53,7 @@ func runTestMethod(bytecode []byte, method abi.Method, shouldFail bool) (uint64,
 		setupId  = crypto.Keccak256([]byte("setUp()"))[:4]
 	)
 
-	_, _, receipts := core.GenerateChainWithGenesis(gspec, ethash.NewFaker(), 1, func(ii int, block *core.BlockGen) {
+	_, _, receipts := core.GenerateChainWithGenesisWithConcrete(gspec, ethash.NewFaker(), 1, concreteRegistry, func(ii int, block *core.BlockGen) {
 		for _, id := range [][]byte{setupId, method.ID} {
 			tx := types.NewTransaction(block.TxNonce(senderAddress), contractAddress, common.Big0, gasLimit, block.BaseFee(), id)
 			signed, err := types.SignTx(tx, signer, key)
@@ -79,7 +79,7 @@ func runTestMethod(bytecode []byte, method abi.Method, shouldFail bool) (uint64,
 	return testReceipt.GasUsed, nil
 }
 
-func runTestContract(bytecode []byte, ABI abi.ABI) (int, int) {
+func runTestContract(concreteRegistry concrete.PrecompileRegistry, bytecode []byte, ABI abi.ABI) (int, int) {
 	passed := 0
 	failed := 0
 	for _, method := range ABI.Methods {
@@ -87,7 +87,7 @@ func runTestContract(bytecode []byte, ABI abi.ABI) (int, int) {
 			continue
 		}
 		shouldFail := strings.HasPrefix(method.Name, "testFail")
-		gas, err := runTestMethod(bytecode, method, shouldFail)
+		gas, err := runTestMethod(concreteRegistry, bytecode, method, shouldFail)
 		if err == nil {
 			passed++
 			fmt.Printf("[PASS] %s() (gas: %d)\n", method.Name, gas)
@@ -173,7 +173,7 @@ func getTestPaths(testDir, outDir string) ([]string, error) {
 	return paths, nil
 }
 
-func runTestPaths(contractJsonPaths []string) (int, int) {
+func runTestPaths(concreteRegistry concrete.PrecompileRegistry, contractJsonPaths []string) (int, int) {
 	var totalPassed, totalFailed int
 	startTime := time.Now()
 
@@ -186,7 +186,7 @@ func runTestPaths(contractJsonPaths []string) (int, int) {
 		contractName := filepath.Base(path)
 		contractName = strings.TrimSuffix(contractName, filepath.Ext(contractName))
 		fmt.Printf("\nRunning tests for %s:%s\n", testPath, contractName)
-		passed, failed := runTestContract(bytecode, ABI)
+		passed, failed := runTestContract(concreteRegistry, bytecode, ABI)
 		totalPassed += passed
 		totalFailed += failed
 	}
@@ -221,13 +221,13 @@ type TestConfig struct {
 	OutDir   string
 }
 
-func RunTestContract(bytecode []byte, ABI abi.ABI) (int, int) {
+func RunTestContract(concreteRegistry concrete.PrecompileRegistry, bytecode []byte, ABI abi.ABI) (int, int) {
 	resetGethLogger := setGethVerbosity(log.LvlWarn)
 	defer resetGethLogger()
-	return runTestContract(bytecode, ABI)
+	return runTestContract(concreteRegistry, bytecode, ABI)
 }
 
-func Test(config TestConfig) (int, int) {
+func Test(concreteRegistry concrete.PrecompileRegistry, config TestConfig) (int, int) {
 	resetGethLogger := setGethVerbosity(log.LvlWarn)
 	defer resetGethLogger()
 
@@ -254,39 +254,5 @@ func Test(config TestConfig) (int, int) {
 	}
 
 	// Run tests
-	return runTestPaths(testPaths)
-}
-
-func TestCmd() {
-	resetGethLogger := setGethVerbosity(log.LvlWarn)
-	defer resetGethLogger()
-
-	// Define optional parameters
-	contract := flag.String("contract", "", "Specific contract to test")
-	testDir := flag.String("testDir", "test", "Directory containing test files")
-	outDir := flag.String("outDir", "out", "Directory containing compiled contracts")
-
-	// Check for help command
-	if len(os.Args) >= 2 && strings.ToLower(os.Args[1]) == "help" {
-		flag.Usage()
-		return
-	}
-
-	// Parse command-line arguments
-	flag.Parse()
-
-	if flag.NArg() > 0 {
-		fmt.Println("Invalid parameter", flag.Arg(0))
-		fmt.Println("")
-		flag.Usage()
-		fmt.Println("")
-		os.Exit(1)
-	}
-
-	// Run tests
-	Test(TestConfig{
-		Contract: *contract,
-		TestDir:  *testDir,
-		OutDir:   *outDir,
-	})
+	return runTestPaths(concreteRegistry, testPaths)
 }

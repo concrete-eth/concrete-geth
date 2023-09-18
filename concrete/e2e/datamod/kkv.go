@@ -18,9 +18,13 @@ var (
 	_ = codec.EncodeAddress
 )
 
-var (
-	KkvDefaultKey = crypto.Keccak256([]byte("datamod.v1.Kkv"))
-)
+// var (
+//	KkvDefaultKey = crypto.Keccak256([]byte("datamod.v1.Kkv"))
+// )
+
+func defaultKey() []byte {
+	return crypto.Keccak256([]byte("datamod.v1.Kkv"))
+}
 
 type KkvRow struct {
 	lib.DatastoreStruct
@@ -31,7 +35,9 @@ func NewKkvRow(dsSlot lib.DatastoreSlot) *KkvRow {
 	return &KkvRow{*lib.NewDatastoreStruct(dsSlot, sizes)}
 }
 
-func (v *KkvRow) Get() common.Hash {
+func (v *KkvRow) Get() (
+	common.Hash,
+) {
 	return codec.DecodeHash(32, v.GetField(0))
 }
 
@@ -56,7 +62,7 @@ type Kkv struct {
 }
 
 func NewKkv(ds lib.Datastore) *Kkv {
-	dsSlot := ds.Get(KkvDefaultKey)
+	dsSlot := ds.Get(defaultKey())
 	return &Kkv{dsSlot}
 }
 

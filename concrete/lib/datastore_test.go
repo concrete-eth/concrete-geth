@@ -66,9 +66,8 @@ func TestEnvKeyValueStore(t *testing.T) {
 	}
 }
 
-func TestDatastore(t *testing.T) {
+func newSlot(keyStr string) (DatastoreSlot, common.Address, []byte) {
 	var (
-		r        = require.New(t)
 		address  = common.HexToAddress("0xc0ffee0001")
 		config   = api.EnvConfig{}
 		meterGas = false
@@ -76,8 +75,26 @@ func TestDatastore(t *testing.T) {
 	)
 	env := mock.NewMockEnvironment(address, config, meterGas, gas)
 	ds := NewPersistentDatastore(env)
-	key := []byte("datastore.test")
+	key := []byte(keyStr)
 	slot := ds.Get(key)
+	return slot, address, key
+}
+
+func testSlot(t *testing.T, getSlot func() DatastoreSlot) {
+	r := require.New(t)
+	slot := getSlot()
+	r.NotNil(slot)
+	r.Equal(common.Hash{}, slot.Bytes32())
+	slot.SetBytes32(common.Hash{0x01})
+	r.Equal(common.Hash{0x01}, slot.Bytes32())
+	r.Equal(common.Hash{0x01}, getSlot().Bytes32())
+}
+
+func TestDatastore(t *testing.T) {
+	var (
+		r            = require.New(t)
+		slot, _, key = newSlot("datastore.test")
+	)
 	r.NotNil(slot)
 	r.NotNil(slot.Datastore())
 	r.Equal(common.BytesToHash(key), slot.Slot())
@@ -85,16 +102,9 @@ func TestDatastore(t *testing.T) {
 
 func TestDatastoreSlot(t *testing.T) {
 	var (
-		r        = require.New(t)
-		address  = common.HexToAddress("0xc0ffee0001")
-		config   = api.EnvConfig{}
-		meterGas = false
-		gas      = uint64(0)
+		r                = require.New(t)
+		slot, address, _ = newSlot("slot.test")
 	)
-	env := mock.NewMockEnvironment(address, config, meterGas, gas)
-	ds := NewPersistentDatastore(env)
-	key := []byte("slot.test")
-	slot := ds.Get(key)
 
 	r.Equal(common.Hash{}, slot.Bytes32())
 	r.Equal(false, slot.Bool())
@@ -130,32 +140,13 @@ func TestDatastoreSlot(t *testing.T) {
 	r.Equal([]byte{0x01, 0x02, 0x03}, slot.Bytes())
 }
 
-func testSlot(t *testing.T, getSlot func() DatastoreSlot) {
-	r := require.New(t)
-	slot := getSlot()
-	r.NotNil(slot)
-	r.Equal(common.Hash{}, slot.Bytes32())
-	slot.SetBytes32(common.Hash{0x01})
-	r.Equal(common.Hash{0x01}, slot.Bytes32())
-	r.Equal(common.Hash{0x01}, getSlot().Bytes32())
-}
-
 func TestMapping(t *testing.T) {
 	var (
-		r        = require.New(t)
-		address  = common.HexToAddress("0xc0ffee0001")
-		config   = api.EnvConfig{}
-		meterGas = false
-		gas      = uint64(0)
+		r          = require.New(t)
+		slot, _, _ = newSlot("mapping.test")
 	)
-	env := mock.NewMockEnvironment(address, config, meterGas, gas)
-	ds := NewPersistentDatastore(env)
-	key := []byte("mapping.test")
-	slot := ds.Get(key)
 	mapping := slot.Mapping()
-
 	r.NotNil(mapping)
-
 	testSlot(t, func() DatastoreSlot {
 		return mapping.Get([]byte{0x01})
 	})
@@ -166,17 +157,11 @@ func TestMapping(t *testing.T) {
 
 func TestDynamicArray(t *testing.T) {
 	var (
-		r        = require.New(t)
-		address  = common.HexToAddress("0xc0ffee0001")
-		config   = api.EnvConfig{}
-		meterGas = false
-		gas      = uint64(0)
+		r          = require.New(t)
+		slot, _, _ = newSlot("array.test")
 	)
-	env := mock.NewMockEnvironment(address, config, meterGas, gas)
-	ds := NewPersistentDatastore(env)
-	key := []byte("array.test")
-	slot := ds.Get(key)
-	array := slot.DynamicArray()
+
+	array := slot.DynamicArray() // []
 
 	r.NotNil(array)
 	r.Zero(array.Length())
@@ -184,15 +169,15 @@ func TestDynamicArray(t *testing.T) {
 	r.Nil(array.GetNested(0, 0))
 	r.Nil(array.Pop())
 
-	slot0 := array.Push()
+	slot0 := array.Push() // [0]
 	r.NotNil(slot0)
-	slot1 := array.Push()
+	slot1 := array.Push() // [0, 0]
 	r.NotNil(slot1)
 	r.Equal(uint64(2), array.Length())
 
-	array1 := slot1.DynamicArray()
+	array1 := slot1.DynamicArray() // []
 	r.NotNil(array1)
-	slot1_0 := array1.Push()
+	slot1_0 := array1.Push() // [0]
 	r.NotNil(slot1_0)
 	r.Equal(uint64(1), array1.Length())
 

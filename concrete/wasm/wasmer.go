@@ -23,19 +23,19 @@ package wasm
 import (
 	"sync"
 
+	"github.com/ethereum/go-ethereum/concrete"
 	"github.com/ethereum/go-ethereum/concrete/api"
-	"github.com/ethereum/go-ethereum/concrete/precompiles"
 	"github.com/ethereum/go-ethereum/concrete/wasm/host"
 	"github.com/ethereum/go-ethereum/concrete/wasm/memory"
 	"github.com/wasmerio/wasmer-go/wasmer"
 )
 
-func NewWasmerPrecompile(code []byte) precompiles.Precompile {
+func NewWasmerPrecompile(code []byte) concrete.Precompile {
 	config := wasmer.NewConfig().UseCraneliftCompiler()
 	return newWasmerPrecompile(code, config)
 }
 
-func NewWasmerPrecompileWithConfig(code []byte, config *wasmer.Config) precompiles.Precompile {
+func NewWasmerPrecompileWithConfig(code []byte, config *wasmer.Config) concrete.Precompile {
 	return newWasmerPrecompile(code, config)
 }
 
@@ -208,4 +208,4 @@ func (p *wasmerPrecompile) Run(env api.Environment, input []byte) ([]byte, error
 	return p.call_Bytes_BytesErr(p.expRun, input)
 }
 
-var _ precompiles.Precompile = (*wasmerPrecompile)(nil)
+var _ concrete.Precompile = (*wasmerPrecompile)(nil)

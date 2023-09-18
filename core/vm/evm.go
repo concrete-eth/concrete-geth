@@ -23,8 +23,8 @@ import (
 	"github.com/holiman/uint256"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/concrete"
 	cc_api "github.com/ethereum/go-ethereum/concrete/api"
-	cc_precompiles "github.com/ethereum/go-ethereum/concrete/precompiles"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
@@ -60,8 +60,9 @@ func (evm *EVM) precompile(addr common.Address) (PrecompiledContract, bool) {
 	return p, ok
 }
 
-func (evm *EVM) concretePrecompile(addr common.Address) (cc_precompiles.Precompile, bool) {
-	return cc_precompiles.GetPrecompile(addr)
+func (evm *EVM) concretePrecompile(addr common.Address) (concrete.Precompile, bool) {
+	pc, ok := evm.concretePrecompiles[addr]
+	return pc, ok
 }
 
 // BlockContext provides the EVM with auxiliary information. Once provided
@@ -129,6 +130,8 @@ type EVM struct {
 	// available gas is calculated in gasCall* according to the 63/64 rule and later
 	// applied in opCall*.
 	callGasTemp uint64
+
+	concretePrecompiles map[common.Address]concrete.Precompile
 }
 
 // NewEVM returns a new EVM. The returned EVM is not thread safe and should
@@ -143,6 +146,12 @@ func NewEVM(blockCtx BlockContext, txCtx TxContext, statedb StateDB, chainConfig
 		chainRules:  chainConfig.Rules(blockCtx.BlockNumber, blockCtx.Random != nil, blockCtx.Time),
 	}
 	evm.interpreter = NewEVMInterpreter(evm)
+	return evm
+}
+
+func NewEVMWithConcrete(blockCtx BlockContext, txCtx TxContext, statedb StateDB, chainConfig *params.ChainConfig, config Config, concretePcs concrete.PrecompileMap) *EVM {
+	evm := NewEVM(blockCtx, txCtx, statedb, chainConfig, config)
+	evm.concretePrecompiles = concretePcs
 	return evm
 }
 
@@ -251,7 +260,7 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 			true,
 			gas,
 		)
-		ret, gas, err = cc_precompiles.RunPrecompile(ccp, env, input, static)
+		ret, gas, err = concrete.RunPrecompile(ccp, env, input, static)
 	} else {
 		// Initialise a new contract and set the code that is to be used by the EVM.
 		// The contract is a scoped environment for this execution context only.
@@ -379,7 +388,7 @@ func (evm *EVM) DelegateCall(caller ContractRef, addr common.Address, input []by
 			true,
 			gas,
 		)
-		ret, gas, err = cc_precompiles.RunPrecompile(ccp, env, input, static)
+		ret, gas, err = concrete.RunPrecompile(ccp, env, input, static)
 	} else {
 		addrCopy := addr
 		// Initialise a new contract and make initialise the delegate values
@@ -449,7 +458,7 @@ func (evm *EVM) StaticCall(caller ContractRef, addr common.Address, input []byte
 			true,
 			gas,
 		)
-		ret, gas, err = cc_precompiles.RunPrecompile(ccp, env, input, static)
+		ret, gas, err = concrete.RunPrecompile(ccp, env, input, static)
 	} else {
 		// At this point, we use a copy of address. If we don't, the go compiler will
 		// leak the 'contract' to the outer scope, and make allocation for 'contract'

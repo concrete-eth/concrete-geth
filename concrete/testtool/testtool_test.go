@@ -18,6 +18,8 @@ package testtool
 import (
 	_ "embed"
 	"testing"
+
+	"github.com/ethereum/go-ethereum/concrete"
 )
 
 //go:embed testdata/out/Test.sol/Test.json
@@ -28,7 +30,8 @@ func TestRunTestContract(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	passed, failed := RunTestContract(bytecode, ABI)
+	precompileRegistry := concrete.NewRegistry()
+	passed, failed := RunTestContract(precompileRegistry, bytecode, ABI)
 	if failed > 0 {
 		t.Errorf("failed tests: %v", failed)
 	}

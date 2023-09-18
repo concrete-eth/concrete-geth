@@ -18,9 +18,13 @@ var (
 	_ = codec.EncodeAddress
 )
 
-var (
-	{{.TableStructName}}DefaultKey = crypto.Keccak256([]byte("datamod.v1.{{.TableStructName}}"))
-)
+// var (
+//	{{.TableStructName}}DefaultKey = crypto.Keccak256([]byte("datamod.v1.{{.TableStructName}}"))
+// )
+
+func defaultKey() []byte {
+	return crypto.Keccak256([]byte("datamod.v1.{{.TableStructName}}"))
+}
 
 type {{.RowStructName}} struct {
 	lib.DatastoreStruct
@@ -85,7 +89,7 @@ type {{.TableStructName}} struct {
 }
 
 func New{{.TableStructName}}(ds lib.Datastore) *{{.TableStructName}} {
-	dsSlot := ds.Get({{.TableStructName}}DefaultKey)
+	dsSlot := ds.Get(defaultKey())
 	return &{{.TableStructName}}{dsSlot}
 }
 
@@ -109,7 +113,7 @@ func (m *{{.TableStructName}}) Get(
 type {{.TableStructName}} = {{.RowStructName}}
 
 func New{{.TableStructName}}(ds lib.Datastore) *{{.RowStructName}} {
-	dsSlot := ds.Get({{.TableStructName}}DefaultKey)
+	dsSlot := ds.Get(defaultKey())
 	return New{{.RowStructName}}(dsSlot)
 }
 

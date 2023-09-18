@@ -28,6 +28,9 @@ import (
 	"github.com/wasmerio/wasmer-go/wasmer"
 )
 
+//go:embed testdata/blank.wasm
+var blankCode []byte
+
 type mockMemory []byte
 
 func newMockMemory() memory.Memory {
@@ -107,13 +110,10 @@ func TestMockMemoryPutGetValues(t *testing.T) {
 	testMemoryPutGetValues(t, mem)
 }
 
-//go:embed testdata/blank.wasm
-var blankCode []byte
-
 func newWazeroMemory() (memory.Memory, memory.Allocator) {
 	envCall := host.NewWazeroEnvironmentCaller(func() api.Environment { return nil })
-	runtimeConfig := wazero.NewRuntimeConfigCompiler()
-	mod, _, err := newWazeroModule(envCall, blankCode, runtimeConfig)
+	config := wazero.NewRuntimeConfigInterpreter()
+	mod, _, err := newWazeroModule(envCall, blankCode, config)
 	if err != nil {
 		panic(err)
 	}
@@ -123,7 +123,8 @@ func newWazeroMemory() (memory.Memory, memory.Allocator) {
 
 func newWasmerMemory() (memory.Memory, memory.Allocator) {
 	envCall := host.NewWasmerEnvironmentCaller(func() api.Environment { return nil })
-	_, instance, err := newWasmerModule(envCall, blankCode, wasmer.NewConfig())
+	config := wasmer.NewConfig().UseSinglepassCompiler()
+	_, instance, err := newWasmerModule(envCall, blankCode, config)
 	if err != nil {
 		panic(err)
 	}

@@ -16,271 +16,205 @@
 package concrete
 
 import (
-	_ "embed"
-	"math/big"
-	"strings"
 	"testing"
 
-	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/concrete/api"
-	"github.com/ethereum/go-ethereum/concrete/fixtures"
-	fixture_datamod "github.com/ethereum/go-ethereum/concrete/fixtures/datamod"
-	"github.com/ethereum/go-ethereum/concrete/lib"
-	"github.com/ethereum/go-ethereum/concrete/mock"
-	"github.com/ethereum/go-ethereum/concrete/precompiles"
-	"github.com/ethereum/go-ethereum/concrete/wasm"
-	"github.com/ethereum/go-ethereum/consensus/ethash"
-	"github.com/ethereum/go-ethereum/core"
-	"github.com/ethereum/go-ethereum/core/state"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 )
 
-//go:embed fixtures/build/add.wasm
-var addWasm []byte
-
-//go:embed fixtures/build/kkv.wasm
-var kkvWasm []byte
-
-var addImplementations = []struct {
-	name    string
-	address common.Address
-	pc      precompiles.Precompile
-}{
-	{
-		name:    "Native",
-		address: common.BytesToAddress([]byte{130}),
-		pc:      &fixtures.AdditionPrecompile{},
-	},
-	{
-		name:    "Wazero",
-		address: common.BytesToAddress([]byte{131}),
-		pc:      wasm.NewWazeroPrecompile(addWasm),
-	},
-	{
-		name:    "Wasmer",
-		address: common.BytesToAddress([]byte{132}),
-		pc:      wasm.NewWasmerPrecompile(addWasm),
-	},
+type pcSet struct {
+	blockNumber uint64
+	precompiles PrecompileMap
 }
 
-func getAddABI() abi.ABI {
-	addABI, err := abi.JSON(strings.NewReader(fixtures.AddAbiString))
-	if err != nil {
-		panic(err)
-	}
-	return addABI
+type pcSingle struct {
+	blockNumber uint64
+	address     common.Address
+	precompile  Precompile
 }
 
-func TestAddPrecompileFixture(t *testing.T) {
-	var (
-		r        = require.New(t)
-		ABI      = getAddABI()
-		config   = api.EnvConfig{Trusted: true}
-		meterGas = true
-		gas      = uint64(1e3)
-		x        = big.NewInt(1)
-		y        = big.NewInt(2)
-	)
+type pcBlank struct{}
 
-	pack := func(x, y *big.Int) []byte {
-		input, err := ABI.Pack("add", x, y)
-		r.NoError(err)
-		return input
-	}
-
-	unpack := func(output []byte) *big.Int {
-		values, err := ABI.Methods["add"].Outputs.Unpack(output)
-		r.NoError(err)
-		value := values[0].(*big.Int)
-		return value
-	}
-
-	for _, impl := range addImplementations {
-		precompiles.AddPrecompile(impl.address, impl.pc)
-	}
-	for _, impl := range addImplementations {
-		t.Run(impl.name, func(t *testing.T) {
-			env := mock.NewMockEnvironment(impl.address, config, meterGas, gas)
-			input := pack(x, y)
-			isStatic := impl.pc.IsStatic(input)
-			r.True(isStatic)
-			output, err := impl.pc.Run(env, input)
-			r.NoError(err)
-			value := unpack(output)
-			r.True(value.Cmp(x.Add(x, y)) == 0)
-		})
-	}
+func (pc *pcBlank) IsStatic(input []byte) bool {
+	return true
 }
 
-var kkvImplementations = []struct {
-	name    string
-	address common.Address
-	pc      precompiles.Precompile
-}{
-	{
-		name:    "Native",
-		address: common.BytesToAddress([]byte{140}),
-		pc:      &fixtures.KeyKeyValuePrecompile{},
-	},
-	{
-		name:    "Wazero",
-		address: common.BytesToAddress([]byte{141}),
-		pc:      wasm.NewWazeroPrecompile(kkvWasm),
-	},
-	{
-		name:    "Wasmer",
-		address: common.BytesToAddress([]byte{142}),
-		pc:      wasm.NewWasmerPrecompile(kkvWasm),
-	},
+func (pc *pcBlank) Finalise(API api.Environment) error {
+	return nil
 }
 
-func getKkvABI() abi.ABI {
-	kkvABI, err := abi.JSON(strings.NewReader(fixtures.KkvAbiString))
-	if err != nil {
-		panic(err)
-	}
-	return kkvABI
+func (pc *pcBlank) Commit(API api.Environment) error {
+	return nil
 }
 
-func TestKkvPrecompileFixture(t *testing.T) {
-	var (
-		r   = require.New(t)
-		ABI = getKkvABI()
-		k1  = common.HexToHash("0x01")
-		k2  = common.HexToHash("0x02")
-		v   = common.HexToHash("0x03")
-	)
-
-	packSet := func(k1, k2, v common.Hash) []byte {
-		input, err := ABI.Pack("set", k1, k2, v)
-		r.NoError(err)
-		return input
-	}
-
-	packGet := func(k1, k2 common.Hash) []byte {
-		input, err := ABI.Pack("get", k1, k2)
-		r.NoError(err)
-		return input
-	}
-
-	unpackGet := func(output []byte) common.Hash {
-		values, err := ABI.Methods["get"].Outputs.Unpack(output)
-		r.NoError(err)
-		value := common.Hash(values[0].([32]byte))
-		return value
-	}
-
-	for _, impl := range kkvImplementations {
-		precompiles.AddPrecompile(impl.address, impl.pc)
-	}
-	for _, impl := range kkvImplementations {
-		env := mock.NewMockEnvironment(impl.address, api.EnvConfig{Trusted: true}, true, 1e5)
-		t.Run(impl.name, func(t *testing.T) {
-			{
-				input := packSet(k1, k2, v)
-				isStatic := impl.pc.IsStatic(input)
-				r.False(isStatic)
-				gasLeft := env.Gas()
-				_, _, err := precompiles.RunPrecompile(impl.pc, env, input, false)
-				r.NoError(err)
-				gasUsed := gasLeft - env.Gas()
-				r.Equal(params.ColdSloadCostEIP2929+params.SstoreSetGasEIP2200, gasUsed) // Cold SSTORE
-			}
-			{
-				input := packGet(k1, k2)
-				isStatic := impl.pc.IsStatic(input)
-				r.True(isStatic)
-				gasLeft := env.Gas()
-				output, _, err := precompiles.RunPrecompile(impl.pc, env, input, true)
-				r.NoError(err)
-				gasUsed := gasLeft - env.Gas()
-				r.Equal(params.WarmStorageReadCostEIP2929, gasUsed) // Warm SLOAD
-				value := unpackGet(output)
-				r.Equal(v, value)
-			}
-		})
-	}
+func (pc *pcBlank) Run(API api.Environment, input []byte) ([]byte, error) {
+	return []byte{}, nil
 }
 
-var kkvImplementationsE2E = []struct {
-	name    string
-	address common.Address
-	pc      precompiles.Precompile
-}{
-	{
-		name:    "Native",
-		address: common.BytesToAddress([]byte{150}),
-		pc:      &fixtures.KeyKeyValuePrecompile{},
-	},
-	{
-		name:    "Wazero",
-		address: common.BytesToAddress([]byte{151}),
-		pc:      wasm.NewWazeroPrecompile(kkvWasm),
-	},
-	{
-		name:    "Wasmer",
-		address: common.BytesToAddress([]byte{151}),
-		pc:      wasm.NewWasmerPrecompile(kkvWasm),
-	},
-}
+var _ Precompile = &pcBlank{}
 
-func TestE2EKkvPrecompile(t *testing.T) {
-	var (
-		r             = require.New(t)
-		ABI           = getKkvABI()
-		key, _        = crypto.HexToECDSA("b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291")
-		senderAddress = crypto.PubkeyToAddress(key.PublicKey)
-		gspec         = &core.Genesis{
-			Config:   params.TestChainConfig,
-			GasLimit: 30_000_000,
-			Alloc: core.GenesisAlloc{
-				senderAddress: {Balance: math.MaxBig256},
+var (
+	addrIncl1 = common.BytesToAddress([]byte{128})
+	addrIncl2 = common.BytesToAddress([]byte{129})
+	addrExcl  = common.BytesToAddress([]byte{130})
+	// Block numbers are deliberately not in order
+	pcSets = []pcSet{
+		{
+			blockNumber: 0,
+			precompiles: PrecompileMap{
+				addrIncl1: &pcBlank{},
+				addrIncl2: &pcBlank{},
 			},
-		}
-		signer     = types.LatestSigner(gspec.Config)
-		nBlocks    = 3
-		txGasLimit = uint64(1e5)
-	)
-	for _, impl := range kkvImplementationsE2E {
-		precompiles.AddPrecompile(impl.address, impl.pc)
+		},
+		{
+			blockNumber: 20,
+			precompiles: PrecompileMap{
+				addrIncl2: &pcBlank{},
+			},
+		},
+		{
+			blockNumber: 10,
+			precompiles: PrecompileMap{
+				addrIncl1: &pcBlank{},
+			},
+		},
+		{
+			blockNumber: 40,
+			precompiles: PrecompileMap{
+				addrIncl1: &pcBlank{},
+				addrIncl2: &pcBlank{},
+			},
+		},
+		{
+			blockNumber: 30,
+			precompiles: PrecompileMap{},
+		},
 	}
-	for _, impl := range kkvImplementationsE2E {
-		t.Run(impl.name, func(t *testing.T) {
-			db, blocks, receipts := core.GenerateChainWithGenesis(gspec, ethash.NewFaker(), nBlocks, func(ii int, block *core.BlockGen) {
-				k1 := common.BigToHash(big.NewInt(int64(ii)))
-				k2 := common.BigToHash(big.NewInt(int64(ii + 1)))
-				v := common.BigToHash(big.NewInt(int64(ii + 2)))
-				input, err := ABI.Pack("set", k1, k2, v)
-				r.NoError(err)
-				tx := types.NewTransaction(block.TxNonce(senderAddress), impl.address, common.Big0, txGasLimit, block.BaseFee(), input)
-				signed, err := types.SignTx(tx, signer, key)
-				r.NoError(err)
-				block.AddTx(signed)
-			})
+	pcSingles = []pcSingle{
+		{
+			blockNumber: 5,
+			address:     addrIncl1,
+			precompile:  &pcBlank{},
+		},
+		{
+			blockNumber: 15,
+			address:     addrIncl2,
+			precompile:  &pcBlank{},
+		},
+	}
+)
 
-			for _, blockReceipts := range receipts {
-				for _, receipt := range blockReceipts {
-					r.Equal(types.ReceiptStatusSuccessful, receipt.Status)
+func verifyPrecompileSet(t *testing.T, registry *GenericPrecompileRegistry, num uint64, p pcSet) {
+	r := require.New(t)
+	// Assert that all the provided addresses have been returned and all the returned
+	// addresses were provided
+	addresses := registry.ActivePrecompiles(num)
+	r.Len(addresses, len(p.precompiles))
+	for _, address := range addresses {
+		_, ok := p.precompiles[address]
+		r.True(ok)
+	}
+	for address := range p.precompiles {
+		r.Contains(addresses, address)
+	}
+	// Assert that all active addresses map to the correct precompile
+	for address, setPc := range p.precompiles {
+		registryPc, ok := registry.Precompile(address, num)
+		r.True(ok)
+		r.Equal(setPc, registryPc)
+	}
+	// Assert that inactive addresses do not map to a precompile
+	pc, ok := registry.Precompile(addrExcl, num)
+	r.Nil(pc)
+	r.False(ok)
+	// Assert that Precompiles returns the correct set of precompiles
+	pcs := registry.Precompiles(num)
+	r.Equal(p.precompiles, pcs)
+}
+
+func verifyPrecompileSingle(t *testing.T, registry *GenericPrecompileRegistry, num uint64, p pcSingle) {
+	r := require.New(t)
+	// Assert that all the provided addresses have been returned and all the returned
+	// addresses were provided
+	addresses := registry.ActivePrecompiles(num)
+	r.Len(addresses, 1)
+	r.Equal(p.address, addresses[0])
+	// Assert that all active addresses map to the correct precompile
+	registryPc, ok := registry.Precompile(p.address, num)
+	r.True(ok)
+	r.Equal(p.precompile, registryPc)
+	// Assert that inactive addresses do not map to a precompile
+	pc, ok := registry.Precompile(addrExcl, num)
+	r.Nil(pc)
+	r.False(ok)
+	// Assert that Precompiles returns the correct set of precompiles
+	pcs := registry.Precompiles(num)
+	r.Len(pcs, 1)
+	r.Equal(p.precompile, pcs[p.address])
+}
+
+func TestPrecompileRegistry(t *testing.T) {
+	t.Run("AddPrecompiles", func(t *testing.T) {
+		registry := NewRegistry()
+		for _, d := range pcSets {
+			registry.AddPrecompiles(d.blockNumber, d.precompiles)
+		}
+		for _, d := range pcSets {
+			require.Panics(t, func() {
+				registry.AddPrecompiles(d.blockNumber, d.precompiles)
+			})
+		}
+		for _, d := range pcSets {
+			// Check that the precompiles are returned correctly for the first, second and last
+			// block in each range
+			for _, delta := range []uint64{0, 1, 9} {
+				blockNumber := d.blockNumber + delta
+				verifyPrecompileSet(t, registry, blockNumber, d)
+			}
+		}
+	})
+	t.Run("AddPrecompile", func(t *testing.T) {
+		t.Run("OnEmpty", func(t *testing.T) {
+			registry := NewRegistry()
+			for _, d := range pcSingles {
+				registry.AddPrecompile(d.blockNumber, d.address, d.precompile)
+			}
+			for _, d := range pcSingles {
+				require.Panics(t, func() {
+					registry.AddPrecompile(d.blockNumber, d.address, d.precompile)
+				})
+			}
+			for _, d := range pcSingles {
+				// Check that the precompiles are returned correctly for the first, second and last
+				// block in each range
+				for _, delta := range []uint64{0, 1, 9} {
+					blockNumber := d.blockNumber + delta
+					verifyPrecompileSingle(t, registry, blockNumber, d)
 				}
 			}
-
-			root := blocks[len(blocks)-1].Root()
-			statedb, err := state.New(root, state.NewDatabase(db), nil)
-			r.NoError(err)
-			env := api.NewNoCallEnvironment(impl.address, api.EnvConfig{}, statedb, false, 0)
-			kkv := fixture_datamod.NewKkv(lib.NewDatastore(env))
-			for ii := 0; ii < nBlocks; ii++ {
-				k1 := common.BigToHash(big.NewInt(int64(ii)))
-				k2 := common.BigToHash(big.NewInt(int64(ii + 1)))
-				v := common.BigToHash(big.NewInt(int64(ii + 2)))
-				value := kkv.Get(k1, k2).GetValue()
-				r.Equal(v, value)
+		})
+		t.Run("OnExisting", func(t *testing.T) {
+			registry := NewRegistry()
+			for _, d := range pcSets {
+				registry.AddPrecompiles(d.blockNumber, d.precompiles)
+			}
+			for _, d := range pcSingles {
+				registry.AddPrecompile(d.blockNumber, d.address, d.precompile)
+			}
+			for _, d := range pcSingles {
+				require.Panics(t, func() {
+					registry.AddPrecompile(d.blockNumber, d.address, d.precompile)
+				})
+			}
+			for _, d := range pcSets {
+				blockNumber := d.blockNumber
+				verifyPrecompileSet(t, registry, blockNumber, d)
+			}
+			for _, d := range pcSingles {
+				blockNumber := d.blockNumber
+				verifyPrecompileSingle(t, registry, blockNumber, d)
 			}
 		})
-	}
+	})
 }

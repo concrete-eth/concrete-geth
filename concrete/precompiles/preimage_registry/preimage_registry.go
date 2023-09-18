@@ -17,14 +17,15 @@ package preimage_registry
 
 import (
 	_ "embed"
+	"errors"
 	"math/big"
 	"strings"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/concrete"
 	"github.com/ethereum/go-ethereum/concrete/api"
 	"github.com/ethereum/go-ethereum/concrete/lib"
-	"github.com/ethereum/go-ethereum/concrete/precompiles"
 	"github.com/ethereum/go-ethereum/concrete/utils"
 )
 
@@ -33,14 +34,10 @@ var abiFile string
 
 var ABI abi.ABI
 
-var PreimageRegistryMetadata = precompiles.PrecompileMetadata{
-	Name:        "PreimageRegistry",
-	Version:     precompiles.Version{common.Big0, common.Big1, common.Big0},
-	Author:      "The concrete-geth Authors",
-	Description: "A registry of stored preimages indexed by their hash.",
-	Source:      "https://github.com/therealbytes/concrete-geth/tree/concrete/concrete/precompiles/preimage_registry.go",
-	ABI:         abiFile,
-}
+var (
+	ErrMethodNotFound = errors.New("method not found")
+	ErrInvalidInput   = errors.New("invalid input")
+)
 
 var (
 	// crypto.Keccak256Hash(nil)
@@ -73,11 +70,11 @@ func (p *PreimageRegistry) Run(env api.Environment, input []byte) ([]byte, error
 	methodID, data := utils.SplitInput(input)
 	method, err := ABI.MethodById(methodID)
 	if err != nil {
-		return nil, precompiles.ErrMethodNotFound
+		return nil, ErrMethodNotFound
 	}
 	args, err := method.Inputs.Unpack(data)
 	if err != nil {
-		return nil, precompiles.ErrInvalidInput
+		return nil, ErrInvalidInput
 	}
 	var result interface{}
 
@@ -125,7 +122,7 @@ func (p *PreimageRegistry) Run(env api.Environment, input []byte) ([]byte, error
 		}
 
 	default:
-		return nil, precompiles.ErrMethodNotFound
+		return nil, ErrMethodNotFound
 	}
 
 	output, err := method.Outputs.Pack(result)
@@ -136,4 +133,4 @@ func (p *PreimageRegistry) Run(env api.Environment, input []byte) ([]byte, error
 	return output, nil
 }
 
-var _ precompiles.Precompile = (*PreimageRegistry)(nil)
+var _ concrete.Precompile = (*PreimageRegistry)(nil)
