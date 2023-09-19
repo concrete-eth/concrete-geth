@@ -62,7 +62,7 @@ type wazeroPrecompile struct {
 	mutex       sync.Mutex
 	memory      memory.Memory
 	allocator   memory.Allocator
-	environment api.Environment
+	environment *api.Env
 	expIsStatic wz_api.Function
 	expFinalise wz_api.Function
 	expCommit   wz_api.Function
@@ -124,7 +124,7 @@ func (p *wazeroPrecompile) call_Bytes_Uint64(expFunc wz_api.Function, input []by
 	pointer := memory.PutValue(p.memory, input)
 	defer p.allocator.Free(pointer)
 	_ret, err := expFunc.Call(ctx, pointer.Uint64())
-	if err != nil {
+	if err != nil && p.environment.Error() == nil {
 		panic(err)
 	}
 	return _ret[0]
@@ -138,17 +138,15 @@ func (p *wazeroPrecompile) call_Bytes_BytesErr(expFunc wz_api.Function, input []
 }
 
 func (p *wazeroPrecompile) before(env api.Environment) {
+	var envImpl *api.Env
 	if env != nil {
-		envImpl, ok := env.(*api.Env)
-		if !ok {
-			panic("invalid environment")
-		}
+		envImpl = env.(*api.Env)
 		if !envImpl.Config().Trusted {
 			panic("untrusted environment")
 		}
 	}
 	p.mutex.Lock()
-	p.environment = env
+	p.environment = envImpl
 }
 
 func (p *wazeroPrecompile) after(env api.Environment) {

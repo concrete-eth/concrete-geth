@@ -429,7 +429,11 @@ func (s *StateDB) FinaliseConcretePrecompiles() {
 			false,
 			0,
 		)
-		if err := p.Finalise(env); err != nil {
+		err := p.Finalise(env)
+		if err != nil {
+			err = env.Error()
+		}
+		if err != nil {
 			s.setError(fmt.Errorf("error in concrete precompile %x Finalise(): %v", addr, err))
 		}
 	}
@@ -449,7 +453,11 @@ func (s *StateDB) CommitConcretePrecompiles() {
 			false,
 			0,
 		)
-		if err := p.Commit(env); err != nil {
+		err := p.Commit(env)
+		if err != nil {
+			err = env.Error()
+		}
+		if err != nil {
 			s.setError(fmt.Errorf("error in concrete precompile %x Commit(): %v", addr, err))
 		}
 	}

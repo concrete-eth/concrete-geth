@@ -89,7 +89,7 @@ type wasmerPrecompile struct {
 	mutex       sync.Mutex
 	memory      memory.Memory
 	allocator   memory.Allocator
-	environment api.Environment
+	environment *api.Env
 	expIsStatic wasmer.NativeFunction
 	expFinalise wasmer.NativeFunction
 	expCommit   wasmer.NativeFunction
@@ -150,7 +150,7 @@ func (p *wasmerPrecompile) call_Bytes_Uint64(expFunc wasmer.NativeFunction, inpu
 	pointer := memory.PutValue(p.memory, input)
 	defer p.allocator.Free(pointer)
 	_ret, err := expFunc(int64(pointer))
-	if err != nil {
+	if err != nil && p.environment.Error() == nil {
 		panic(err)
 	}
 	ret, _ := _ret.(int64)
@@ -165,17 +165,15 @@ func (p *wasmerPrecompile) call_Bytes_BytesErr(expFunc wasmer.NativeFunction, in
 }
 
 func (p *wasmerPrecompile) before(env api.Environment) {
+	var envImpl *api.Env
 	if env != nil {
-		envImpl, ok := env.(*api.Env)
-		if !ok {
-			panic("invalid environment")
-		}
+		envImpl = env.(*api.Env)
 		if !envImpl.Config().Trusted {
 			panic("untrusted environment")
 		}
 	}
 	p.mutex.Lock()
-	p.environment = env
+	p.environment = envImpl
 }
 
 func (p *wasmerPrecompile) after(env api.Environment) {
