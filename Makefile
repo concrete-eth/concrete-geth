@@ -50,8 +50,10 @@ concrete-wasm:
 	tinygo build -opt=2 -o $(E2E_DIR)/build/blank.wasm -target=wasi $(TINYGO_PCS_DIR)/blank/blank.go
 	tinygo build -opt=2 -o $(E2E_DIR)/build/add.wasm -target=wasi $(TINYGO_PCS_DIR)/add/add.go
 	tinygo build -opt=2 -o $(E2E_DIR)/build/kkv.wasm -target=wasi $(TINYGO_PCS_DIR)/kkv/kkv.go
+	tinygo build -opt=2 -o $(E2E_DIR)/build/gas.wasm -target=wasi $(TINYGO_PCS_DIR)/gas/gas.go
 	mkdir -p $(WASM_TESTDATA_DIR)
 	cp $(E2E_DIR)/build/blank.wasm $(WASM_TESTDATA_DIR)/blank.wasm
+	cp $(E2E_DIR)/build/gas.wasm $(WASM_TESTDATA_DIR)/gas.wasm
 
 concrete-solidity:
 	cd ./concrete/testtool/testdata && forge build

@@ -161,6 +161,9 @@ func (p *wasmerPrecompile) call_Bytes_BytesErr(expFunc wasmer.NativeFunction, in
 	_retPointer := p.call_Bytes_Uint64(expFunc, input)
 	retPointer := memory.MemPointer(_retPointer)
 	retValues, retErr := memory.GetReturnWithError(p.memory, retPointer, true)
+	if len(retValues) == 0 {
+		return nil, retErr
+	}
 	return retValues[0], retErr
 }
 

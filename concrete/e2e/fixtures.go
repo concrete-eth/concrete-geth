@@ -102,3 +102,17 @@ func (a *KeyKeyValuePrecompile) Run(env api.Environment, input []byte) ([]byte, 
 	}
 	return nil, ErrMethodNotFound
 }
+
+var _ concrete.Precompile = &KeyKeyValuePrecompile{}
+
+type GasPrecompile struct {
+	lib.BlankPrecompile
+}
+
+func (a *GasPrecompile) Run(env api.Environment, input []byte) ([]byte, error) {
+	gas := uint64(input[0])
+	env.UseGas(gas)
+	return []byte{1}, nil
+}
+
+var _ concrete.Precompile = &GasPrecompile{}

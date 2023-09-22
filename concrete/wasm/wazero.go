@@ -119,12 +119,20 @@ func (p *wazeroPrecompile) call__Err(expFunc wz_api.Function) error {
 	return retErr
 }
 
-func (p *wazeroPrecompile) call_Bytes_Uint64(expFunc wz_api.Function, input []byte) uint64 {
+func (p *wazeroPrecompile) call_Bytes_Uint64(expFunc wz_api.Function, input []byte) (ret uint64) {
+	defer func() {
+		if r := recover(); r != nil {
+			if p.environment.Error() == nil {
+				panic(r)
+			}
+			ret = memory.NullPointer.Uint64()
+		}
+	}()
 	ctx := context.Background()
 	pointer := memory.PutValue(p.memory, input)
 	defer p.allocator.Free(pointer)
 	_ret, err := expFunc.Call(ctx, pointer.Uint64())
-	if err != nil && p.environment.Error() == nil {
+	if err != nil {
 		panic(err)
 	}
 	return _ret[0]
@@ -134,6 +142,9 @@ func (p *wazeroPrecompile) call_Bytes_BytesErr(expFunc wz_api.Function, input []
 	_retPointer := p.call_Bytes_Uint64(expFunc, input)
 	retPointer := memory.MemPointer(_retPointer)
 	retValues, retErr := memory.GetReturnWithError(p.memory, retPointer, true)
+	if len(retValues) == 0 {
+		return nil, retErr
+	}
 	return retValues[0], retErr
 }
 

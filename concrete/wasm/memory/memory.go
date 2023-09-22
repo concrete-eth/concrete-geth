@@ -157,6 +157,9 @@ func PutReturnWithError(memory Memory, retValues [][]byte, retErr error) MemPoin
 
 func GetReturnWithError(memory Memory, retPointer MemPointer, free bool) ([][]byte, error) {
 	retValues := GetReturn(memory, retPointer, free)
+	if len(retValues) == 0 {
+		return nil, nil
+	}
 	err := utils.DecodeError(retValues[len(retValues)-1])
 	return retValues[:len(retValues)-1], err
 }
