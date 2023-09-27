@@ -89,7 +89,7 @@ type Backend interface {
 	StateAtBlock(ctx context.Context, block *types.Block, reexec uint64, base *state.StateDB, readOnly bool, preferDisk bool) (*state.StateDB, StateReleaseFunc, error)
 	StateAtTransaction(ctx context.Context, block *types.Block, txIndex int, reexec uint64) (*core.Message, vm.BlockContext, *state.StateDB, StateReleaseFunc, error)
 	HistoricalRPCService() *rpc.Client
-	GetConcrete() concrete.PrecompileRegistry
+	Concrete() concrete.PrecompileRegistry
 }
 
 // API is the collection of tracing APIs exposed over the private debugging endpoint.
@@ -287,7 +287,10 @@ func (api *API) traceChain(start, end *types.Block, config *TraceConfig, closed 
 						break
 					}
 					// Only delete empty objects if EIP158/161 (a.k.a Spurious Dragon) is in effect
-					task.statedb.Finalise(api.backend.ChainConfig().IsEIP158(task.block.Number()))
+					task.statedb.FinaliseWithConcrete(
+						api.backend.Concrete().Precompiles(task.block.NumberU64()),
+						api.backend.ChainConfig().IsEIP158(task.block.Number()),
+					)
 					task.results[i] = &txTraceResult{TxHash: tx.Hash(), Result: res}
 				}
 				// Tracing state is used up, queue it for de-referencing. Note the
@@ -565,7 +568,7 @@ func (api *API) IntermediateRoots(ctx context.Context, hash common.Hash, config 
 		var (
 			msg, _      = core.TransactionToMessage(tx, signer, block.BaseFee())
 			txContext   = core.NewEVMTxContext(msg)
-			concretePcs = api.backend.GetConcrete().Precompiles(block.NumberU64())
+			concretePcs = api.backend.Concrete().Precompiles(block.NumberU64())
 			vmenv       = vm.NewEVMWithConcrete(vmctx, txContext, statedb, chainConfig, vm.Config{}, concretePcs)
 		)
 		statedb.SetTxContext(tx.Hash(), i)
@@ -581,7 +584,7 @@ func (api *API) IntermediateRoots(ctx context.Context, hash common.Hash, config 
 		}
 		// calling IntermediateRoot will internally call Finalize on the state
 		// so any modifications are written to the trie
-		roots = append(roots, statedb.IntermediateRoot(deleteEmptyObjects))
+		roots = append(roots, statedb.IntermediateRootWithConcrete(vmenv.ConcretePrecompiles(), deleteEmptyObjects))
 	}
 	return roots, nil
 }
@@ -629,12 +632,13 @@ func (api *API) traceBlock(ctx context.Context, block *types.Block, config *Trac
 	}
 	// Native tracers have low overhead
 	var (
-		txs       = block.Transactions()
-		blockHash = block.Hash()
-		is158     = api.backend.ChainConfig().IsEIP158(block.Number())
-		blockCtx  = core.NewEVMBlockContext(block.Header(), api.chainContext(ctx), nil, api.backend.ChainConfig(), statedb)
-		signer    = types.MakeSigner(api.backend.ChainConfig(), block.Number(), block.Time())
-		results   = make([]*txTraceResult, len(txs))
+		txs         = block.Transactions()
+		blockHash   = block.Hash()
+		concretePcs = api.backend.Concrete().Precompiles(block.NumberU64())
+		is158       = api.backend.ChainConfig().IsEIP158(block.Number())
+		blockCtx    = core.NewEVMBlockContext(block.Header(), api.chainContext(ctx), nil, api.backend.ChainConfig(), statedb)
+		signer      = types.MakeSigner(api.backend.ChainConfig(), block.Number(), block.Time())
+		results     = make([]*txTraceResult, len(txs))
 	)
 	for i, tx := range txs {
 		// Generate the next state snapshot fast without tracing
@@ -652,7 +656,7 @@ func (api *API) traceBlock(ctx context.Context, block *types.Block, config *Trac
 		results[i] = &txTraceResult{TxHash: tx.Hash(), Result: res}
 		// Finalize the state so any modifications are written to the trie
 		// Only delete empty objects if EIP158/161 (a.k.a Spurious Dragon) is in effect
-		statedb.Finalise(is158)
+		statedb.FinaliseWithConcrete(concretePcs, is158)
 	}
 	return results, nil
 }
@@ -715,7 +719,7 @@ txloop:
 		// Generate the next state snapshot fast without tracing
 		msg, _ := core.TransactionToMessage(tx, signer, block.BaseFee())
 		statedb.SetTxContext(tx.Hash(), i)
-		concretePcs := api.backend.GetConcrete().Precompiles(block.NumberU64())
+		concretePcs := api.backend.Concrete().Precompiles(block.NumberU64())
 		vmenv := vm.NewEVMWithConcrete(blockCtx, core.NewEVMTxContext(msg), statedb, api.backend.ChainConfig(), vm.Config{}, concretePcs)
 		if _, err := core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(msg.GasLimit)); err != nil {
 			failed = err
@@ -723,7 +727,10 @@ txloop:
 		}
 		// Finalize the state so any modifications are written to the trie
 		// Only delete empty objects if EIP158/161 (a.k.a Spurious Dragon) is in effect
-		statedb.Finalise(vmenv.ChainConfig().IsEIP158(block.Number()))
+		statedb.FinaliseWithConcrete(
+			vmenv.ConcretePrecompiles(),
+			vmenv.ChainConfig().IsEIP158(block.Number()),
+		)
 	}
 
 	close(jobs)
@@ -822,7 +829,7 @@ func (api *API) standardTraceBlockToFile(ctx context.Context, block *types.Block
 			}
 		}
 		// Execute the transaction and flush any traces to disk
-		concretePcs := api.backend.GetConcrete().Precompiles(block.NumberU64())
+		concretePcs := api.backend.Concrete().Precompiles(block.NumberU64())
 		vmenv := vm.NewEVMWithConcrete(vmctx, txContext, statedb, chainConfig, vmConf, concretePcs)
 		statedb.SetTxContext(tx.Hash(), i)
 		_, err = core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(msg.GasLimit))
@@ -838,7 +845,10 @@ func (api *API) standardTraceBlockToFile(ctx context.Context, block *types.Block
 		}
 		// Finalize the state so any modifications are written to the trie
 		// Only delete empty objects if EIP158/161 (a.k.a Spurious Dragon) is in effect
-		statedb.Finalise(vmenv.ChainConfig().IsEIP158(block.Number()))
+		statedb.FinaliseWithConcrete(
+			vmenv.ConcretePrecompiles(),
+			vmenv.ChainConfig().IsEIP158(block.Number()),
+		)
 
 		// If we've traced the transaction we were looking for, abort
 		if tx.Hash() == txHash {
@@ -993,7 +1003,7 @@ func (api *API) traceTx(ctx context.Context, message *core.Message, txctx *Conte
 			return nil, err
 		}
 	}
-	concretePcs := api.backend.GetConcrete().Precompiles(vmctx.BlockNumber.Uint64())
+	concretePcs := api.backend.Concrete().Precompiles(vmctx.BlockNumber.Uint64())
 	vmenv := vm.NewEVMWithConcrete(vmctx, txContext, statedb, api.backend.ChainConfig(), vm.Config{Tracer: tracer, NoBaseFee: true}, concretePcs)
 
 	// Define a meaningful timeout of a single transaction trace

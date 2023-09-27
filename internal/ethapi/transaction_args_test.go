@@ -317,7 +317,7 @@ func (b *backendMock) SubscribeChainSideEvent(ch chan<- core.ChainSideEvent) eve
 	return nil
 }
 func (b *backendMock) SetConcrete(concrete.PrecompileRegistry)                       {}
-func (b *backendMock) GetConcrete() concrete.PrecompileRegistry                      { return nil }
+func (b *backendMock) Concrete() concrete.PrecompileRegistry                         { return nil }
 func (b *backendMock) SendTx(ctx context.Context, signedTx *types.Transaction) error { return nil }
 func (b *backendMock) GetTransaction(ctx context.Context, txHash common.Hash) (*types.Transaction, common.Hash, uint64, uint64, error) {
 	return nil, [32]byte{}, 0, 0, nil

@@ -43,14 +43,6 @@ type Environment interface {
 	EphemeralLoad_Unsafe(key common.Hash) common.Hash
 	EphemeralStore_Unsafe(key common.Hash, value common.Hash)
 
-	// Preimage oracle
-	PersistentPreimageStore_Unsafe(preimage []byte) common.Hash
-	PersistentPreimageLoad_Unsafe(hash common.Hash) []byte
-	PersistentPreimageLoadSize_Unsafe(hash common.Hash) int
-	EphemeralPreimageStore_Unsafe(preimage []byte) common.Hash
-	EphemeralPreimageLoad_Unsafe(hash common.Hash) []byte
-	EphemeralPreimageLoadSize_Unsafe(hash common.Hash) int
-
 	// INTERNAL - READ
 	// Address
 	GetAddress() common.Address
@@ -112,7 +104,6 @@ type Environment interface {
 type EnvConfig struct {
 	Static    bool
 	Ephemeral bool
-	Preimages bool
 	Trusted   bool
 }
 
@@ -339,60 +330,6 @@ func (env *Env) EphemeralLoad_Unsafe(key common.Hash) common.Hash {
 func (env *Env) EphemeralStore_Unsafe(key common.Hash, value common.Hash) {
 	input := [][]byte{key.Bytes(), value.Bytes()}
 	env.execute(EphemeralStore_OpCode, input)
-}
-
-func (env *Env) PersistentPreimageStore_Unsafe(preimage []byte) common.Hash {
-	input := [][]byte{preimage}
-	output, err := env.execute(PersistentPreimageStore_OpCode, input)
-	if err != nil {
-		return common.Hash{}
-	}
-	return common.BytesToHash(output[0])
-}
-
-func (env *Env) PersistentPreimageLoad_Unsafe(hash common.Hash) []byte {
-	input := [][]byte{hash.Bytes()}
-	output, err := env.execute(PersistentPreimageLoad_OpCode, input)
-	if err != nil {
-		return nil
-	}
-	return output[0]
-}
-
-func (env *Env) PersistentPreimageLoadSize_Unsafe(hash common.Hash) int {
-	input := [][]byte{hash.Bytes()}
-	output, err := env.execute(PersistentPreimageLoadSize_OpCode, input)
-	if err != nil {
-		return 0
-	}
-	return int(utils.BytesToUint64(output[0]))
-}
-
-func (env *Env) EphemeralPreimageStore_Unsafe(preimage []byte) common.Hash {
-	input := [][]byte{preimage}
-	output, err := env.execute(EphemeralPreimageStore_OpCode, input)
-	if err != nil {
-		return common.Hash{}
-	}
-	return common.BytesToHash(output[0])
-}
-
-func (env *Env) EphemeralPreimageLoad_Unsafe(hash common.Hash) []byte {
-	input := [][]byte{hash.Bytes()}
-	output, err := env.execute(EphemeralPreimageLoad_OpCode, input)
-	if err != nil {
-		return nil
-	}
-	return output[0]
-}
-
-func (env *Env) EphemeralPreimageLoadSize_Unsafe(hash common.Hash) int {
-	input := [][]byte{hash.Bytes()}
-	output, err := env.execute(EphemeralPreimageLoadSize_OpCode, input)
-	if err != nil {
-		return 0
-	}
-	return int(utils.BytesToUint64(output[0]))
 }
 
 func (env *Env) GetAddress() common.Address {

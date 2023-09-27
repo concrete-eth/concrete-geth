@@ -35,15 +35,10 @@ const (
 	TimeNow_OpCode OpCode = 0x0d
 	// Utils
 	Keccak256_OpCode OpCode = 0x10
-	// Ephemeral and preimage
-	EphemeralStore_OpCode             OpCode = 0x20
-	EphemeralLoad_OpCode              OpCode = 0x21
-	PersistentPreimageStore_OpCode    OpCode = 0x22
-	PersistentPreimageLoad_OpCode     OpCode = 0x23
-	PersistentPreimageLoadSize_OpCode OpCode = 0x24
-	EphemeralPreimageStore_OpCode     OpCode = 0x25
-	EphemeralPreimageLoad_OpCode      OpCode = 0x26
-	EphemeralPreimageLoadSize_OpCode  OpCode = 0x27
+	UseGas_OpCode    OpCode = 0x50
+	// Ephemeral
+	EphemeralStore_OpCode OpCode = 0x20
+	EphemeralLoad_OpCode  OpCode = 0x21
 	// Internal reads
 	GetAddress_OpCode         OpCode = 0x30
 	GetGasLeft_OpCode         OpCode = 0x31
@@ -66,7 +61,6 @@ const (
 	GetCode_OpCode            OpCode = 0x42
 	GetCodeSize_OpCode        OpCode = 0x43
 	// Internal writes
-	UseGas_OpCode       OpCode = 0x50
 	StorageStore_OpCode OpCode = 0x51
 	Log_OpCode          OpCode = 0x52
 	// External reads

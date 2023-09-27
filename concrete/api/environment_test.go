@@ -34,7 +34,6 @@ func TestGas(t *testing.T) {
 		config  = EnvConfig{
 			Static:    false,
 			Ephemeral: false,
-			Preimages: false,
 			Trusted:   false,
 		}
 		meterGas = true
@@ -61,7 +60,6 @@ func TestBlockOps_Minimal(t *testing.T) {
 		config  = EnvConfig{
 			Static:    true,
 			Ephemeral: false,
-			Preimages: false,
 			Trusted:   false,
 		}
 		meterGas = true
@@ -88,7 +86,6 @@ func TestCallOps_Minimal(t *testing.T) {
 		config  = EnvConfig{
 			Static:    true,
 			Ephemeral: false,
-			Preimages: false,
 			Trusted:   false,
 		}
 		meterGas = true
@@ -113,7 +110,6 @@ func TestTrustAndWriteProtection(t *testing.T) {
 		config  = EnvConfig{
 			Static:    true,
 			Ephemeral: true,
-			Preimages: true,
 			Trusted:   false,
 		}
 		meterGas = true

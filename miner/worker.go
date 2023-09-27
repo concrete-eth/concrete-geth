@@ -904,7 +904,7 @@ func (w *worker) commitTransaction(env *environment, tx *types.Transaction) ([]*
 		snap = env.state.Snapshot()
 		gp   = env.gasPool.Gas()
 	)
-	concretePcs := w.chain.GetConcrete().Precompiles(w.chain.CurrentBlock().Number.Uint64())
+	concretePcs := w.chain.Concrete().Precompiles(w.chain.CurrentBlock().Number.Uint64())
 	receipt, err := core.ApplyTransaction(w.chainConfig, w.chain, &env.coinbase, env.gasPool, env.state, env.header, tx, &env.header.GasUsed, *w.chain.GetVMConfig(), concretePcs)
 	if err != nil {
 		env.state.RevertToSnapshot(snap)

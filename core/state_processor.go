@@ -73,7 +73,7 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 	}
 	var (
 		context     = NewEVMBlockContext(header, p.bc, nil, p.config, statedb)
-		concretePcs = p.bc.GetConcrete().Precompiles(header.Number.Uint64())
+		concretePcs = p.bc.Concrete().Precompiles(header.Number.Uint64())
 		vmenv       = vm.NewEVMWithConcrete(context, vm.TxContext{}, statedb, p.config, cfg, concretePcs)
 		signer      = types.MakeSigner(p.config, header.Number, header.Time)
 	)
@@ -121,9 +121,9 @@ func applyTransaction(msg *Message, config *params.ChainConfig, gp *GasPool, sta
 	// Update the state with pending changes.
 	var root []byte
 	if config.IsByzantium(blockNumber) {
-		statedb.Finalise(true)
+		statedb.FinaliseWithConcrete(evm.ConcretePrecompiles(), true)
 	} else {
-		root = statedb.IntermediateRoot(config.IsEIP158(blockNumber)).Bytes()
+		root = statedb.IntermediateRootWithConcrete(evm.ConcretePrecompiles(), config.IsEIP158(blockNumber)).Bytes()
 	}
 	*usedGas += result.UsedGas
 
@@ -162,13 +162,13 @@ func applyTransaction(msg *Message, config *params.ChainConfig, gp *GasPool, sta
 // and uses the input parameters for its environment. It returns the receipt
 // for the transaction, gas used and an error if the transaction failed,
 // indicating the block was invalid.
-func ApplyTransaction(config *params.ChainConfig, bc ChainContext, author *common.Address, gp *GasPool, statedb *state.StateDB, header *types.Header, tx *types.Transaction, usedGas *uint64, cfg vm.Config, concretePcs concrete.PrecompileMap) (*types.Receipt, error) {
+func ApplyTransaction(config *params.ChainConfig, bc ChainContext, author *common.Address, gp *GasPool, statedb *state.StateDB, header *types.Header, tx *types.Transaction, usedGas *uint64, cfg vm.Config, concretePrecompiles concrete.PrecompileMap) (*types.Receipt, error) {
 	msg, err := TransactionToMessage(tx, types.MakeSigner(config, header.Number, header.Time), header.BaseFee)
 	if err != nil {
 		return nil, err
 	}
 	// Create a new context to be used in the EVM environment
 	blockContext := NewEVMBlockContext(header, bc, author, config, statedb)
-	vmenv := vm.NewEVMWithConcrete(blockContext, vm.TxContext{}, statedb, config, cfg, concretePcs)
+	vmenv := vm.NewEVMWithConcrete(blockContext, vm.TxContext{}, statedb, config, cfg, concretePrecompiles)
 	return applyTransaction(msg, config, gp, statedb, header.Number, header.Hash(), tx, usedGas, vmenv)
 }

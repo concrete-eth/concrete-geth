@@ -33,11 +33,6 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 )
 
-const (
-	PreimageStoreGas uint64 = 100
-	PreimageDataGas  uint64 = 200
-)
-
 func newEnvironmentMethods() JumpTable {
 	tbl := JumpTable{
 		EnableGasMetering_OpCode: {
@@ -61,6 +56,11 @@ func newEnvironmentMethods() JumpTable {
 			dynamicGas:  gasKeccak256,
 			static:      true,
 		},
+		UseGas_OpCode: {
+			execute:    opUseGas,
+			dynamicGas: gasUseGas,
+			static:     true,
+		},
 		EphemeralStore_OpCode: {
 			execute:     opEphemeralStore,
 			constantGas: params.WarmStorageReadCostEIP2929,
@@ -69,43 +69,6 @@ func newEnvironmentMethods() JumpTable {
 		},
 		EphemeralLoad_OpCode: {
 			execute:     opEphemeralLoad,
-			constantGas: params.WarmStorageReadCostEIP2929,
-			trusted:     true,
-			static:      true,
-		},
-		PersistentPreimageStore_OpCode: {
-			execute:     opPersistentPreimageStore,
-			constantGas: PreimageStoreGas,
-			dynamicGas:  gasPersistentPreimageStore,
-			trusted:     true,
-			static:      false,
-		},
-		PersistentPreimageLoad_OpCode: {
-			execute:    opPersistentPreimageLoad,
-			dynamicGas: gasPersistentPreimageLoad,
-			trusted:    true,
-			static:     true,
-		},
-		PersistentPreimageLoadSize_OpCode: {
-			execute:    opPersistentPreimageLoadSize,
-			dynamicGas: gasPersistentPreimageLoadSize,
-			trusted:    true,
-			static:     true,
-		},
-		EphemeralPreimageStore_OpCode: {
-			execute:     opEphemeralPreimageStore,
-			constantGas: params.WarmStorageReadCostEIP2929,
-			trusted:     true,
-			static:      false,
-		},
-		EphemeralPreimageLoad_OpCode: {
-			execute:     opEphemeralPreimageLoad,
-			constantGas: params.WarmStorageReadCostEIP2929,
-			trusted:     true,
-			static:      true,
-		},
-		EphemeralPreimageLoadSize_OpCode: {
-			execute:     opEphemeralPreimageLoadSize,
 			constantGas: params.WarmStorageReadCostEIP2929,
 			trusted:     true,
 			static:      true,
@@ -212,11 +175,6 @@ func newEnvironmentMethods() JumpTable {
 			constantGas: 0,
 			static:      true,
 		},
-		UseGas_OpCode: {
-			execute:     opUseGas,
-			constantGas: GasQuickStep,
-			static:      true,
-		},
 		StorageStore_OpCode: {
 			execute:    opStorageStore,
 			dynamicGas: gasStorageStore,
@@ -307,14 +265,6 @@ func gasAccountAccessMinusWarm(env *Env, address common.Address) (uint64, error)
 	return 0, nil
 }
 
-func gasHashAccess(env *Env, hash common.Hash) (uint64, error) {
-	if !env.statedb.HashInAccessList(hash) {
-		env.statedb.AddHashToAccessList(hash)
-		return params.ColdSloadCostEIP2929, nil
-	}
-	return params.WarmStorageReadCostEIP2929, nil
-}
-
 func gasExternalCall(env *Env, address common.Address, callCost uint64) (uint64, error) {
 	baseCost, err := gasAccountAccessMinusWarm(env, address)
 	if err != nil {
@@ -386,6 +336,24 @@ func opKeccak256(env *Env, args [][]byte) ([][]byte, error) {
 	return [][]byte{hash}, nil
 }
 
+func gasUseGas(env *Env, args [][]byte) (uint64, error) {
+	if len(args) != 1 {
+		return 0, ErrInvalidInput
+	}
+	if len(args[0]) != 8 {
+		return 0, ErrInvalidInput
+	}
+	gas := utils.BytesToUint64(args[0])
+	if ok := env.useGas(gas); !ok {
+		return 0, ErrOutOfGas
+	}
+	return 0, nil
+}
+
+func opUseGas(env *Env, args [][]byte) ([][]byte, error) {
+	return nil, nil
+}
+
 func opEphemeralStore(env *Env, args [][]byte) ([][]byte, error) {
 	if len(args) != 2 {
 		return nil, ErrInvalidInput
@@ -415,114 +383,6 @@ func opEphemeralLoad(env *Env, args [][]byte) ([][]byte, error) {
 	key := common.BytesToHash(args[0])
 	value := env.statedb.GetEphemeralState(env.address, key)
 	return [][]byte{value.Bytes()}, nil
-}
-
-func gasPersistentPreimageStore(env *Env, args [][]byte) (uint64, error) {
-	if len(args) != 1 {
-		return 0, ErrInvalidInput
-	}
-	preimage := args[0]
-	// We assume len() to always be much smaller than MAX_UINT64 / (Keccak256WordGas + PreimageDataGas + CopyGas)
-	// so this cannot overflow
-	size := uint64(len(preimage))
-	wordSize := toWordSize(len(preimage))
-	keccakGas := wordSize * params.Keccak256WordGas
-	dataGas := (size) * PreimageDataGas
-	copyGas := wordSize * params.CopyGas
-	return keccakGas + dataGas + copyGas, nil
-}
-
-func opPersistentPreimageStore(env *Env, args [][]byte) ([][]byte, error) {
-	if !env.config.Preimages {
-		return nil, ErrFeatureDisabled
-	}
-	preimage := args[0]
-	hash := crypto.Keccak256Hash(preimage)
-	env.statedb.AddPersistentPreimage(hash, preimage)
-	return [][]byte{hash.Bytes()}, nil
-}
-
-func gasPersistentPreimageLoad(env *Env, args [][]byte) (uint64, error) {
-	if len(args) != 1 {
-		return 0, ErrInvalidInput
-	}
-	if len(args[0]) != 32 {
-		return 0, ErrInvalidInput
-	}
-	hash := common.BytesToHash(args[0])
-	return gasHashAccess(env, hash)
-}
-
-func opPersistentPreimageLoad(env *Env, args [][]byte) ([][]byte, error) {
-	if !env.config.Preimages {
-		return nil, ErrFeatureDisabled
-	}
-	key := common.BytesToHash(args[0])
-	preimage := env.statedb.GetPersistentPreimage(key)
-	return [][]byte{preimage}, nil
-}
-
-func gasPersistentPreimageLoadSize(env *Env, args [][]byte) (uint64, error) {
-	if len(args) != 1 {
-		return 0, ErrInvalidInput
-	}
-	if len(args[0]) != 32 {
-		return 0, ErrInvalidInput
-	}
-	hash := common.BytesToHash(args[0])
-	return gasHashAccess(env, hash)
-}
-
-func opPersistentPreimageLoadSize(env *Env, args [][]byte) ([][]byte, error) {
-	if !env.config.Preimages {
-		return nil, ErrFeatureDisabled
-	}
-	key := common.BytesToHash(args[0])
-	size := env.statedb.GetPersistentPreimageSize(key)
-	return [][]byte{utils.Uint64ToBytes(uint64(size))}, nil
-}
-
-func opEphemeralPreimageStore(env *Env, args [][]byte) ([][]byte, error) {
-	if len(args) != 1 {
-		return nil, ErrInvalidInput
-	}
-	if !env.config.Ephemeral || !env.config.Preimages {
-		return nil, ErrFeatureDisabled
-	}
-	preimage := args[0]
-	hash := crypto.Keccak256Hash(preimage)
-	env.statedb.AddEphemeralPreimage(hash, preimage)
-	return [][]byte{hash.Bytes()}, nil
-}
-
-func opEphemeralPreimageLoad(env *Env, args [][]byte) ([][]byte, error) {
-	if len(args) != 1 {
-		return nil, ErrInvalidInput
-	}
-	if len(args[0]) != 32 {
-		return nil, ErrInvalidInput
-	}
-	if !env.config.Ephemeral || !env.config.Preimages {
-		return nil, ErrFeatureDisabled
-	}
-	key := common.BytesToHash(args[0])
-	preimage := env.statedb.GetEphemeralPreimage(key)
-	return [][]byte{preimage}, nil
-}
-
-func opEphemeralPreimageLoadSize(env *Env, args [][]byte) ([][]byte, error) {
-	if len(args) != 1 {
-		return nil, ErrInvalidInput
-	}
-	if len(args[0]) != 32 {
-		return nil, ErrInvalidInput
-	}
-	if !env.config.Ephemeral || !env.config.Preimages {
-		return nil, ErrFeatureDisabled
-	}
-	key := common.BytesToHash(args[0])
-	size := env.statedb.GetEphemeralPreimageSize(key)
-	return [][]byte{utils.Uint64ToBytes(uint64(size))}, nil
 }
 
 func opGetAddress(env *Env, args [][]byte) ([][]byte, error) {
@@ -744,20 +604,6 @@ func opGetCode(env *Env, args [][]byte) ([][]byte, error) {
 
 func opGetCodeSize(env *Env, args [][]byte) ([][]byte, error) {
 	return nil, ErrInvalidOpCode
-}
-
-func opUseGas(env *Env, args [][]byte) ([][]byte, error) {
-	if len(args) != 1 {
-		return nil, ErrInvalidInput
-	}
-	if len(args[0]) != 8 {
-		return nil, ErrInvalidInput
-	}
-	gas := utils.BytesToUint64(args[0])
-	if ok := env.useGas(gas); !ok {
-		return nil, ErrOutOfGas
-	}
-	return nil, nil
 }
 
 func gasStorageStore(env *Env, args [][]byte) (uint64, error) {

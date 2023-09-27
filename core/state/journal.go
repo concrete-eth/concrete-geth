@@ -138,23 +138,14 @@ type (
 		address *common.Address
 		slot    *common.Hash
 	}
-	accessListAddHashChange struct {
-		hash *common.Hash
-	}
 
 	transientStorageChange struct {
 		account       *common.Address
 		key, prevalue common.Hash
 	}
-	ephemeralPreimageChange struct {
-		hash common.Hash
-	}
 	ephemeralStorageChange struct {
 		account       *common.Address
 		key, prevalue common.Hash
-	}
-	persistentPreimageChange struct {
-		hash common.Hash
 	}
 )
 
@@ -294,37 +285,10 @@ func (ch accessListAddSlotChange) dirtied() *common.Address {
 	return nil
 }
 
-func (ch accessListAddHashChange) revert(s *StateDB) {
-	s.accessList.DeleteHash(*ch.hash)
-}
-
-func (ch accessListAddHashChange) dirtied() *common.Address {
-	return nil
-}
-
-func (ch ephemeralPreimageChange) revert(s *StateDB) {
-	delete(s.ephemeralPreimagesDirty, ch.hash)
-	if !s.hasEphemeralPreimage(ch.hash) {
-		delete(s.ephemeralPreimages, ch.hash)
-	}
-}
-
-func (ch ephemeralPreimageChange) dirtied() *common.Address {
-	return nil
-}
-
 func (ch ephemeralStorageChange) revert(s *StateDB) {
 	s.setEphemeralState(*ch.account, ch.key, ch.prevalue)
 }
 
 func (ch ephemeralStorageChange) dirtied() *common.Address {
-	return nil
-}
-
-func (ch persistentPreimageChange) revert(s *StateDB) {
-	delete(s.persistentPreimagesDirty, ch.hash)
-}
-
-func (ch persistentPreimageChange) dirtied() *common.Address {
 	return nil
 }

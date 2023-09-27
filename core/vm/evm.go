@@ -65,6 +65,24 @@ func (evm *EVM) concretePrecompile(addr common.Address) (concrete.Precompile, bo
 	return pc, ok
 }
 
+func (evm *EVM) newConcreteEnvironment(contract *Contract, static bool, gas uint64) *cc_api.Env {
+	env := cc_api.NewEnvironment(
+		contract.Address(),
+		cc_api.EnvConfig{
+			Static:    static,
+			Ephemeral: true,
+			Trusted:   true,
+		},
+		evm.StateDB,
+		NewConcreteBlockContext(evm),
+		NewConcreteCallContext(evm, contract),
+		NewConcreteCaller(evm, contract),
+		true,
+		gas,
+	)
+	return env
+}
+
 // BlockContext provides the EVM with auxiliary information. Once provided
 // it shouldn't be modified.
 type BlockContext struct {
@@ -131,27 +149,26 @@ type EVM struct {
 	// applied in opCall*.
 	callGasTemp uint64
 
-	concretePrecompiles map[common.Address]concrete.Precompile
+	concretePrecompiles concrete.PrecompileMap
 }
 
 // NewEVM returns a new EVM. The returned EVM is not thread safe and should
 // only ever be used *once*.
 func NewEVM(blockCtx BlockContext, txCtx TxContext, statedb StateDB, chainConfig *params.ChainConfig, config Config) *EVM {
-	evm := &EVM{
-		Context:     blockCtx,
-		TxContext:   txCtx,
-		StateDB:     statedb,
-		Config:      config,
-		chainConfig: chainConfig,
-		chainRules:  chainConfig.Rules(blockCtx.BlockNumber, blockCtx.Random != nil, blockCtx.Time),
-	}
-	evm.interpreter = NewEVMInterpreter(evm)
-	return evm
+	return NewEVMWithConcrete(blockCtx, txCtx, statedb, chainConfig, config, concrete.PrecompileMap{})
 }
 
-func NewEVMWithConcrete(blockCtx BlockContext, txCtx TxContext, statedb StateDB, chainConfig *params.ChainConfig, config Config, concretePcs concrete.PrecompileMap) *EVM {
-	evm := NewEVM(blockCtx, txCtx, statedb, chainConfig, config)
-	evm.concretePrecompiles = concretePcs
+func NewEVMWithConcrete(blockCtx BlockContext, txCtx TxContext, statedb StateDB, chainConfig *params.ChainConfig, config Config, concretePrecompiles concrete.PrecompileMap) *EVM {
+	evm := &EVM{
+		Context:             blockCtx,
+		TxContext:           txCtx,
+		StateDB:             statedb,
+		Config:              config,
+		chainConfig:         chainConfig,
+		chainRules:          chainConfig.Rules(blockCtx.BlockNumber, blockCtx.Random != nil, blockCtx.Time),
+		concretePrecompiles: concretePrecompiles,
+	}
+	evm.interpreter = NewEVMInterpreter(evm)
 	return evm
 }
 
@@ -245,21 +262,7 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 		contract := NewContract(caller, AccountRef(addrCopy), value, 0)
 		contract.Input = input
 		static := evm.Interpreter().readOnly
-		env := cc_api.NewEnvironment(
-			addr,
-			cc_api.EnvConfig{
-				Static:    static,
-				Ephemeral: true,
-				Preimages: true,
-				Trusted:   true,
-			},
-			evm.StateDB,
-			NewConcreteBlockContext(evm),
-			NewConcreteCallContext(evm, contract),
-			NewConcreteCaller(evm, contract),
-			true,
-			gas,
-		)
+		env := evm.newConcreteEnvironment(contract, static, gas)
 		ret, gas, err = concrete.RunPrecompile(ccp, env, input, static)
 	} else {
 		// Initialise a new contract and set the code that is to be used by the EVM.
@@ -373,21 +376,7 @@ func (evm *EVM) DelegateCall(caller ContractRef, addr common.Address, input []by
 		static := evm.Interpreter().readOnly
 		contract := NewContract(caller, AccountRef(caller.Address()), nil, gas).AsDelegate()
 		contract.Input = input
-		env := cc_api.NewEnvironment(
-			contract.Address(),
-			cc_api.EnvConfig{
-				Static:    static,
-				Ephemeral: true,
-				Preimages: true,
-				Trusted:   true,
-			},
-			evm.StateDB,
-			NewConcreteBlockContext(evm),
-			NewConcreteCallContext(evm, contract),
-			NewConcreteCaller(evm, contract),
-			true,
-			gas,
-		)
+		env := evm.newConcreteEnvironment(contract, static, gas)
 		ret, gas, err = concrete.RunPrecompile(ccp, env, input, static)
 	} else {
 		addrCopy := addr
@@ -443,21 +432,7 @@ func (evm *EVM) StaticCall(caller ContractRef, addr common.Address, input []byte
 		contract := NewContract(caller, AccountRef(addrCopy), new(big.Int), gas)
 		contract.Input = input
 		static := true
-		env := cc_api.NewEnvironment(
-			addr,
-			cc_api.EnvConfig{
-				Static:    static,
-				Ephemeral: true,
-				Preimages: true,
-				Trusted:   true,
-			},
-			evm.StateDB,
-			NewConcreteBlockContext(evm),
-			NewConcreteCallContext(evm, contract),
-			NewConcreteCaller(evm, contract),
-			true,
-			gas,
-		)
+		env := evm.newConcreteEnvironment(contract, static, gas)
 		ret, gas, err = concrete.RunPrecompile(ccp, env, input, static)
 	} else {
 		// At this point, we use a copy of address. If we don't, the go compiler will
@@ -604,6 +579,8 @@ func (evm *EVM) Create2(caller ContractRef, code []byte, gas uint64, endowment *
 
 // ChainConfig returns the environment's chain configuration
 func (evm *EVM) ChainConfig() *params.ChainConfig { return evm.chainConfig }
+
+func (evm *EVM) ConcretePrecompiles() concrete.PrecompileMap { return evm.concretePrecompiles }
 
 type concreteBlockContext struct {
 	ctx *BlockContext

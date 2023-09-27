@@ -92,20 +92,3 @@ func DeleteCode(db ethdb.KeyValueWriter, hash common.Hash) {
 		log.Crit("Failed to delete contract code", "err", err)
 	}
 }
-
-func ReadConcretePreimage(db ethdb.KeyValueReader, hash common.Hash) []byte {
-	data, _ := db.Get(concretePreimageKey(hash))
-	return data
-}
-
-func WriteConcretePreimages(db ethdb.KeyValueWriter, concretePreimages map[common.Hash][]byte) {
-	for hash, pi := range concretePreimages {
-		WriteConcretePreimage(db, hash, pi)
-	}
-}
-
-func WriteConcretePreimage(db ethdb.KeyValueWriter, hash common.Hash, concretePreimage []byte) {
-	if err := db.Put(concretePreimageKey(hash), concretePreimage); err != nil {
-		log.Crit("Failed to store hot preimage", "err", err)
-	}
-}

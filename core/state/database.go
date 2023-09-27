@@ -35,12 +35,6 @@ const (
 
 	// Cache size granted for caching clean code.
 	codeCacheSize = 64 * 1024 * 1024
-
-	// ...
-	concretePreimageSizeCacheSize = 100000
-
-	// ...
-	concretePreimageCacheSize = 64 * 1024 * 1024
 )
 
 // Database wraps access to tries and contract code.
@@ -53,12 +47,6 @@ type Database interface {
 
 	// CopyTrie returns an independent copy of the given trie.
 	CopyTrie(Trie) Trie
-
-	// ...
-	ConcretePreimage(hash common.Hash) ([]byte, error)
-
-	// ...
-	ConcretePreimageSize(hash common.Hash) (int, error)
 
 	// ContractCode retrieves a particular contract's code.
 	ContractCode(addrHash, codeHash common.Hash) ([]byte, error)
@@ -150,34 +138,28 @@ func NewDatabase(db ethdb.Database) Database {
 // large memory cache.
 func NewDatabaseWithConfig(db ethdb.Database, config *trie.Config) Database {
 	return &cachingDB{
-		disk:                      db,
-		codeSizeCache:             lru.NewCache[common.Hash, int](codeSizeCacheSize),
-		codeCache:                 lru.NewSizeConstrainedCache[common.Hash, []byte](codeCacheSize),
-		concretePreimageSizeCache: lru.NewCache[common.Hash, int](concretePreimageSizeCacheSize),
-		concretePreimageCache:     lru.NewSizeConstrainedCache[common.Hash, []byte](concretePreimageCacheSize),
-		triedb:                    trie.NewDatabaseWithConfig(db, config),
+		disk:          db,
+		codeSizeCache: lru.NewCache[common.Hash, int](codeSizeCacheSize),
+		codeCache:     lru.NewSizeConstrainedCache[common.Hash, []byte](codeCacheSize),
+		triedb:        trie.NewDatabaseWithConfig(db, config),
 	}
 }
 
 // NewDatabaseWithNodeDB creates a state database with an already initialized node database.
 func NewDatabaseWithNodeDB(db ethdb.Database, triedb *trie.Database) Database {
 	return &cachingDB{
-		disk:                      db,
-		codeSizeCache:             lru.NewCache[common.Hash, int](codeSizeCacheSize),
-		codeCache:                 lru.NewSizeConstrainedCache[common.Hash, []byte](codeCacheSize),
-		concretePreimageSizeCache: lru.NewCache[common.Hash, int](concretePreimageSizeCacheSize),
-		concretePreimageCache:     lru.NewSizeConstrainedCache[common.Hash, []byte](concretePreimageCacheSize),
-		triedb:                    triedb,
+		disk:          db,
+		codeSizeCache: lru.NewCache[common.Hash, int](codeSizeCacheSize),
+		codeCache:     lru.NewSizeConstrainedCache[common.Hash, []byte](codeCacheSize),
+		triedb:        triedb,
 	}
 }
 
 type cachingDB struct {
-	disk                      ethdb.KeyValueStore
-	codeSizeCache             *lru.Cache[common.Hash, int]
-	codeCache                 *lru.SizeConstrainedCache[common.Hash, []byte]
-	concretePreimageSizeCache *lru.Cache[common.Hash, int]
-	concretePreimageCache     *lru.SizeConstrainedCache[common.Hash, []byte]
-	triedb                    *trie.Database
+	disk          ethdb.KeyValueStore
+	codeSizeCache *lru.Cache[common.Hash, int]
+	codeCache     *lru.SizeConstrainedCache[common.Hash, []byte]
+	triedb        *trie.Database
 }
 
 // OpenTrie opens the main account trie at a specific root hash.
@@ -206,28 +188,6 @@ func (db *cachingDB) CopyTrie(t Trie) Trie {
 	default:
 		panic(fmt.Errorf("unknown trie type %T", t))
 	}
-}
-
-func (db *cachingDB) ConcretePreimage(hash common.Hash) ([]byte, error) {
-	preimage, _ := db.concretePreimageCache.Get(hash)
-	if len(preimage) > 0 {
-		return preimage, nil
-	}
-	preimage = rawdb.ReadConcretePreimage(db.disk, hash)
-	if len(preimage) > 0 {
-		db.concretePreimageCache.Add(hash, preimage)
-		db.concretePreimageSizeCache.Add(hash, len(preimage))
-		return preimage, nil
-	}
-	return nil, errors.New("not found")
-}
-
-func (db *cachingDB) ConcretePreimageSize(hash common.Hash) (int, error) {
-	if cached, ok := db.concretePreimageSizeCache.Get(hash); ok {
-		return cached, nil
-	}
-	preimage, err := db.ConcretePreimage(hash)
-	return len(preimage), err
 }
 
 // ContractCode retrieves a particular contract's code.

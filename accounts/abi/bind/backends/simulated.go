@@ -219,8 +219,7 @@ func (b *SimulatedBackend) rollback(parent *types.Block) {
 	blocks, _ := core.GenerateChain(b.config, parent, b.consensus, b.database, 1, func(int, *core.BlockGen) {})
 
 	b.pendingBlock = blocks[0]
-	concretePcs := b.blockchain.GetConcrete().Precompiles(b.pendingBlock.NumberU64())
-	b.pendingState, _ = state.NewWithConcrete(b.pendingBlock.Root(), b.blockchain.StateCache(), nil, concretePcs)
+	b.pendingState, _ = state.New(b.pendingBlock.Root(), b.blockchain.StateCache(), nil)
 }
 
 // Fork creates a side-chain that can be used to simulate reorgs.
@@ -739,7 +738,7 @@ func (b *SimulatedBackend) callContract(ctx context.Context, call ethereum.CallM
 	// about the transaction and calling mechanisms.
 	txContext := core.NewEVMTxContext(msg)
 	evmContext := core.NewEVMBlockContext(header, b.blockchain, nil, b.config, stateDB)
-	concretePcs := b.blockchain.GetConcrete().Precompiles(header.Number.Uint64())
+	concretePcs := b.blockchain.Concrete().Precompiles(header.Number.Uint64())
 	vmEnv := vm.NewEVMWithConcrete(evmContext, txContext, stateDB, b.config, vm.Config{NoBaseFee: true}, concretePcs)
 	gasPool := new(core.GasPool).AddGas(math.MaxUint64)
 
@@ -776,8 +775,7 @@ func (b *SimulatedBackend) SendTransaction(ctx context.Context, tx *types.Transa
 	stateDB, _ := b.blockchain.State()
 
 	b.pendingBlock = blocks[0]
-	concretePcs := b.blockchain.GetConcrete().Precompiles(b.pendingBlock.NumberU64())
-	b.pendingState, _ = state.NewWithConcrete(b.pendingBlock.Root(), stateDB.Database(), nil, concretePcs)
+	b.pendingState, _ = state.New(b.pendingBlock.Root(), stateDB.Database(), nil)
 	b.pendingReceipts = receipts[0]
 	return nil
 }
@@ -898,8 +896,7 @@ func (b *SimulatedBackend) AdjustTime(adjustment time.Duration) error {
 	stateDB, _ := b.blockchain.State()
 
 	b.pendingBlock = blocks[0]
-	concretePcs := b.blockchain.GetConcrete().Precompiles(b.pendingBlock.NumberU64())
-	b.pendingState, _ = state.NewWithConcrete(b.pendingBlock.Root(), stateDB.Database(), nil, concretePcs)
+	b.pendingState, _ = state.New(b.pendingBlock.Root(), stateDB.Database(), nil)
 
 	return nil
 }

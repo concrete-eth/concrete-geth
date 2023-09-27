@@ -275,7 +275,7 @@ func (b *testBackend) HistoricalRPCService() *rpc.Client {
 
 func (b *testBackend) SetConcrete(concrete.PrecompileRegistry) {}
 
-func (b *testBackend) GetConcrete() concrete.PrecompileRegistry { return nil }
+func (b *testBackend) Concrete() concrete.PrecompileRegistry { return nil }
 
 func TestTraceCall(t *testing.T) {
 	t.Parallel()

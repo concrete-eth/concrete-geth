@@ -194,7 +194,16 @@ func (b *LesApiBackend) GetEVM(ctx context.Context, msg *core.Message, state *st
 	if blockCtx != nil {
 		context = *blockCtx
 	}
-	return vm.NewEVM(context, txContext, state, b.eth.chainConfig, *vmConfig), state.Error
+	concretePcs := b.eth.blockchain.Concrete().Precompiles(header.Number.Uint64())
+	return vm.NewEVMWithConcrete(context, txContext, state, b.eth.chainConfig, *vmConfig, concretePcs), state.Error
+}
+
+func (b *LesApiBackend) SetConcrete(concreteRegistry concrete.PrecompileRegistry) {
+	b.eth.blockchain.SetConcrete(concreteRegistry)
+}
+
+func (b *LesApiBackend) Concrete() concrete.PrecompileRegistry {
+	return b.eth.blockchain.Concrete()
 }
 
 func (b *LesApiBackend) SendTx(ctx context.Context, signedTx *types.Transaction) error {
@@ -263,10 +272,6 @@ func (b *LesApiBackend) SubscribePendingLogsEvent(ch chan<- []*types.Log) event.
 func (b *LesApiBackend) SubscribeRemovedLogsEvent(ch chan<- core.RemovedLogsEvent) event.Subscription {
 	return b.eth.blockchain.SubscribeRemovedLogsEvent(ch)
 }
-
-func (b *LesApiBackend) SetConcrete(concreteRegistry concrete.PrecompileRegistry) {}
-
-func (b *LesApiBackend) GetConcrete() concrete.PrecompileRegistry { return nil }
 
 func (b *LesApiBackend) SyncProgress() ethereum.SyncProgress {
 	return b.eth.Downloader().Progress()

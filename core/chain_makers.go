@@ -329,7 +329,10 @@ func GenerateChainWithConcrete(config *params.ChainConfig, parent *types.Block, 
 			}
 
 			// Write state changes to db
-			root, err := statedb.Commit(config.IsEIP158(b.header.Number))
+			root, err := statedb.CommitWithConcrete(
+				concreteRegistry.Precompiles(b.header.Number.Uint64()),
+				config.IsEIP158(b.header.Number),
+			)
 			if err != nil {
 				panic(fmt.Sprintf("state write error: %v", err))
 			}
@@ -341,8 +344,7 @@ func GenerateChainWithConcrete(config *params.ChainConfig, parent *types.Block, 
 		return nil, nil
 	}
 	for i := 0; i < n; i++ {
-		concretePcs := concreteRegistry.Precompiles(parent.NumberU64() + 1)
-		statedb, err := state.NewWithConcrete(parent.Root(), state.NewDatabase(db), nil, concretePcs)
+		statedb, err := state.New(parent.Root(), state.NewDatabase(db), nil)
 		if err != nil {
 			panic(err)
 		}

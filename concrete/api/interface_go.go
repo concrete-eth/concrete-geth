@@ -33,9 +33,6 @@ type StateDB interface {
 	SlotInAccessList(addr common.Address, slot common.Hash) (addressOk bool, slotOk bool)
 	AddAddressToAccessList(addr common.Address)
 	AddSlotToAccessList(addr common.Address, slot common.Hash)
-	// Access list -- Concrete
-	AddHashToAccessList(hash common.Hash)
-	HashInAccessList(hash common.Hash) bool
 	// Code
 	GetCode(common.Address) []byte
 	GetCodeSize(common.Address) int
@@ -55,10 +52,4 @@ type StateDB interface {
 	GetPersistentState(addr common.Address, key common.Hash) common.Hash
 	SetEphemeralState(addr common.Address, key common.Hash, value common.Hash)
 	GetEphemeralState(addr common.Address, key common.Hash) common.Hash
-	AddPersistentPreimage(hash common.Hash, preimage []byte)
-	GetPersistentPreimage(hash common.Hash) []byte
-	GetPersistentPreimageSize(hash common.Hash) int
-	AddEphemeralPreimage(hash common.Hash, preimage []byte)
-	GetEphemeralPreimage(hash common.Hash) []byte
-	GetEphemeralPreimageSize(hash common.Hash) int
 }

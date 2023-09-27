@@ -266,7 +266,7 @@ func (b *EthAPIBackend) GetEVM(ctx context.Context, msg *core.Message, state *st
 	} else {
 		context = core.NewEVMBlockContext(header, b.eth.BlockChain(), nil, b.eth.blockchain.Config(), state)
 	}
-	concretePcs := b.eth.blockchain.GetConcrete().Precompiles(header.Number.Uint64())
+	concretePcs := b.eth.blockchain.Concrete().Precompiles(header.Number.Uint64())
 	return vm.NewEVMWithConcrete(context, txContext, state, b.eth.blockchain.Config(), *vmConfig, concretePcs), state.Error
 }
 
@@ -298,8 +298,8 @@ func (b *EthAPIBackend) SetConcrete(concreteRegistry concrete.PrecompileRegistry
 	b.eth.blockchain.SetConcrete(concreteRegistry)
 }
 
-func (b *EthAPIBackend) GetConcrete() concrete.PrecompileRegistry {
-	return b.eth.blockchain.GetConcrete()
+func (b *EthAPIBackend) Concrete() concrete.PrecompileRegistry {
+	return b.eth.blockchain.Concrete()
 }
 
 func (b *EthAPIBackend) SendTx(ctx context.Context, tx *types.Transaction) error {

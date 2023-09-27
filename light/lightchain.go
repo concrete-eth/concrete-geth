@@ -28,6 +28,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/lru"
+	"github.com/ethereum/go-ethereum/concrete"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/rawdb"
@@ -72,6 +73,8 @@ type LightChain struct {
 	// Atomic boolean switches:
 	stopped       atomic.Bool // whether LightChain is stopped or running
 	procInterrupt atomic.Bool // interrupts chain insert
+
+	concrete concrete.PrecompileRegistry
 }
 
 // NewLightChain returns a fully initialised light chain using information
@@ -528,4 +531,19 @@ func (lc *LightChain) SubscribeLogsEvent(ch chan<- []*types.Log) event.Subscript
 // LightChain does not send core.RemovedLogsEvent, so return an empty subscription.
 func (lc *LightChain) SubscribeRemovedLogsEvent(ch chan<- core.RemovedLogsEvent) event.Subscription {
 	return lc.scope.Track(new(event.Feed).Subscribe(ch))
+}
+
+func (lc *LightChain) SetConcrete(concreteRegistry concrete.PrecompileRegistry) {
+	if concreteRegistry == nil {
+		lc.concrete = &concrete.GenericPrecompileRegistry{}
+	} else {
+		lc.concrete = concreteRegistry
+	}
+}
+
+func (lc *LightChain) Concrete() concrete.PrecompileRegistry {
+	if lc.concrete == nil {
+		return &concrete.GenericPrecompileRegistry{}
+	}
+	return lc.concrete
 }

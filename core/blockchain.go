@@ -1361,7 +1361,10 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 		log.Crit("Failed to write block into disk", "err", err)
 	}
 	// Commit all cached state changes into underlying memory database.
-	root, err := state.Commit(bc.chainConfig.IsEIP158(block.Number()))
+	root, err := state.CommitWithConcrete(
+		bc.Concrete().Precompiles(block.NumberU64()),
+		bc.chainConfig.IsEIP158(block.Number()),
+	)
 	if err != nil {
 		return err
 	}
@@ -1727,8 +1730,7 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 		if parent == nil {
 			parent = bc.GetHeader(block.ParentHash(), block.NumberU64()-1)
 		}
-		concretePcs := bc.GetConcrete().Precompiles(block.NumberU64())
-		statedb, err := state.NewWithConcrete(parent.Root, bc.stateCache, bc.snaps, concretePcs)
+		statedb, err := state.New(parent.Root, bc.stateCache, bc.snaps)
 		if err != nil {
 			return it.index, err
 		}
@@ -1742,8 +1744,7 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 		var followupInterrupt atomic.Bool
 		if !bc.cacheConfig.TrieCleanNoPrefetch {
 			if followup, err := it.peek(); followup != nil && err == nil {
-				concretePcs := bc.GetConcrete().Precompiles(followup.NumberU64())
-				throwaway, _ := state.NewWithConcrete(parent.Root, bc.stateCache, bc.snaps, concretePcs)
+				throwaway, _ := state.New(parent.Root, bc.stateCache, bc.snaps)
 
 				go func(start time.Time, followup *types.Block, throwaway *state.StateDB) {
 					bc.prefetcher.Prefetch(followup, throwaway, bc.vmConfig, &followupInterrupt)
@@ -2508,7 +2509,7 @@ func (bs *BlockChain) SetConcrete(concreteRegistry concrete.PrecompileRegistry) 
 	}
 }
 
-func (bs *BlockChain) GetConcrete() concrete.PrecompileRegistry {
+func (bs *BlockChain) Concrete() concrete.PrecompileRegistry {
 	if bs.concrete == nil {
 		return &concrete.GenericPrecompileRegistry{}
 	}

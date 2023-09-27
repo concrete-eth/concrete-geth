@@ -353,9 +353,7 @@ func newConcreteGeth(concreteRegistry concrete.PrecompileRegistry) func(ctx *cli
 		stack, backend := makeFullNode(ctx)
 		defer stack.Close()
 
-		if ctx.String(utils.SyncModeFlag.Name) != "light" {
-			backend.SetConcrete(concreteRegistry)
-		}
+		backend.SetConcrete(concreteRegistry)
 
 		startNode(ctx, stack, backend, false)
 		stack.Wait()
