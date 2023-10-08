@@ -264,6 +264,9 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 		static := evm.Interpreter().readOnly
 		env := evm.newConcreteEnvironment(contract, static, gas)
 		ret, gas, err = concrete.RunPrecompile(ccp, env, input, static)
+		if err == cc_api.ErrExecutionReverted {
+			err = ErrExecutionReverted
+		}
 	} else {
 		// Initialise a new contract and set the code that is to be used by the EVM.
 		// The contract is a scoped environment for this execution context only.
@@ -378,6 +381,9 @@ func (evm *EVM) DelegateCall(caller ContractRef, addr common.Address, input []by
 		contract.Input = input
 		env := evm.newConcreteEnvironment(contract, static, gas)
 		ret, gas, err = concrete.RunPrecompile(ccp, env, input, static)
+		if err == cc_api.ErrExecutionReverted {
+			err = ErrExecutionReverted
+		}
 	} else {
 		addrCopy := addr
 		// Initialise a new contract and make initialise the delegate values
@@ -434,6 +440,9 @@ func (evm *EVM) StaticCall(caller ContractRef, addr common.Address, input []byte
 		static := true
 		env := evm.newConcreteEnvironment(contract, static, gas)
 		ret, gas, err = concrete.RunPrecompile(ccp, env, input, static)
+		if err == cc_api.ErrExecutionReverted {
+			err = ErrExecutionReverted
+		}
 	} else {
 		// At this point, we use a copy of address. If we don't, the go compiler will
 		// leak the 'contract' to the outer scope, and make allocation for 'contract'

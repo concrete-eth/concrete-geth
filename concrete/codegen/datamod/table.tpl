@@ -22,7 +22,7 @@ var (
 //	{{.TableStructName}}DefaultKey = crypto.Keccak256([]byte("datamod.v1.{{.TableStructName}}"))
 // )
 
-func defaultKey() []byte {
+func {{.TableStructName}}DefaultKey() []byte {
 	return crypto.Keccak256([]byte("datamod.v1.{{.TableStructName}}"))
 }
 
@@ -89,7 +89,7 @@ type {{.TableStructName}} struct {
 }
 
 func New{{.TableStructName}}(ds lib.Datastore) *{{.TableStructName}} {
-	dsSlot := ds.Get(defaultKey())
+	dsSlot := ds.Get({{.TableStructName}}DefaultKey())
 	return &{{.TableStructName}}{dsSlot}
 }
 
@@ -113,7 +113,7 @@ func (m *{{.TableStructName}}) Get(
 type {{.TableStructName}} = {{.RowStructName}}
 
 func New{{.TableStructName}}(ds lib.Datastore) *{{.RowStructName}} {
-	dsSlot := ds.Get(defaultKey())
+	dsSlot := ds.Get({{.TableStructName}}DefaultKey())
 	return New{{.RowStructName}}(dsSlot)
 }
 

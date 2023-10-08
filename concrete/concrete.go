@@ -37,8 +37,10 @@ func RunPrecompile(p Precompile, env *api.Env, input []byte, static bool) (ret [
 		return nil, env.Gas(), api.ErrWriteProtection
 	}
 	output, err := p.Run(env, inputCopy)
-	if err == nil {
+	if env.Error() != nil {
 		err = env.Error()
+	} else if err != nil {
+		err = api.ErrExecutionReverted
 	}
 	return output, env.Gas(), err
 }

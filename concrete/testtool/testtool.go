@@ -16,6 +16,7 @@
 package testtool
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"math/big"
@@ -33,6 +34,10 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
+)
+
+var (
+	PrintLogs = true
 )
 
 func runTestMethod(concreteRegistry concrete.PrecompileRegistry, bytecode []byte, method abi.Method, shouldFail bool) (uint64, error) {
@@ -74,6 +79,22 @@ func runTestMethod(concreteRegistry concrete.PrecompileRegistry, bytecode []byte
 	}
 	if (testReceipt.Status == types.ReceiptStatusSuccessful) == shouldFail {
 		return 0, fmt.Errorf("test failed")
+	}
+
+	if PrintLogs && len(testReceipt.Logs) > 0 {
+		fmt.Println("")
+		for ii, log := range testReceipt.Logs {
+			fmt.Printf("Logs[%d]\n", ii)
+			fmt.Println("Address :", log.Address)
+			if len(log.Topics) > 0 {
+				fmt.Println("Topics  :", log.Topics[0])
+				for _, topic := range log.Topics[1:] {
+					fmt.Println("         ", topic)
+				}
+			}
+			fmt.Println("Data    : 0x" + hex.EncodeToString(log.Data))
+		}
+		fmt.Println("")
 	}
 
 	return testReceipt.GasUsed, nil

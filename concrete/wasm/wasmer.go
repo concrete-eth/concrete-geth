@@ -13,7 +13,7 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with the concrete library. If not, see <http://www.gnu.org/licenses/>.
 
-//go:build !mips && !mipsle
+//go:build !mips && !mipsle && !mips64 && !mips64le
 
 // This file will ignored when building for mips to prevent compatibility
 // issues.

@@ -16,6 +16,7 @@
 package datamod
 
 import (
+	"bytes"
 	"regexp"
 	"strings"
 	"unicode"
@@ -37,6 +38,24 @@ func upperFirstLetter(str string) string {
 	runes := []rune(str)
 	runes[0] = unicode.ToUpper(runes[0])
 	return string(runes)
+}
+
+func camelToSnake(str string) string {
+	if len(str) == 0 {
+		return ""
+	}
+	var buf bytes.Buffer
+	for i, r := range str {
+		if unicode.IsUpper(r) {
+			if i > 0 {
+				buf.WriteRune('_')
+			}
+			buf.WriteRune(unicode.ToLower(r))
+		} else {
+			buf.WriteRune(r)
+		}
+	}
+	return buf.String()
 }
 
 func formatTableName(tableName string) string {

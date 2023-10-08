@@ -369,7 +369,7 @@ func newConcreteGethApp(concreteRegistry concrete.PrecompileRegistry) *cli.App {
 	ccApp.Flags = app.Flags
 	ccApp.Before = app.Before
 	ccApp.After = app.After
-	return app
+	return ccApp
 }
 
 func NewConcreteGethApp(concreteRegistry concrete.PrecompileRegistry) *cli.App {
