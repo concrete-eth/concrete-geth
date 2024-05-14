@@ -149,6 +149,10 @@ type (
 		account       *common.Address
 		key, prevalue common.Hash
 	}
+	ephemeralStorageChange struct {
+		account       *common.Address
+		key, prevalue common.Hash
+	}
 )
 
 func (ch createObjectChange) revert(s *StateDB) {
@@ -296,5 +300,13 @@ func (ch accessListAddSlotChange) revert(s *StateDB) {
 }
 
 func (ch accessListAddSlotChange) dirtied() *common.Address {
+	return nil
+}
+
+func (ch ephemeralStorageChange) revert(s *StateDB) {
+	s.setEphemeralState(*ch.account, ch.key, ch.prevalue)
+}
+
+func (ch ephemeralStorageChange) dirtied() *common.Address {
 	return nil
 }

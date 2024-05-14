@@ -23,6 +23,8 @@ import (
 	"github.com/holiman/uint256"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/concrete"
+	cc_api "github.com/ethereum/go-ethereum/concrete/api"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
@@ -63,6 +65,29 @@ func (evm *EVM) precompile(addr common.Address) (PrecompiledContract, bool) {
 		}
 	}
 	return p, ok
+}
+
+func (evm *EVM) concretePrecompile(addr common.Address) (concrete.Precompile, bool) {
+	pc, ok := evm.concretePrecompiles[addr]
+	return pc, ok
+}
+
+func (evm *EVM) newConcreteEnvironment(contract *Contract, static bool, gas uint64) *cc_api.Env {
+	env := cc_api.NewEnvironment(
+		contract.Address(),
+		cc_api.EnvConfig{
+			Static:    static,
+			Ephemeral: true,
+			Trusted:   true,
+		},
+		evm.StateDB,
+		NewConcreteBlockContext(evm),
+		NewConcreteCallContext(evm, contract),
+		NewConcreteCaller(evm, contract),
+		true,
+		gas,
+	)
+	return env
 }
 
 // BlockContext provides the EVM with auxiliary information. Once provided
@@ -133,11 +158,17 @@ type EVM struct {
 	// available gas is calculated in gasCall* according to the 63/64 rule and later
 	// applied in opCall*.
 	callGasTemp uint64
+
+	concretePrecompiles concrete.PrecompileMap
 }
 
 // NewEVM returns a new EVM. The returned EVM is not thread safe and should
 // only ever be used *once*.
 func NewEVM(blockCtx BlockContext, txCtx TxContext, statedb StateDB, chainConfig *params.ChainConfig, config Config) *EVM {
+	return NewEVMWithConcrete(blockCtx, txCtx, statedb, chainConfig, config, concrete.PrecompileMap{})
+}
+
+func NewEVMWithConcrete(blockCtx BlockContext, txCtx TxContext, statedb StateDB, chainConfig *params.ChainConfig, config Config, concretePrecompiles concrete.PrecompileMap) *EVM {
 	// If basefee tracking is disabled (eth_call, eth_estimateGas, etc), and no
 	// gas prices were specified, lower the basefee to 0 to avoid breaking EVM
 	// invariants (basefee < feecap)
@@ -150,12 +181,13 @@ func NewEVM(blockCtx BlockContext, txCtx TxContext, statedb StateDB, chainConfig
 		}
 	}
 	evm := &EVM{
-		Context:     blockCtx,
-		TxContext:   txCtx,
-		StateDB:     statedb,
-		Config:      config,
-		chainConfig: chainConfig,
-		chainRules:  chainConfig.Rules(blockCtx.BlockNumber, blockCtx.Random != nil, blockCtx.Time),
+		Context:             blockCtx,
+		TxContext:           txCtx,
+		StateDB:             statedb,
+		Config:              config,
+		chainConfig:         chainConfig,
+		chainRules:          chainConfig.Rules(blockCtx.BlockNumber, blockCtx.Random != nil, blockCtx.Time),
+		concretePrecompiles: concretePrecompiles,
 	}
 	evm.interpreter = NewEVMInterpreter(evm)
 	return evm
@@ -199,10 +231,11 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 	}
 	snapshot := evm.StateDB.Snapshot()
 	p, isPrecompile := evm.precompile(addr)
+	ccp, isConcretePrecompile := evm.concretePrecompile(addr)
 	debug := evm.Config.Tracer != nil
 
 	if !evm.StateDB.Exist(addr) {
-		if !isPrecompile && evm.chainRules.IsEIP158 && value.IsZero() {
+		if !isPrecompile && !isConcretePrecompile && evm.chainRules.IsEIP158 && value.IsZero() {
 			// Calling a non existing account, don't do anything, but ping the tracer
 			if debug {
 				if evm.depth == 0 {
@@ -237,6 +270,16 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 
 	if isPrecompile {
 		ret, gas, err = RunPrecompiledContract(p, input, gas)
+	} else if isConcretePrecompile {
+		addrCopy := addr
+		contract := NewContract(caller, AccountRef(addrCopy), value, 0)
+		contract.Input = input
+		static := evm.Interpreter().readOnly
+		env := evm.newConcreteEnvironment(contract, static, gas)
+		ret, gas, err = concrete.RunPrecompile(ccp, env, input, static)
+		if err == cc_api.ErrExecutionReverted {
+			err = ErrExecutionReverted
+		}
 	} else {
 		// Initialise a new contract and set the code that is to be used by the EVM.
 		// The contract is a scoped environment for this execution context only.
@@ -345,6 +388,15 @@ func (evm *EVM) DelegateCall(caller ContractRef, addr common.Address, input []by
 	// It is allowed to call precompiles, even via delegatecall
 	if p, isPrecompile := evm.precompile(addr); isPrecompile {
 		ret, gas, err = RunPrecompiledContract(p, input, gas)
+	} else if ccp, isConcretePrecompile := evm.concretePrecompile(addr); isConcretePrecompile {
+		static := evm.Interpreter().readOnly
+		contract := NewContract(caller, AccountRef(caller.Address()), nil, gas).AsDelegate()
+		contract.Input = input
+		env := evm.newConcreteEnvironment(contract, static, gas)
+		ret, gas, err = concrete.RunPrecompile(ccp, env, input, static)
+		if err == cc_api.ErrExecutionReverted {
+			err = ErrExecutionReverted
+		}
 	} else {
 		addrCopy := addr
 		// Initialise a new contract and make initialise the delegate values
@@ -394,6 +446,16 @@ func (evm *EVM) StaticCall(caller ContractRef, addr common.Address, input []byte
 
 	if p, isPrecompile := evm.precompile(addr); isPrecompile {
 		ret, gas, err = RunPrecompiledContract(p, input, gas)
+	} else if ccp, isConcretePrecompile := evm.concretePrecompile(addr); isConcretePrecompile {
+		addrCopy := addr
+		contract := NewContract(caller, AccountRef(addrCopy), new(big.Int), gas)
+		contract.Input = input
+		static := true
+		env := evm.newConcreteEnvironment(contract, static, gas)
+		ret, gas, err = concrete.RunPrecompile(ccp, env, input, static)
+		if err == cc_api.ErrExecutionReverted {
+			err = ErrExecutionReverted
+		}
 	} else {
 		// At this point, we use a copy of address. If we don't, the go compiler will
 		// leak the 'contract' to the outer scope, and make allocation for 'contract'
@@ -539,3 +601,119 @@ func (evm *EVM) Create2(caller ContractRef, code []byte, gas uint64, endowment *
 
 // ChainConfig returns the environment's chain configuration
 func (evm *EVM) ChainConfig() *params.ChainConfig { return evm.chainConfig }
+
+func (evm *EVM) ConcretePrecompiles() concrete.PrecompileMap { return evm.concretePrecompiles }
+
+type concreteBlockContext struct {
+	ctx *BlockContext
+}
+
+func NewConcreteBlockContext(evm *EVM) *concreteBlockContext {
+	return &concreteBlockContext{&evm.Context}
+}
+
+func (b *concreteBlockContext) GetHash(block uint64) common.Hash {
+	return b.ctx.GetHash(block)
+}
+
+func (b *concreteBlockContext) Timestamp() uint64 {
+	return b.ctx.Time
+}
+
+func (b *concreteBlockContext) BlockNumber() uint64 {
+	return b.ctx.BlockNumber.Uint64()
+}
+
+func (b *concreteBlockContext) GasLimit() uint64 {
+	return b.ctx.GasLimit
+}
+
+func (b *concreteBlockContext) Difficulty() *big.Int {
+	return b.ctx.Difficulty
+}
+
+func (b *concreteBlockContext) BaseFee() *big.Int {
+	return b.ctx.BaseFee
+}
+
+func (b *concreteBlockContext) Coinbase() common.Address {
+	return b.ctx.Coinbase
+}
+
+func (b *concreteBlockContext) Random() common.Hash {
+	return *b.ctx.Random
+}
+
+var _ cc_api.BlockContext = (*concreteBlockContext)(nil)
+
+type concreteCallContext struct {
+	evm      *EVM
+	contract *Contract
+}
+
+func NewConcreteCallContext(evm *EVM, contract *Contract) *concreteCallContext {
+	return &concreteCallContext{evm: evm, contract: contract}
+}
+
+func (b *concreteCallContext) TxGasPrice() *big.Int {
+	return b.evm.GasPrice
+}
+
+func (b *concreteCallContext) TxOrigin() common.Address {
+	return b.evm.Origin
+}
+
+func (b *concreteCallContext) CallData() []byte {
+	return b.contract.Input
+}
+
+func (b *concreteCallContext) CallDataSize() int {
+	return len(b.contract.Input)
+}
+
+func (b *concreteCallContext) Caller() common.Address {
+	return b.contract.Caller()
+}
+
+func (b *concreteCallContext) CallValue() *big.Int {
+	return b.contract.Value()
+}
+
+var _ cc_api.CallContext = (*concreteCallContext)(nil)
+
+type concreteCaller struct {
+	evm      *EVM
+	contract *Contract
+}
+
+func NewConcreteCaller(evm *EVM, contract *Contract) *concreteCaller {
+	return &concreteCaller{evm: evm, contract: contract}
+}
+
+func (c *concreteCaller) CallStatic(addr common.Address, input []byte, gas uint64) ([]byte, uint64, error) {
+	ret, gasLeft, err := c.evm.StaticCall(c.contract, addr, input, gas)
+	return ret, gasLeft, err
+}
+
+func (c *concreteCaller) Call(addr common.Address, input []byte, gas uint64, value *big.Int) ([]byte, uint64, error) {
+	ret, gasLeft, err := c.evm.Call(c.contract, addr, input, gas, value)
+	return ret, gasLeft, err
+}
+
+func (c *concreteCaller) CallDelegate(addr common.Address, input []byte, gas uint64) ([]byte, uint64, error) {
+	ret, gasLeft, err := c.evm.DelegateCall(c.contract, addr, input, gas)
+	return ret, gasLeft, err
+}
+
+func (c *concreteCaller) Create(input []byte, gas uint64, value *big.Int) (common.Address, uint64, error) {
+	_, address, gasLeft, err := c.evm.Create(c.contract, input, gas, value)
+	return address, gasLeft, err
+}
+
+func (c *concreteCaller) Create2(input []byte, salt common.Hash, gas uint64, value *big.Int) (common.Address, uint64, error) {
+	saltUint := new(uint256.Int).SetBytes32(salt.Bytes())
+	_, address, gasLeft, err := c.evm.Create2(c.contract, input, gas, value, saltUint)
+	return address, gasLeft, err
+}
+
+var _ cc_api.Caller = (*concreteCaller)(nil)

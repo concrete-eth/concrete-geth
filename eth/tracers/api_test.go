@@ -33,6 +33,7 @@ import (
 	"github.com/davecgh/go-spew/spew"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/concrete"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/ethash"
 	"github.com/ethereum/go-ethereum/core"
@@ -266,6 +267,10 @@ func (b *testBackend) StateAtTransaction(ctx context.Context, block *types.Block
 func (b *testBackend) HistoricalRPCService() *rpc.Client {
 	return b.historical
 }
+
+func (b *testBackend) SetConcrete(concrete.PrecompileRegistry) {}
+
+func (b *testBackend) Concrete() concrete.PrecompileRegistry { return nil }
 
 func TestTraceCall(t *testing.T) {
 	t.Parallel()

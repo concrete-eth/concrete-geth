@@ -32,6 +32,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/lru"
 	"github.com/ethereum/go-ethereum/common/mclock"
 	"github.com/ethereum/go-ethereum/common/prque"
+	"github.com/ethereum/go-ethereum/concrete"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/misc/eip4844"
 	"github.com/ethereum/go-ethereum/core/rawdb"
@@ -259,6 +260,8 @@ type BlockChain struct {
 	processor  Processor // Block transaction processor interface
 	forker     *ForkChoice
 	vmConfig   vm.Config
+
+	concrete concrete.PrecompileRegistry
 }
 
 // NewBlockChain returns a fully initialised block chain using information
@@ -1369,7 +1372,10 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 		log.Crit("Failed to write block into disk", "err", err)
 	}
 	// Commit all cached state changes into underlying memory database.
-	root, err := state.Commit(block.NumberU64(), bc.chainConfig.IsEIP158(block.Number()))
+	root, err := state.CommitWithConcrete(
+		bc.Concrete().Precompiles(block.NumberU64()),
+		bc.chainConfig.IsEIP158(block.Number()),
+	)
 	if err != nil {
 		return err
 	}
@@ -2462,4 +2468,19 @@ func (bc *BlockChain) SetTrieFlushInterval(interval time.Duration) {
 // GetTrieFlushInterval gets the in-memory tries flushAlloc interval
 func (bc *BlockChain) GetTrieFlushInterval() time.Duration {
 	return time.Duration(bc.flushInterval.Load())
+}
+
+func (bs *BlockChain) SetConcrete(concreteRegistry concrete.PrecompileRegistry) {
+	if concreteRegistry == nil {
+		bs.concrete = &concrete.GenericPrecompileRegistry{}
+	} else {
+		bs.concrete = concreteRegistry
+	}
+}
+
+func (bs *BlockChain) Concrete() concrete.PrecompileRegistry {
+	if bs.concrete == nil {
+		return &concrete.GenericPrecompileRegistry{}
+	}
+	return bs.concrete
 }

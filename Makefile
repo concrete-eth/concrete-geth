@@ -54,3 +54,33 @@ help: Makefile
 	@echo " Choose a command run in go-ethereum:"
 	@sed -n 's/^#?//p' $< | column -t -s ':' |  sort | sed -e 's/^/ /'
 .PHONY: help
+
+.PHONY: concrete concrete-wasm concrete-solidity concrete-datamod
+
+concrete: concrete-wasm concrete-solidity concrete-datamod
+
+E2E_DIR = ./concrete/e2e
+TINYGO_PCS_DIR = ./tinygo/precompiles
+WASM_TESTDATA_DIR = ./concrete/wasm/testdata
+
+concrete-wasm:
+	mkdir -p $(E2E_DIR)/build
+	tinygo build -opt=2 -o $(E2E_DIR)/build/blank.wasm -target=wasi $(TINYGO_PCS_DIR)/blank/blank.go
+	tinygo build -opt=2 -o $(E2E_DIR)/build/add.wasm -target=wasi $(TINYGO_PCS_DIR)/add/add.go
+	tinygo build -opt=2 -o $(E2E_DIR)/build/kkv.wasm -target=wasi $(TINYGO_PCS_DIR)/kkv/kkv.go
+	tinygo build -opt=2 -o $(E2E_DIR)/build/gas.wasm -target=wasi $(TINYGO_PCS_DIR)/gas/gas.go
+	mkdir -p $(WASM_TESTDATA_DIR)
+	cp $(E2E_DIR)/build/blank.wasm $(WASM_TESTDATA_DIR)/blank.wasm
+	cp $(E2E_DIR)/build/gas.wasm $(WASM_TESTDATA_DIR)/gas.wasm
+
+concrete-solidity:
+	cd ./concrete/testtool/testdata && forge build
+
+DATAMOD_CMD_DIR = ./concrete/cmd/concrete
+DATAMOD_DIR = ./concrete/codegen/datamod
+
+concrete-datamod:
+	go run $(DATAMOD_CMD_DIR) datamod $(DATAMOD_DIR)/testdata/good-datamod.json \
+		--pkg testdata --out $(DATAMOD_DIR)/testdata --table-type-experimental
+	go run $(DATAMOD_CMD_DIR) datamod concrete/e2e/datamod.json \
+		--pkg datamod --out concrete/e2e/datamod
