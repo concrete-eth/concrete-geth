@@ -19,7 +19,6 @@ package geth
 
 import (
 	"fmt"
-	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -278,14 +277,6 @@ func init() {
 		debug.Exit()
 		prompt.Stdin.Close() // Resets terminal mode.
 		return nil
-	}
-}
-
-//nolint:unused
-func main() {
-	if err := app.Run(os.Args); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
 	}
 }
 
