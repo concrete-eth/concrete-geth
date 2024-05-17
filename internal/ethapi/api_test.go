@@ -743,7 +743,9 @@ func (b testBackend) SubscribeChainSideEvent(ch chan<- core.ChainSideEvent) even
 	panic("implement me")
 }
 func (b testBackend) SetConcrete(concrete.PrecompileRegistry) {}
-func (b testBackend) Concrete() concrete.PrecompileRegistry   { return nil }
+func (b testBackend) Concrete() concrete.PrecompileRegistry {
+	return &concrete.GenericPrecompileRegistry{}
+}
 func (b testBackend) SendTx(ctx context.Context, signedTx *types.Transaction) error {
 	panic("implement me")
 }

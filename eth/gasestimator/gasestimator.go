@@ -24,6 +24,7 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/concrete"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -42,6 +43,8 @@ type Options struct {
 	Chain  core.ChainContext   // Chain context to access past block hashes
 	Header *types.Header       // Header defining the block context to execute in
 	State  *state.StateDB      // Pre-state on top of which to estimate the gas
+
+	ConcretePrecompiles concrete.PrecompileMap // Concrete precompiled contracts to execute
 
 	ErrorRatio float64 // Allowed overestimation ratio for faster estimation termination
 }
@@ -211,7 +214,7 @@ func run(ctx context.Context, call *core.Message, opts *Options) (*core.Executio
 		evmContext = core.NewEVMBlockContext(opts.Header, opts.Chain, nil, opts.Config, opts.State)
 
 		dirtyState = opts.State.Copy()
-		evm        = vm.NewEVM(evmContext, msgContext, dirtyState, opts.Config, vm.Config{NoBaseFee: true})
+		evm        = vm.NewEVMWithConcrete(evmContext, msgContext, dirtyState, opts.Config, vm.Config{NoBaseFee: true}, opts.ConcretePrecompiles)
 	)
 	// Monitor the outer context and interrupt the EVM upon cancellation. To avoid
 	// a dangling goroutine until the outer estimation finishes, create an internal

@@ -74,6 +74,7 @@ type Backend interface {
 	SubscribeChainHeadEvent(ch chan<- core.ChainHeadEvent) event.Subscription
 	SubscribeChainSideEvent(ch chan<- core.ChainSideEvent) event.Subscription
 	SetConcrete(concreteRegistry concrete.PrecompileRegistry)
+	Concrete() concrete.PrecompileRegistry
 
 	// Transaction pool API
 	SendTx(ctx context.Context, signedTx *types.Transaction) error
