@@ -21,10 +21,9 @@
 package api
 
 import (
-	"math/big"
-
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/holiman/uint256"
 )
 
 func NewMockEnvironment(addr common.Address, config EnvConfig, meterGas bool, gas uint64) *Env {
@@ -53,7 +52,7 @@ func (m *mockStateDB) AddSlotToAccessList(addr common.Address, slot common.Hash)
 func (m *mockStateDB) GetCode(addr common.Address) []byte                        { return []byte{} }
 func (m *mockStateDB) GetCodeSize(addr common.Address) int                       { return 0 }
 func (m *mockStateDB) GetCodeHash(addr common.Address) common.Hash               { return common.Hash{} }
-func (m *mockStateDB) GetBalance(addr common.Address) *big.Int                   { return big.NewInt(0) }
+func (m *mockStateDB) GetBalance(addr common.Address) *uint256.Int               { return uint256.NewInt(0) }
 func (m *mockStateDB) AddLog(*types.Log)                                         {}
 
 func (m *mockStateDB) GetCommittedState(addr common.Address, key common.Hash) common.Hash {
@@ -82,8 +81,8 @@ func (m *mockBlockContext) GetHash(uint64) common.Hash { return common.Hash{} }
 func (m *mockBlockContext) GasLimit() uint64           { return 0 }
 func (m *mockBlockContext) BlockNumber() uint64        { return 0 }
 func (m *mockBlockContext) Timestamp() uint64          { return 0 }
-func (m *mockBlockContext) Difficulty() *big.Int       { return big.NewInt(0) }
-func (m *mockBlockContext) BaseFee() *big.Int          { return big.NewInt(0) }
+func (m *mockBlockContext) Difficulty() *uint256.Int   { return uint256.NewInt(0) }
+func (m *mockBlockContext) BaseFee() *uint256.Int      { return uint256.NewInt(0) }
 func (m *mockBlockContext) Coinbase() common.Address   { return common.Address{} }
 func (m *mockBlockContext) Random() common.Hash        { return common.Hash{} }
 
@@ -93,12 +92,12 @@ type mockCallContext struct{}
 
 func NewMockCallContext() *mockCallContext { return &mockCallContext{} }
 
-func (m *mockCallContext) TxGasPrice() *big.Int     { return big.NewInt(0) }
+func (m *mockCallContext) TxGasPrice() *uint256.Int { return uint256.NewInt(0) }
 func (m *mockCallContext) TxOrigin() common.Address { return common.Address{} }
 func (m *mockCallContext) CallData() []byte         { return []byte{} }
 func (m *mockCallContext) CallDataSize() int        { return 0 }
 func (m *mockCallContext) Caller() common.Address   { return common.Address{} }
-func (m *mockCallContext) CallValue() *big.Int      { return big.NewInt(0) }
+func (m *mockCallContext) CallValue() *uint256.Int  { return uint256.NewInt(0) }
 
 var _ CallContext = (*mockCallContext)(nil)
 
@@ -109,16 +108,16 @@ func NewMockCaller() *mockCaller { return &mockCaller{} }
 func (m *mockCaller) CallStatic(common.Address, []byte, uint64) ([]byte, uint64, error) {
 	return []byte{}, 0, nil
 }
-func (m *mockCaller) Call(common.Address, []byte, uint64, *big.Int) ([]byte, uint64, error) {
+func (m *mockCaller) Call(common.Address, []byte, uint64, *uint256.Int) ([]byte, uint64, error) {
 	return []byte{}, 0, nil
 }
 func (m *mockCaller) CallDelegate(common.Address, []byte, uint64) ([]byte, uint64, error) {
 	return []byte{}, 0, nil
 }
-func (m *mockCaller) Create([]byte, uint64, *big.Int) (common.Address, uint64, error) {
+func (m *mockCaller) Create([]byte, uint64, *uint256.Int) (common.Address, uint64, error) {
 	return common.Address{}, 0, nil
 }
-func (m *mockCaller) Create2([]byte, common.Hash, uint64, *big.Int) (common.Address, uint64, error) {
+func (m *mockCaller) Create2([]byte, common.Hash, uint64, *uint256.Int) (common.Address, uint64, error) {
 	return common.Address{}, 0, nil
 }
 

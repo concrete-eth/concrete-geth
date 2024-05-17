@@ -17,11 +17,11 @@ package api
 
 import (
 	"fmt"
-	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/concrete/utils"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/holiman/uint256"
 )
 
 type Environment interface {
@@ -52,22 +52,22 @@ type Environment interface {
 	GetBlockNumber() uint64
 	GetBlockGasLimit() uint64
 	GetBlockTimestamp() uint64
-	GetBlockDifficulty() *big.Int
-	GetBlockBaseFee() *big.Int
+	GetBlockDifficulty() *uint256.Int
+	GetBlockBaseFee() *uint256.Int
 	GetBlockCoinbase() common.Address
 	GetPrevRandom() common.Hash
 	// Block hash
 	GetBlockHash(block uint64) common.Hash
 	// Balance
-	GetBalance(address common.Address) *big.Int
+	GetBalance(address common.Address) *uint256.Int
 	// Transaction
-	GetTxGasPrice() *big.Int
+	GetTxGasPrice() *uint256.Int
 	GetTxOrigin() common.Address
 	// Call
 	GetCallData() []byte
 	GetCallDataSize() int
 	GetCaller() common.Address
-	GetCallValue() *big.Int
+	GetCallValue() *uint256.Int
 	// Storage
 	StorageLoad(key common.Hash) common.Hash
 	// Code
@@ -84,7 +84,7 @@ type Environment interface {
 
 	// EXTERNAL - READ
 	// Balance
-	GetExternalBalance(address common.Address) *big.Int
+	GetExternalBalance(address common.Address) *uint256.Int
 	// Code
 	GetExternalCode(address common.Address) []byte
 	GetExternalCodeSize(address common.Address) int
@@ -94,11 +94,11 @@ type Environment interface {
 
 	// EXTERNAL - WRITE
 	// Call
-	Call(address common.Address, data []byte, gas uint64, value *big.Int) ([]byte, error)
+	Call(address common.Address, data []byte, gas uint64, value *uint256.Int) ([]byte, error)
 	CallDelegate(address common.Address, data []byte, gas uint64) ([]byte, error)
 	// Create
-	Create(data []byte, value *big.Int) (common.Address, error)
-	Create2(data []byte, salt common.Hash, value *big.Int) (common.Address, error)
+	Create(data []byte, value *uint256.Int) (common.Address, error)
+	Create2(data []byte, salt common.Hash, endowment *uint256.Int) (common.Address, error)
 }
 
 type EnvConfig struct {
@@ -372,20 +372,20 @@ func (env *Env) GetBlockTimestamp() uint64 {
 	return utils.BytesToUint64(output[0])
 }
 
-func (env *Env) GetBlockDifficulty() *big.Int {
+func (env *Env) GetBlockDifficulty() *uint256.Int {
 	output, err := env.execute(GetBlockDifficulty_OpCode, nil)
 	if err != nil {
 		return nil
 	}
-	return new(big.Int).SetBytes(output[0])
+	return new(uint256.Int).SetBytes(output[0])
 }
 
-func (env *Env) GetBlockBaseFee() *big.Int {
+func (env *Env) GetBlockBaseFee() *uint256.Int {
 	output, err := env.execute(GetBlockBaseFee_OpCode, nil)
 	if err != nil {
 		return nil
 	}
-	return new(big.Int).SetBytes(output[0])
+	return new(uint256.Int).SetBytes(output[0])
 }
 
 func (env *Env) GetBlockCoinbase() common.Address {
@@ -413,21 +413,21 @@ func (env *Env) GetBlockHash(number uint64) common.Hash {
 	return common.BytesToHash(output[0])
 }
 
-func (env *Env) GetBalance(address common.Address) *big.Int {
+func (env *Env) GetBalance(address common.Address) *uint256.Int {
 	input := [][]byte{address.Bytes()}
 	output, err := env.execute(GetBalance_OpCode, input)
 	if err != nil {
 		return nil
 	}
-	return new(big.Int).SetBytes(output[0])
+	return new(uint256.Int).SetBytes(output[0])
 }
 
-func (env *Env) GetTxGasPrice() *big.Int {
+func (env *Env) GetTxGasPrice() *uint256.Int {
 	output, err := env.execute(GetTxGasPrice_OpCode, nil)
 	if err != nil {
 		return nil
 	}
-	return new(big.Int).SetBytes(output[0])
+	return new(uint256.Int).SetBytes(output[0])
 }
 
 func (env *Env) GetTxOrigin() common.Address {
@@ -462,12 +462,12 @@ func (env *Env) GetCaller() common.Address {
 	return common.BytesToAddress(output[0])
 }
 
-func (env *Env) GetCallValue() *big.Int {
+func (env *Env) GetCallValue() *uint256.Int {
 	output, err := env.execute(GetCallValue_OpCode, nil)
 	if err != nil {
 		return nil
 	}
-	return new(big.Int).SetBytes(output[0])
+	return new(uint256.Int).SetBytes(output[0])
 }
 
 func (env *Env) StorageLoad(key common.Hash) common.Hash {
@@ -515,13 +515,13 @@ func (env *Env) Log(topics []common.Hash, data []byte) {
 	env.execute(Log_OpCode, input)
 }
 
-func (env *Env) GetExternalBalance(address common.Address) *big.Int {
+func (env *Env) GetExternalBalance(address common.Address) *uint256.Int {
 	input := [][]byte{address.Bytes()}
 	output, err := env.execute(GetExternalBalance_OpCode, input)
 	if err != nil {
 		return nil
 	}
-	return new(big.Int).SetBytes(output[0])
+	return new(uint256.Int).SetBytes(output[0])
 }
 
 func (env *Env) CallStatic(address common.Address, data []byte, gas uint64) ([]byte, error) {
@@ -560,7 +560,7 @@ func (env *Env) GetExternalCodeHash(address common.Address) common.Hash {
 	return common.BytesToHash(output[0])
 }
 
-func (env *Env) Call(address common.Address, data []byte, gas uint64, value *big.Int) ([]byte, error) {
+func (env *Env) Call(address common.Address, data []byte, gas uint64, value *uint256.Int) ([]byte, error) {
 	input := [][]byte{utils.Uint64ToBytes(gas), address.Bytes(), value.Bytes(), data}
 	output, err := env.execute(Call_OpCode, input)
 	if err != nil {
@@ -578,7 +578,7 @@ func (env *Env) CallDelegate(address common.Address, data []byte, gas uint64) ([
 	return output[0], utils.DecodeError(output[1])
 }
 
-func (env *Env) Create(data []byte, value *big.Int) (common.Address, error) {
+func (env *Env) Create(data []byte, value *uint256.Int) (common.Address, error) {
 	input := [][]byte{value.Bytes(), data}
 	output, err := env.execute(Create_OpCode, input)
 	if err != nil {
@@ -587,8 +587,8 @@ func (env *Env) Create(data []byte, value *big.Int) (common.Address, error) {
 	return common.BytesToAddress(output[0]), utils.DecodeError(output[1])
 }
 
-func (env *Env) Create2(data []byte, salt common.Hash, value *big.Int) (common.Address, error) {
-	input := [][]byte{value.Bytes(), data, salt.Bytes()}
+func (env *Env) Create2(data []byte, salt common.Hash, endowment *uint256.Int) (common.Address, error) {
+	input := [][]byte{endowment.Bytes(), data, salt.Bytes()}
 	output, err := env.execute(Create2_OpCode, input)
 	if err != nil {
 		return common.Address{}, err

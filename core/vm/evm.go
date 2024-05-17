@@ -448,7 +448,7 @@ func (evm *EVM) StaticCall(caller ContractRef, addr common.Address, input []byte
 		ret, gas, err = RunPrecompiledContract(p, input, gas)
 	} else if ccp, isConcretePrecompile := evm.concretePrecompile(addr); isConcretePrecompile {
 		addrCopy := addr
-		contract := NewContract(caller, AccountRef(addrCopy), new(big.Int), gas)
+		contract := NewContract(caller, AccountRef(addrCopy), new(uint256.Int), gas)
 		contract.Input = input
 		static := true
 		env := evm.newConcreteEnvironment(contract, static, gas)
@@ -628,12 +628,12 @@ func (b *concreteBlockContext) GasLimit() uint64 {
 	return b.ctx.GasLimit
 }
 
-func (b *concreteBlockContext) Difficulty() *big.Int {
-	return b.ctx.Difficulty
+func (b *concreteBlockContext) Difficulty() *uint256.Int {
+	return uint256.MustFromBig(b.ctx.Difficulty)
 }
 
-func (b *concreteBlockContext) BaseFee() *big.Int {
-	return b.ctx.BaseFee
+func (b *concreteBlockContext) BaseFee() *uint256.Int {
+	return uint256.MustFromBig(b.ctx.BaseFee)
 }
 
 func (b *concreteBlockContext) Coinbase() common.Address {
@@ -655,8 +655,8 @@ func NewConcreteCallContext(evm *EVM, contract *Contract) *concreteCallContext {
 	return &concreteCallContext{evm: evm, contract: contract}
 }
 
-func (b *concreteCallContext) TxGasPrice() *big.Int {
-	return b.evm.GasPrice
+func (b *concreteCallContext) TxGasPrice() *uint256.Int {
+	return uint256.MustFromBig(b.evm.TxContext.GasPrice)
 }
 
 func (b *concreteCallContext) TxOrigin() common.Address {
@@ -675,7 +675,7 @@ func (b *concreteCallContext) Caller() common.Address {
 	return b.contract.Caller()
 }
 
-func (b *concreteCallContext) CallValue() *big.Int {
+func (b *concreteCallContext) CallValue() *uint256.Int {
 	return b.contract.Value()
 }
 
@@ -695,7 +695,7 @@ func (c *concreteCaller) CallStatic(addr common.Address, input []byte, gas uint6
 	return ret, gasLeft, err
 }
 
-func (c *concreteCaller) Call(addr common.Address, input []byte, gas uint64, value *big.Int) ([]byte, uint64, error) {
+func (c *concreteCaller) Call(addr common.Address, input []byte, gas uint64, value *uint256.Int) ([]byte, uint64, error) {
 	ret, gasLeft, err := c.evm.Call(c.contract, addr, input, gas, value)
 	return ret, gasLeft, err
 }
@@ -705,14 +705,14 @@ func (c *concreteCaller) CallDelegate(addr common.Address, input []byte, gas uin
 	return ret, gasLeft, err
 }
 
-func (c *concreteCaller) Create(input []byte, gas uint64, value *big.Int) (common.Address, uint64, error) {
+func (c *concreteCaller) Create(input []byte, gas uint64, value *uint256.Int) (common.Address, uint64, error) {
 	_, address, gasLeft, err := c.evm.Create(c.contract, input, gas, value)
 	return address, gasLeft, err
 }
 
-func (c *concreteCaller) Create2(input []byte, salt common.Hash, gas uint64, value *big.Int) (common.Address, uint64, error) {
+func (c *concreteCaller) Create2(input []byte, salt common.Hash, gas uint64, endowment *uint256.Int) (common.Address, uint64, error) {
 	saltUint := new(uint256.Int).SetBytes32(salt.Bytes())
-	_, address, gasLeft, err := c.evm.Create2(c.contract, input, gas, value, saltUint)
+	_, address, gasLeft, err := c.evm.Create2(c.contract, input, gas, endowment, saltUint)
 	return address, gasLeft, err
 }
 

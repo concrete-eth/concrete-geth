@@ -153,6 +153,7 @@ func (eth *Ethereum) hashState(ctx context.Context, block *types.Block, reexec u
 		// Finalize the state so any modifications are written to the trie
 		root, err := statedb.CommitWithConcrete(
 			eth.blockchain.Concrete().Precompiles(current.NumberU64()),
+			current.NumberU64(),
 			eth.blockchain.Config().IsEIP158(current.Number()),
 		)
 		if err != nil {

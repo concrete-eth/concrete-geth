@@ -123,7 +123,13 @@ func newWazeroMemory() (memory.Memory, memory.Allocator) {
 
 func newWasmerMemory() (memory.Memory, memory.Allocator) {
 	envCall := host.NewWasmerEnvironmentCaller(func() api.Environment { return nil })
-	config := wasmer.NewConfig().UseSinglepassCompiler()
+	var config *wasmer.Config
+	if wasmer.IsCompilerAvailable(wasmer.SINGLEPASS) {
+		// Singlepass compiler does not support aarch64-apple-darwin at the moment
+		config = wasmer.NewConfig().UseSinglepassCompiler()
+	} else {
+		config = wasmer.NewConfig().UseCraneliftCompiler()
+	}
 	_, instance, err := newWasmerModule(envCall, blankCode, config)
 	if err != nil {
 		panic(err)

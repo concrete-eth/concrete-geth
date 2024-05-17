@@ -58,7 +58,11 @@ func wazeroPrecompile(code []byte) concrete.Precompile {
 }
 
 func wasmerPrecompile(code []byte) concrete.Precompile {
-	return wasm.NewWasmerPrecompileWithConfig(code, wasmer.NewConfig().UseSinglepassCompiler())
+	if wasmer.IsCompilerAvailable(wasmer.SINGLEPASS) {
+		// Singlepass compiler does not support aarch64-apple-darwin at the moment
+		return wasm.NewWasmerPrecompileWithConfig(code, wasmer.NewConfig().UseSinglepassCompiler())
+	}
+	return wasm.NewWasmerPrecompileWithConfig(code, wasmer.NewConfig().UseCraneliftCompiler())
 }
 
 var addImplementations = []pcImplementation{

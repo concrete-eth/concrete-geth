@@ -267,7 +267,7 @@ func (b *EthAPIBackend) GetEVM(ctx context.Context, msg *core.Message, state *st
 		context = core.NewEVMBlockContext(header, b.eth.BlockChain(), nil, b.eth.blockchain.Config(), state)
 	}
 	concretePcs := b.eth.blockchain.Concrete().Precompiles(header.Number.Uint64())
-	return vm.NewEVMWithConcrete(context, txContext, state, b.ChainConfig(), *vmConfig, concretePcs), state.Error
+	return vm.NewEVMWithConcrete(context, txContext, state, b.ChainConfig(), *vmConfig, concretePcs)
 }
 
 func (b *EthAPIBackend) SubscribeRemovedLogsEvent(ch chan<- core.RemovedLogsEvent) event.Subscription {

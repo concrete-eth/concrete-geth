@@ -34,6 +34,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
+	"golang.org/x/exp/slog"
 )
 
 var (
@@ -226,13 +227,14 @@ func runTestPaths(concreteRegistry concrete.PrecompileRegistry, contractJsonPath
 	return totalPassed, totalFailed
 }
 
-func setGethVerbosity(lvl log.Lvl) func() {
-	handler := log.Root().GetHandler()
-	glogger := log.NewGlogHandler(log.StreamHandler(os.Stderr, log.TerminalFormat(false)))
-	glogger.Verbosity(lvl)
-	log.Root().SetHandler(glogger)
+func setGethVerbosity(_ slog.Level) func() {
+	// [concrete] todo: implement this
+	// handler := log.Root().GetHandler()
+	// glogger := log.NewGlogHandler(log.StreamHandler(os.Stderr, log.TerminalFormat(false)))
+	// glogger.Verbosity(lvl)
+	// log.Root().SetHandler(glogger)
 	return func() {
-		log.Root().SetHandler(handler)
+		// log.Root().SetHandler(handler)
 	}
 }
 
@@ -243,13 +245,13 @@ type TestConfig struct {
 }
 
 func RunTestContract(concreteRegistry concrete.PrecompileRegistry, bytecode []byte, ABI abi.ABI) (int, int) {
-	resetGethLogger := setGethVerbosity(log.LvlWarn)
+	resetGethLogger := setGethVerbosity(log.LevelWarn)
 	defer resetGethLogger()
 	return runTestContract(concreteRegistry, bytecode, ABI)
 }
 
 func Test(concreteRegistry concrete.PrecompileRegistry, config TestConfig) (int, int) {
-	resetGethLogger := setGethVerbosity(log.LvlWarn)
+	resetGethLogger := setGethVerbosity(log.LevelWarn)
 	defer resetGethLogger()
 
 	// Get test paths

@@ -16,9 +16,8 @@
 package api
 
 import (
-	"math/big"
-
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/holiman/uint256"
 )
 
 type Logger interface {
@@ -30,25 +29,25 @@ type BlockContext interface {
 	GasLimit() uint64
 	BlockNumber() uint64
 	Timestamp() uint64
-	Difficulty() *big.Int
-	BaseFee() *big.Int
+	Difficulty() *uint256.Int
+	BaseFee() *uint256.Int
 	Coinbase() common.Address
 	Random() common.Hash
 }
 
 type CallContext interface {
-	TxGasPrice() *big.Int
+	TxGasPrice() *uint256.Int
 	TxOrigin() common.Address
 	CallData() []byte
 	CallDataSize() int
 	Caller() common.Address
-	CallValue() *big.Int
+	CallValue() *uint256.Int
 }
 
 type Caller interface {
 	CallStatic(addr common.Address, input []byte, gas uint64) ([]byte, uint64, error)
-	Call(addr common.Address, input []byte, gas uint64, value *big.Int) ([]byte, uint64, error)
+	Call(addr common.Address, input []byte, gas uint64, value *uint256.Int) ([]byte, uint64, error)
 	CallDelegate(addr common.Address, input []byte, gas uint64) ([]byte, uint64, error)
-	Create(input []byte, gas uint64, value *big.Int) (common.Address, uint64, error)
-	Create2(input []byte, salt common.Hash, gas uint64, value *big.Int) (common.Address, uint64, error)
+	Create(input []byte, gas uint64, value *uint256.Int) (common.Address, uint64, error)
+	Create2(input []byte, salt common.Hash, gas uint64, value *uint256.Int) (common.Address, uint64, error)
 }

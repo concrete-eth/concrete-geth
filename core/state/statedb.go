@@ -1254,11 +1254,11 @@ func (s *StateDB) handleDestruction(nodes *trienode.MergedNodeSet) (map[common.A
 //
 // The associated block number of the state transition is also provided
 // for more chain context.
-func (s *StateDB) Commit(deleteEmptyObjects bool) (common.Hash, error) {
-	return s.CommitWithConcrete(nil, deleteEmptyObjects)
+func (s *StateDB) Commit(block uint64, deleteEmptyObjects bool) (common.Hash, error) {
+	return s.CommitWithConcrete(nil, block, deleteEmptyObjects)
 }
 
-func (s *StateDB) CommitWithConcrete(concretePrecompiles concrete.PrecompileMap, deleteEmptyObjects bool) (common.Hash, error) {
+func (s *StateDB) CommitWithConcrete(concretePrecompiles concrete.PrecompileMap, block uint64, deleteEmptyObjects bool) (common.Hash, error) {
 	s.CommitConcretePrecompiles(concretePrecompiles)
 
 	if s.dbErr != nil {

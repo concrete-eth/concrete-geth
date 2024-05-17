@@ -21,10 +21,9 @@
 package api
 
 import (
-	"math/big"
-
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/holiman/uint256"
 )
 
 type StateDB interface {
@@ -38,7 +37,7 @@ type StateDB interface {
 	GetCodeSize(common.Address) int
 	GetCodeHash(common.Address) common.Hash
 	// Balance
-	GetBalance(addr common.Address) *big.Int
+	GetBalance(addr common.Address) *uint256.Int
 	// Logs
 	AddLog(*types.Log)
 	// Refunds

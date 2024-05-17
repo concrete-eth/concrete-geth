@@ -22,7 +22,6 @@ package api
 
 import (
 	"errors"
-	"math/big"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -31,6 +30,7 @@ import (
 	"github.com/ethereum/go-ethereum/concrete/utils"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/holiman/uint256"
 )
 
 func newEnvironmentMethods() JumpTable {
@@ -823,7 +823,7 @@ func opCall(env *Env, args [][]byte) ([][]byte, error) {
 		address = common.BytesToAddress(args[0])
 		input   = args[1]
 		gas     = env.callGasTemp
-		value   = new(big.Int).SetBytes(args[3])
+		value   = new(uint256.Int).SetBytes(args[3])
 	)
 	output, gasLeft, err := env.caller.Call(address, input, gas, value)
 	env.gas += gasLeft
@@ -879,7 +879,7 @@ func opCreate(env *Env, args [][]byte) ([][]byte, error) {
 	}
 	var (
 		input = args[0]
-		value = new(big.Int).SetBytes(args[1])
+		value = new(uint256.Int).SetBytes(args[1])
 		gas   = env.gas
 	)
 	gas -= gas / 64
@@ -915,7 +915,7 @@ func opCreate2(env *Env, args [][]byte) ([][]byte, error) {
 	}
 	var (
 		input = args[0]
-		value = new(big.Int).SetBytes(args[1])
+		value = new(uint256.Int).SetBytes(args[1])
 		salt  = common.BytesToHash(args[2])
 		gas   = env.gas
 	)
