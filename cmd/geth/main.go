@@ -392,7 +392,7 @@ func newConcreteGeth(concreteRegistry concrete.PrecompileRegistry) func(ctx *cli
 func newConcreteGethApp(concreteRegistry concrete.PrecompileRegistry) *cli.App {
 	ccApp := flags.NewApp("the concrete-geth command line interface")
 	ccApp.Action = newConcreteGeth(concreteRegistry)
-	ccApp.Copyright = "Copyright 2013-2023 The go-ethereum Authors & 2023 The concrete-geth Authors"
+	ccApp.Copyright = "Copyright 2013-2023 The go-ethereum Authors & 2023-2024 The concrete-geth Authors"
 	ccApp.Commands = app.Commands
 	ccApp.Flags = app.Flags
 	ccApp.Before = app.Before
