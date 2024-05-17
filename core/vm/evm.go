@@ -389,9 +389,9 @@ func (evm *EVM) DelegateCall(caller ContractRef, addr common.Address, input []by
 	if p, isPrecompile := evm.precompile(addr); isPrecompile {
 		ret, gas, err = RunPrecompiledContract(p, input, gas)
 	} else if ccp, isConcretePrecompile := evm.concretePrecompile(addr); isConcretePrecompile {
-		static := evm.Interpreter().readOnly
 		contract := NewContract(caller, AccountRef(caller.Address()), nil, gas).AsDelegate()
 		contract.Input = input
+		static := evm.Interpreter().readOnly
 		env := evm.newConcreteEnvironment(contract, static, gas)
 		ret, gas, err = concrete.RunPrecompile(ccp, env, input, static)
 		if err == cc_api.ErrExecutionReverted {
@@ -711,6 +711,7 @@ func (c *concreteCaller) Create(input []byte, gas uint64, value *uint256.Int) (c
 }
 
 func (c *concreteCaller) Create2(input []byte, salt common.Hash, gas uint64, endowment *uint256.Int) (common.Address, uint64, error) {
+	// [concrete] Why is the return value ignored?
 	saltUint := new(uint256.Int).SetBytes32(salt.Bytes())
 	_, address, gasLeft, err := c.evm.Create2(c.contract, input, gas, endowment, saltUint)
 	return address, gasLeft, err

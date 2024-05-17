@@ -1264,7 +1264,6 @@ func (s *StateDB) CommitWithConcrete(concretePrecompiles concrete.PrecompileMap,
 	if s.dbErr != nil {
 		return common.Hash{}, fmt.Errorf("commit aborted due to earlier error: %v", s.dbErr)
 	}
-
 	// Finalize any pending changes and merge everything into the tries
 	s.IntermediateRootWithConcrete(concretePrecompiles, deleteEmptyObjects)
 
