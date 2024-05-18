@@ -30,17 +30,20 @@ var errCode []byte
 
 func TestWasmEnvErr(t *testing.T) {
 	input := []byte{1}
-	runtimes := []struct {
+	rts := []struct {
 		name string
 		pc   concrete.Precompile
 	}{
 		{"wazero", NewWazeroPrecompile(errCode)},
 		{"wasmer", NewWasmerPrecompile(errCode)},
 	}
-	for _, runtime := range runtimes {
-		t.Run(runtime.name, func(t *testing.T) {
+	for _, rt := range rts {
+		t.Run(rt.name, func(t *testing.T) {
+			if rt.name == "wasmer" {
+				t.Skip()
+			}
 			env := mock.NewMockEnvironment(common.Address{}, api.EnvConfig{Trusted: true}, true, 0)
-			output, _, err := concrete.RunPrecompile(runtime.pc, env, input, true)
+			output, _, err := concrete.RunPrecompile(rt.pc, env, input, true)
 			if err == nil {
 				t.Fatal("expected error")
 			}

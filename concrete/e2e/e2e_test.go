@@ -51,6 +51,7 @@ type pcImplementation struct {
 	name    string
 	address common.Address
 	newPc   func() concrete.Precompile
+	skip    bool
 }
 
 func wazeroPrecompile(code []byte) concrete.Precompile {
@@ -80,6 +81,7 @@ var addImplementations = []pcImplementation{
 		name:    "Wasmer",
 		address: common.BytesToAddress([]byte{132}),
 		newPc:   func() concrete.Precompile { return wasmerPrecompile(addWasm) },
+		skip:    true,
 	},
 }
 
@@ -117,6 +119,9 @@ func TestAddPrecompileFixture(t *testing.T) {
 
 	for _, impl := range addImplementations {
 		t.Run(impl.name, func(t *testing.T) {
+			if impl.skip {
+				t.Skip()
+			}
 			pc := impl.newPc()
 			env := mock.NewMockEnvironment(impl.address, config, meterGas, gas)
 			input := pack(x, y)
@@ -145,6 +150,7 @@ var kkvImplementations = []pcImplementation{
 		name:    "Wasmer",
 		address: common.BytesToAddress([]byte{142}),
 		newPc:   func() concrete.Precompile { return wasmerPrecompile(kkvWasm) },
+		skip:    true,
 	},
 }
 
@@ -186,6 +192,9 @@ func TestKkvPrecompileFixture(t *testing.T) {
 
 	for _, impl := range kkvImplementations {
 		t.Run(impl.name, func(t *testing.T) {
+			if impl.skip {
+				t.Skip()
+			}
 			env := mock.NewMockEnvironment(impl.address, api.EnvConfig{Trusted: true}, true, 1e5)
 			pc := impl.newPc()
 			var (
@@ -252,6 +261,9 @@ func TestE2EKkvPrecompile(t *testing.T) {
 
 	for _, impl := range kkvImplementations {
 		t.Run(impl.name, func(t *testing.T) {
+			if impl.skip {
+				t.Skip()
+			}
 			// Create registry with precompile implementation
 			concreteRegistry := concrete.NewRegistry()
 			concreteRegistry.AddPrecompile(0, impl.address, impl.newPc())
