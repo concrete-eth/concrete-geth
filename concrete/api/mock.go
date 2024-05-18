@@ -58,12 +58,8 @@ func (m *mockStateDB) AddLog(*types.Log)                                        
 func (m *mockStateDB) GetCommittedState(addr common.Address, key common.Hash) common.Hash {
 	return common.Hash{}
 }
-func (m *mockStateDB) SetPersistentState(addr common.Address, key common.Hash, value common.Hash) {}
-func (m *mockStateDB) GetPersistentState(addr common.Address, key common.Hash) common.Hash {
-	return common.Hash{}
-}
-func (m *mockStateDB) SetEphemeralState(addr common.Address, key common.Hash, value common.Hash) {}
-func (m *mockStateDB) GetEphemeralState(addr common.Address, key common.Hash) common.Hash {
+func (m *mockStateDB) SetState(addr common.Address, key common.Hash, value common.Hash) {}
+func (m *mockStateDB) GetState(addr common.Address, key common.Hash) common.Hash {
 	return common.Hash{}
 }
 

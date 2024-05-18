@@ -35,41 +35,23 @@ type KeyValueStore interface {
 	Get(key common.Hash) common.Hash
 }
 
-type envPersistentKV struct {
+type envStorageKV struct {
 	env api.Environment
 }
 
-func newEnvPersistentKeyValueStore(env api.Environment) *envPersistentKV {
-	return &envPersistentKV{env: env}
+func newEnvStorageKeyValueStore(env api.Environment) *envStorageKV {
+	return &envStorageKV{env: env}
 }
 
-func (kv *envPersistentKV) Set(key common.Hash, value common.Hash) {
-	kv.env.PersistentStore(key, value)
+func (kv *envStorageKV) Set(key common.Hash, value common.Hash) {
+	kv.env.StorageStore(key, value)
 }
 
-func (kv *envPersistentKV) Get(key common.Hash) common.Hash {
-	return kv.env.PersistentLoad(key)
+func (kv *envStorageKV) Get(key common.Hash) common.Hash {
+	return kv.env.StorageLoad(key)
 }
 
-var _ KeyValueStore = (*envPersistentKV)(nil)
-
-type envEphemeralKV struct {
-	env api.Environment
-}
-
-func newEnvEphemeralKeyValueStore(env api.Environment) *envEphemeralKV {
-	return &envEphemeralKV{env: env}
-}
-
-func (kv *envEphemeralKV) Set(key common.Hash, value common.Hash) {
-	kv.env.EphemeralStore_Unsafe(key, value)
-}
-
-func (kv *envEphemeralKV) Get(key common.Hash) common.Hash {
-	return kv.env.EphemeralLoad_Unsafe(key)
-}
-
-var _ KeyValueStore = (*envEphemeralKV)(nil)
+var _ KeyValueStore = (*envStorageKV)(nil)
 
 type Datastore interface {
 	Get(key []byte) DatastoreSlot
@@ -97,18 +79,13 @@ func (ds *datastore) Get(key []byte) DatastoreSlot {
 
 var _ Datastore = (*datastore)(nil)
 
-func NewPersistentDatastore(env api.Environment) Datastore {
-	kv := newEnvPersistentKeyValueStore(env)
-	return newDatastore(kv)
-}
-
-func NewEphemeralDatastore(env api.Environment) Datastore {
-	kv := newEnvEphemeralKeyValueStore(env)
+func NewStorageDatastore(env api.Environment) Datastore {
+	kv := newEnvStorageKeyValueStore(env)
 	return newDatastore(kv)
 }
 
 func NewDatastore(env api.Environment) Datastore {
-	return NewPersistentDatastore(env)
+	return NewStorageDatastore(env)
 }
 
 type DatastoreSlot interface {

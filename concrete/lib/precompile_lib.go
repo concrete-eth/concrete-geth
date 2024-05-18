@@ -26,14 +26,6 @@ func (pc *BlankPrecompile) IsStatic(input []byte) bool {
 	return true
 }
 
-func (pc *BlankPrecompile) Finalise(API api.Environment) error {
-	return nil
-}
-
-func (pc *BlankPrecompile) Commit(API api.Environment) error {
-	return nil
-}
-
 func (pc *BlankPrecompile) Run(API api.Environment, input []byte) ([]byte, error) {
 	return []byte{}, nil
 }

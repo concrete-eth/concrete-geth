@@ -24,8 +24,6 @@ type Environment = api.Environment
 
 type Precompile interface {
 	IsStatic(input []byte) bool
-	Finalise(env Environment) error
-	Commit(env Environment) error
 	Run(env Environment, input []byte) ([]byte, error)
 }
 

@@ -64,9 +64,9 @@ type wazeroPrecompile struct {
 	allocator   memory.Allocator
 	environment *api.Env
 	expIsStatic wz_api.Function
-	expFinalise wz_api.Function
-	expCommit   wz_api.Function
-	expRun      wz_api.Function
+	// expFinalise wz_api.Function
+	// expCommit   wz_api.Function
+	expRun wz_api.Function
 }
 
 func newWazeroPrecompile(code []byte, runtimeConfig wazero.RuntimeConfig) *wazeroPrecompile {
@@ -86,14 +86,14 @@ func newWazeroPrecompile(code []byte, runtimeConfig wazero.RuntimeConfig) *wazer
 	if pc.expIsStatic == nil {
 		panic("isStatic not exported")
 	}
-	pc.expFinalise = mod.ExportedFunction(Finalise_WasmFuncName)
-	if pc.expFinalise == nil {
-		panic("finalise not exported")
-	}
-	pc.expCommit = mod.ExportedFunction(Commit_WasmFuncName)
-	if pc.expCommit == nil {
-		panic("commit not exported")
-	}
+	// pc.expFinalise = mod.ExportedFunction(Finalise_WasmFuncName)
+	// if pc.expFinalise == nil {
+	// 	panic("finalise not exported")
+	// }
+	// pc.expCommit = mod.ExportedFunction(Commit_WasmFuncName)
+	// if pc.expCommit == nil {
+	// 	panic("commit not exported")
+	// }
 	pc.expRun = mod.ExportedFunction(Run_WasmFuncName)
 	if pc.expRun == nil {
 		panic("run not exported")
@@ -170,18 +170,6 @@ func (p *wazeroPrecompile) IsStatic(input []byte) bool {
 	p.before(nil)
 	defer p.after(nil)
 	return p.call_Bytes_Uint64(p.expIsStatic, input) != 0
-}
-
-func (p *wazeroPrecompile) Finalise(env api.Environment) error {
-	p.before(env)
-	defer p.after(env)
-	return p.call__Err(p.expFinalise)
-}
-
-func (p *wazeroPrecompile) Commit(env api.Environment) error {
-	p.before(env)
-	defer p.after(env)
-	return p.call__Err(p.expCommit)
 }
 
 func (p *wazeroPrecompile) Run(env api.Environment, input []byte) ([]byte, error) {

@@ -34,7 +34,7 @@ func TestEnvKeyValueStore(t *testing.T) {
 	var (
 		r        = require.New(t)
 		address  = common.HexToAddress("0xc0ffee0001")
-		config   = api.EnvConfig{Trusted: true, Ephemeral: true}
+		config   = api.EnvConfig{Static: false, Trusted: true}
 		meterGas = false
 		gas      = uint64(0)
 	)
@@ -44,11 +44,7 @@ func TestEnvKeyValueStore(t *testing.T) {
 	}{
 		{
 			name: "Persistent",
-			kv:   newEnvPersistentKeyValueStore(mock.NewMockEnvironment(address, config, meterGas, gas)),
-		},
-		{
-			name: "Ephemeral",
-			kv:   newEnvEphemeralKeyValueStore(mock.NewMockEnvironment(address, config, meterGas, gas)),
+			kv:   newEnvStorageKeyValueStore(mock.NewMockEnvironment(address, config, meterGas, gas)),
 		},
 	}
 	for _, test := range tests {
@@ -74,7 +70,7 @@ func newSlot(keyStr string) (DatastoreSlot, common.Address, []byte) {
 		gas      = uint64(0)
 	)
 	env := mock.NewMockEnvironment(address, config, meterGas, gas)
-	ds := NewPersistentDatastore(env)
+	ds := NewStorageDatastore(env)
 	key := []byte(keyStr)
 	slot := ds.Get(key)
 	return slot, address, key

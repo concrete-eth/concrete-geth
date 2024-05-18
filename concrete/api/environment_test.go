@@ -29,13 +29,9 @@ import (
 
 func TestGas(t *testing.T) {
 	var (
-		r       = require.New(t)
-		address = common.HexToAddress("0xc0ffee0001")
-		config  = EnvConfig{
-			Static:    false,
-			Ephemeral: false,
-			Trusted:   false,
-		}
+		r        = require.New(t)
+		address  = common.HexToAddress("0xc0ffee0001")
+		config   = EnvConfig{Static: false, Trusted: false}
 		meterGas = true
 		gas      = uint64(1e6)
 	)
@@ -55,13 +51,9 @@ func TestGas(t *testing.T) {
 
 func TestBlockOps_Minimal(t *testing.T) {
 	var (
-		r       = require.New(t)
-		address = common.HexToAddress("0xc0ffee0001")
-		config  = EnvConfig{
-			Static:    true,
-			Ephemeral: false,
-			Trusted:   false,
-		}
+		r        = require.New(t)
+		address  = common.HexToAddress("0xc0ffee0001")
+		config   = EnvConfig{Static: true, Trusted: false}
 		meterGas = true
 		gas      = uint64(1e6)
 	)
@@ -81,13 +73,9 @@ func TestBlockOps_Minimal(t *testing.T) {
 
 func TestCallOps_Minimal(t *testing.T) {
 	var (
-		r       = require.New(t)
-		address = common.HexToAddress("0xc0ffee0001")
-		config  = EnvConfig{
-			Static:    true,
-			Ephemeral: false,
-			Trusted:   false,
-		}
+		r        = require.New(t)
+		address  = common.HexToAddress("0xc0ffee0001")
+		config   = EnvConfig{Static: true, Trusted: false}
 		meterGas = true
 		gas      = uint64(1e6)
 	)
@@ -105,13 +93,9 @@ func TestCallOps_Minimal(t *testing.T) {
 
 func TestTrustAndWriteProtection(t *testing.T) {
 	var (
-		r       = require.New(t)
-		address = common.HexToAddress("0xc0ffee0001")
-		config  = EnvConfig{
-			Static:    true,
-			Ephemeral: true,
-			Trusted:   false,
-		}
+		r        = require.New(t)
+		address  = common.HexToAddress("0xc0ffee0001")
+		config   = EnvConfig{Static: true, Trusted: false}
 		meterGas = true
 		gas      = uint64(1e6)
 	)

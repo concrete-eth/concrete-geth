@@ -61,18 +61,6 @@ func newEnvironmentMethods() JumpTable {
 			dynamicGas: gasUseGas,
 			static:     true,
 		},
-		EphemeralStore_OpCode: {
-			execute:     opEphemeralStore,
-			constantGas: params.WarmStorageReadCostEIP2929,
-			trusted:     true,
-			static:      false,
-		},
-		EphemeralLoad_OpCode: {
-			execute:     opEphemeralLoad,
-			constantGas: params.WarmStorageReadCostEIP2929,
-			trusted:     true,
-			static:      true,
-		},
 		GetAddress_OpCode: {
 			execute:     opGetAddress,
 			constantGas: GasQuickStep,
@@ -354,37 +342,6 @@ func opUseGas(env *Env, args [][]byte) ([][]byte, error) {
 	return nil, nil
 }
 
-func opEphemeralStore(env *Env, args [][]byte) ([][]byte, error) {
-	if len(args) != 2 {
-		return nil, ErrInvalidInput
-	}
-	if len(args[0]) != 32 || len(args[1]) != 32 {
-		return nil, ErrInvalidInput
-	}
-	if !env.config.Ephemeral {
-		return nil, ErrFeatureDisabled
-	}
-	key := common.BytesToHash(args[0])
-	value := common.BytesToHash(args[1])
-	env.statedb.SetEphemeralState(env.address, key, value)
-	return nil, nil
-}
-
-func opEphemeralLoad(env *Env, args [][]byte) ([][]byte, error) {
-	if len(args) != 1 {
-		return nil, ErrInvalidInput
-	}
-	if len(args[0]) != 32 {
-		return nil, ErrInvalidInput
-	}
-	if !env.config.Ephemeral {
-		return nil, ErrFeatureDisabled
-	}
-	key := common.BytesToHash(args[0])
-	value := env.statedb.GetEphemeralState(env.address, key)
-	return [][]byte{value.Bytes()}, nil
-}
-
 func opGetAddress(env *Env, args [][]byte) ([][]byte, error) {
 	if len(args) != 0 {
 		return nil, ErrInvalidInput
@@ -591,7 +548,7 @@ func gasStorageLoad(env *Env, args [][]byte) (uint64, error) {
 
 func opStorageLoad(env *Env, args [][]byte) ([][]byte, error) {
 	key := common.BytesToHash(args[0])
-	value := env.statedb.GetPersistentState(env.address, key)
+	value := env.statedb.GetState(env.address, key)
 	return [][]byte{value.Bytes()}, nil
 }
 
@@ -618,7 +575,7 @@ func gasStorageStore(env *Env, args [][]byte) (uint64, error) {
 	}
 	var (
 		key     = common.BytesToHash(args[0])
-		current = env.statedb.GetPersistentState(env.address, key)
+		current = env.statedb.GetState(env.address, key)
 		cost    = uint64(0)
 	)
 	if _, slotPresent := env.statedb.SlotInAccessList(env.address, key); !slotPresent {
@@ -659,7 +616,7 @@ func gasStorageStore(env *Env, args [][]byte) (uint64, error) {
 func opStorageStore(env *Env, args [][]byte) ([][]byte, error) {
 	key := common.BytesToHash(args[0])
 	value := common.BytesToHash(args[1])
-	env.statedb.SetPersistentState(env.address, key, value)
+	env.statedb.SetState(env.address, key, value)
 	return nil, nil
 }
 

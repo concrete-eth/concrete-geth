@@ -36,9 +36,6 @@ const (
 	// Utils
 	Keccak256_OpCode OpCode = 0x10
 	UseGas_OpCode    OpCode = 0x50
-	// Ephemeral
-	EphemeralStore_OpCode OpCode = 0x20
-	EphemeralLoad_OpCode  OpCode = 0x21
 	// Internal reads
 	GetAddress_OpCode         OpCode = 0x30
 	GetGasLeft_OpCode         OpCode = 0x31

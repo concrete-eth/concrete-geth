@@ -75,11 +75,7 @@ func (evm *EVM) concretePrecompile(addr common.Address) (concrete.Precompile, bo
 func (evm *EVM) newConcreteEnvironment(contract *Contract, static bool, gas uint64) *cc_api.Env {
 	env := cc_api.NewEnvironment(
 		contract.Address(),
-		cc_api.EnvConfig{
-			Static:    static,
-			Ephemeral: true,
-			Trusted:   true,
-		},
+		cc_api.EnvConfig{Static: static, Trusted: true},
 		evm.StateDB,
 		NewConcreteBlockContext(evm),
 		NewConcreteCallContext(evm, contract),

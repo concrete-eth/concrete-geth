@@ -32,16 +32,12 @@ type Environment interface {
 	Debug(msg string)
 	TimeNow() uint64
 
-	// Aliases
-	PersistentLoad(key common.Hash) common.Hash
-	PersistentStore(key common.Hash, value common.Hash)
-
 	// Utils
 	Keccak256(data []byte) common.Hash
 
 	// Ephemeral
-	EphemeralLoad_Unsafe(key common.Hash) common.Hash
-	EphemeralStore_Unsafe(key common.Hash, value common.Hash)
+	// EphemeralLoad_Unsafe(key common.Hash) common.Hash
+	// EphemeralStore_Unsafe(key common.Hash, value common.Hash)
 
 	// INTERNAL - READ
 	// Address
@@ -102,9 +98,9 @@ type Environment interface {
 }
 
 type EnvConfig struct {
-	Static    bool
-	Ephemeral bool
-	Trusted   bool
+	Static bool
+	// Ephemeral bool
+	Trusted bool
 }
 
 type logger struct{}
@@ -299,14 +295,6 @@ func (env *Env) TimeNow() uint64 {
 	return utils.BytesToUint64(output[0])
 }
 
-func (env *Env) PersistentLoad(key common.Hash) common.Hash {
-	return env.StorageLoad(key)
-}
-
-func (env *Env) PersistentStore(key common.Hash, value common.Hash) {
-	env.StorageStore(key, value)
-}
-
 func (env *Env) Keccak256(data []byte) common.Hash {
 	input := [][]byte{data}
 	output, err := env.execute(Keccak256_OpCode, input)
@@ -315,21 +303,6 @@ func (env *Env) Keccak256(data []byte) common.Hash {
 	}
 	hash := common.BytesToHash(output[0])
 	return hash
-}
-
-func (env *Env) EphemeralLoad_Unsafe(key common.Hash) common.Hash {
-	input := [][]byte{key.Bytes()}
-	output, err := env.execute(EphemeralLoad_OpCode, input)
-	if err != nil {
-		return common.Hash{}
-	}
-	hash := common.BytesToHash(output[0])
-	return hash
-}
-
-func (env *Env) EphemeralStore_Unsafe(key common.Hash, value common.Hash) {
-	input := [][]byte{key.Bytes(), value.Bytes()}
-	env.execute(EphemeralStore_OpCode, input)
 }
 
 func (env *Env) GetAddress() common.Address {

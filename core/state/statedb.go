@@ -113,9 +113,6 @@ type StateDB struct {
 	// Transient storage
 	transientStorage transientStorage
 
-	// Concrete
-	ephemeralStorage ephemeralStorage
-
 	// Journal of state modifications. This is the backbone of
 	// Snapshot and RevertToSnapshot.
 	journal        *journal
@@ -169,7 +166,6 @@ func New(root common.Hash, db Database, snaps *snapshot.Tree) (*StateDB, error) 
 		journal:              newJournal(),
 		accessList:           newAccessList(),
 		transientStorage:     newTransientStorage(),
-		ephemeralStorage:     newEphemeralStorage(),
 		hasher:               crypto.NewKeccakState(),
 	}
 	if sdb.snaps != nil {
@@ -239,83 +235,6 @@ func (s *StateDB) Logs() []*types.Log {
 		logs = append(logs, lgs...)
 	}
 	return logs
-}
-
-func (s *StateDB) SetEphemeralState(addr common.Address, key, value common.Hash) {
-	prev := s.GetEphemeralState(addr, key)
-	if prev == value {
-		return
-	}
-
-	s.journal.append(ephemeralStorageChange{
-		account:  &addr,
-		key:      key,
-		prevalue: prev,
-	})
-
-	s.setEphemeralState(addr, key, value)
-}
-
-func (s *StateDB) setEphemeralState(addr common.Address, key, value common.Hash) {
-	s.ephemeralStorage.Set(addr, key, value)
-}
-
-func (s *StateDB) GetEphemeralState(addr common.Address, key common.Hash) common.Hash {
-	return s.ephemeralStorage.Get(addr, key)
-}
-
-func (s *StateDB) SetPersistentState(addr common.Address, key, value common.Hash) {
-	s.SetState(addr, key, value)
-}
-
-func (s *StateDB) GetPersistentState(addr common.Address, key common.Hash) common.Hash {
-	return s.GetState(addr, key)
-}
-
-func (s *StateDB) FinaliseConcretePrecompiles(concretePrecompiles concrete.PrecompileMap) {
-	for addr, p := range concretePrecompiles {
-		env := cc_api.NewNoCallEnvironment(
-			addr,
-			cc_api.EnvConfig{
-				Static:    true,
-				Ephemeral: true,
-				Trusted:   true,
-			},
-			s,
-			false,
-			0,
-		)
-		err := p.Finalise(env)
-		if err != nil {
-			err = env.Error()
-		}
-		if err != nil {
-			s.setError(fmt.Errorf("error in concrete precompile %x Finalise(): %v", addr, err))
-		}
-	}
-}
-
-func (s *StateDB) CommitConcretePrecompiles(concretePrecompiles concrete.PrecompileMap) {
-	for addr, p := range concretePrecompiles {
-		env := cc_api.NewNoCallEnvironment(
-			addr,
-			cc_api.EnvConfig{
-				Static:    true,
-				Ephemeral: true,
-				Trusted:   true,
-			},
-			s,
-			false,
-			0,
-		)
-		err := p.Commit(env)
-		if err != nil {
-			err = env.Error()
-		}
-		if err != nil {
-			s.setError(fmt.Errorf("error in concrete precompile %x Commit(): %v", addr, err))
-		}
-	}
 }
 
 // AddPreimage records a SHA3 preimage seen by the VM.
@@ -859,7 +778,6 @@ func (s *StateDB) Copy() *StateDB {
 	// in the middle of a transaction.
 	state.accessList = s.accessList.Copy()
 	state.transientStorage = s.transientStorage.Copy()
-	state.ephemeralStorage = s.ephemeralStorage.Copy()
 
 	// If there's a prefetcher running, make an inactive copy of it that can
 	// only access data but does not actively preload (since the user will not
@@ -907,7 +825,7 @@ func (s *StateDB) Finalise(deleteEmptyObjects bool) {
 }
 
 func (s *StateDB) FinaliseWithConcrete(concretePrecompiles concrete.PrecompileMap, deleteEmptyObjects bool) {
-	s.FinaliseConcretePrecompiles(concretePrecompiles)
+	// s.FinaliseConcretePrecompiles(concretePrecompiles)
 
 	addressesToPrefetch := make([][]byte, 0, len(s.journal.dirties))
 	for addr := range s.journal.dirties {
@@ -1259,7 +1177,7 @@ func (s *StateDB) Commit(block uint64, deleteEmptyObjects bool) (common.Hash, er
 }
 
 func (s *StateDB) CommitWithConcrete(concretePrecompiles concrete.PrecompileMap, block uint64, deleteEmptyObjects bool) (common.Hash, error) {
-	s.CommitConcretePrecompiles(concretePrecompiles)
+	// s.CommitConcretePrecompiles(concretePrecompiles)
 
 	if s.dbErr != nil {
 		return common.Hash{}, fmt.Errorf("commit aborted due to earlier error: %v", s.dbErr)

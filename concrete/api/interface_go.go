@@ -46,9 +46,9 @@ type StateDB interface {
 	GetRefund() uint64
 	// Storage
 	GetCommittedState(addr common.Address, key common.Hash) common.Hash
+	SetState(addr common.Address, key common.Hash, value common.Hash)
+	GetState(addr common.Address, key common.Hash) common.Hash
 	// Storage -- Concrete
-	SetPersistentState(addr common.Address, key common.Hash, value common.Hash)
-	GetPersistentState(addr common.Address, key common.Hash) common.Hash
-	SetEphemeralState(addr common.Address, key common.Hash, value common.Hash)
-	GetEphemeralState(addr common.Address, key common.Hash) common.Hash
+	// SetEphemeralState(addr common.Address, key common.Hash, value common.Hash)
+	// GetEphemeralState(addr common.Address, key common.Hash) common.Hash
 }
