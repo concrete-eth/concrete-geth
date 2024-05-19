@@ -37,6 +37,8 @@ import (
 	"golang.org/x/exp/slog"
 )
 
+// TODO: WIP -- missing parameter and file validation, and more
+
 var (
 	PrintLogs = true
 )
@@ -47,9 +49,9 @@ func runTestMethod(concreteRegistry concrete.PrecompileRegistry, bytecode []byte
 		senderAddress   = crypto.PubkeyToAddress(key.PublicKey)
 		contractAddress = common.HexToAddress("cc73570000000000000000000000000000000000")
 		gspec           = &core.Genesis{
-			GasLimit: 2e7,
+			GasLimit: 2e9,
 			Config:   params.TestChainConfig,
-			Alloc: core.GenesisAlloc{
+			Alloc: types.GenesisAlloc{
 				senderAddress:   {Balance: big.NewInt(1e18)},
 				contractAddress: {Balance: common.Big0, Code: bytecode},
 			},
@@ -121,28 +123,36 @@ func runTestContract(concreteRegistry concrete.PrecompileRegistry, bytecode []by
 	return passed, failed
 }
 
-func extractTestData(contractJsonBytes []byte) ([]byte, abi.ABI, string, error) {
+func extractTestData(contractJsonBytes []byte) ([]byte, abi.ABI, string, string, error) {
 	var jsonData struct {
 		ABI              abi.ABI `json:"abi"`
 		DeployedBytecode struct {
 			Object string `json:"object"`
 		} `json:"deployedBytecode"`
-		Ast struct {
-			AbsolutePath string `json:"absolutePath"`
-		} `json:"ast"`
+		Metadata struct {
+			Settings struct {
+				CompilationTarget map[string]string `json:"compilationTarget"`
+			} `json:"settings"`
+		} `json:"metadata"`
 	}
 	err := json.Unmarshal(contractJsonBytes, &jsonData)
 	if err != nil {
-		return nil, abi.ABI{}, "", err
+		return nil, abi.ABI{}, "", "", err
 	}
 	bytecode := common.FromHex(jsonData.DeployedBytecode.Object)
-	return bytecode, jsonData.ABI, jsonData.Ast.AbsolutePath, nil
+	var testPath, contractName string
+	for path, name := range jsonData.Metadata.Settings.CompilationTarget {
+		testPath = path
+		contractName = name
+		break
+	}
+	return bytecode, jsonData.ABI, testPath, contractName, nil
 }
 
-func extractTestDataFromPath(contractJsonPath string) ([]byte, abi.ABI, string, error) {
+func extractTestDataFromPath(contractJsonPath string) ([]byte, abi.ABI, string, string, error) {
 	contractJsonBytes, err := os.ReadFile(contractJsonPath)
 	if err != nil {
-		return nil, abi.ABI{}, "", err
+		return nil, abi.ABI{}, "", "", err
 	}
 	return extractTestData(contractJsonBytes)
 }
@@ -200,13 +210,11 @@ func runTestPaths(concreteRegistry concrete.PrecompileRegistry, contractJsonPath
 	startTime := time.Now()
 
 	for _, path := range contractJsonPaths {
-		bytecode, ABI, testPath, err := extractTestDataFromPath(path)
+		bytecode, ABI, testPath, contractName, err := extractTestDataFromPath(path)
 		if err != nil {
 			fmt.Printf("Error extracting test data from %s: %s\n", path, err)
 			continue
 		}
-		contractName := filepath.Base(path)
-		contractName = strings.TrimSuffix(contractName, filepath.Ext(contractName))
 		fmt.Printf("\nRunning tests for %s:%s\n", testPath, contractName)
 		passed, failed := runTestContract(concreteRegistry, bytecode, ABI)
 		totalPassed += passed
@@ -227,14 +235,11 @@ func runTestPaths(concreteRegistry concrete.PrecompileRegistry, contractJsonPath
 	return totalPassed, totalFailed
 }
 
-func setGethVerbosity(_ slog.Level) func() {
-	// [concrete] todo: implement this
-	// handler := log.Root().GetHandler()
-	// glogger := log.NewGlogHandler(log.StreamHandler(os.Stderr, log.TerminalFormat(false)))
-	// glogger.Verbosity(lvl)
-	// log.Root().SetHandler(glogger)
+func setGethVerbosity(lvl slog.Level) func() {
+	handler := log.Root()
+	log.SetDefault(log.NewLogger(log.NewTerminalHandlerWithLevel(os.Stderr, lvl, true)))
 	return func() {
-		// log.Root().SetHandler(handler)
+		log.SetDefault(handler)
 	}
 }
 
