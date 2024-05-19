@@ -27,16 +27,14 @@ import (
 	"github.com/ethereum/go-ethereum/core/state"
 )
 
-func NewMockEnvironment(addr common.Address, config api.EnvConfig, meterGas bool, gas uint64) *api.Env {
+func NewMockEnvironment(config api.EnvConfig, meterGas bool, contract *api.Contract) *api.Env {
 	return api.NewEnvironment(
-		addr,
 		config,
+		meterGas,
 		NewMockStateDB(),
 		api.NewMockBlockContext(),
-		api.NewMockCallContext(),
 		api.NewMockCaller(),
-		meterGas,
-		gas,
+		contract,
 	)
 }
 

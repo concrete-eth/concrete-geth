@@ -26,6 +26,7 @@ import (
 	"github.com/ethereum/go-ethereum/concrete/codegen/datamod/testdata"
 	"github.com/ethereum/go-ethereum/concrete/lib"
 	"github.com/ethereum/go-ethereum/concrete/mock"
+	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
 
@@ -117,8 +118,8 @@ func TestTables(t *testing.T) {
 		addr     = common.HexToAddress("0x1234567890123456789012345678901234567890")
 		config   = api.EnvConfig{}
 		meterGas = false
-		gas      = uint64(0)
-		env      = mock.NewMockEnvironment(addr, config, meterGas, gas)
+		contract = api.NewContract(common.Address{}, common.Address{}, addr, new(uint256.Int))
+		env      = mock.NewMockEnvironment(config, meterGas, contract)
 		ds       = lib.NewDatastore(env)
 	)
 

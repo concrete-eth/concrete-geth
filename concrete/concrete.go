@@ -16,31 +16,63 @@
 package concrete
 
 import (
+	"fmt"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/concrete/api"
+	"github.com/holiman/uint256"
 )
-
-type Environment = api.Environment
 
 type Precompile interface {
 	IsStatic(input []byte) bool
-	Run(env Environment, input []byte) ([]byte, error)
+	Run(env api.Environment, input []byte) ([]byte, error)
 }
 
-func RunPrecompile(p Precompile, env *api.Env, input []byte, static bool) (ret []byte, remainingGas uint64, err error) {
+func RunPrecompile(p Precompile, env *api.Env, input []byte, gas uint64, value *uint256.Int) (ret []byte, remainingGas uint64, err error) {
 	// We can either copy the input or trust the end developer to not modify it
 	inputCopy := make([]byte, len(input))
 	copy(inputCopy, input)
+
+	static := env.Config().IsStatic
 	if static && !p.IsStatic(inputCopy) {
 		return nil, env.Gas(), api.ErrWriteProtection
 	}
-	output, err := p.Run(env, inputCopy)
-	if env.Error() != nil {
-		err = env.Error()
-	} else if err != nil {
+
+	contract := env.Contract()
+	contract.Input = inputCopy
+	contract.Gas = gas
+	contract.Value = value
+
+	defer func() {
+		if r := recover(); r != nil {
+			revertErr := env.RevertError()
+			if revertErr != nil {
+				// Execution reverted
+				ret = []byte(revertErr.Error()) // Return the revert reason
+				err = api.ErrExecutionReverted
+			} else {
+				// Either explicit non-revert panic or runtime panic
+				ret = nil
+				if e, ok := r.(error); ok {
+					err = e
+				} else if m, ok := r.(string); ok {
+					err = fmt.Errorf("runtime panic: %s", m)
+				} else {
+					err = fmt.Errorf("runtime panic: %v", r)
+				}
+			}
+			remainingGas = env.Gas() // For non-revert panics, all gas will be consumed later
+		}
+	}()
+
+	ret, err = p.Run(env, inputCopy)
+	if err != nil {
+		// Returning an error is equivalent to reverting
+		ret = []byte(err.Error()) // Return the revert reason
 		err = api.ErrExecutionReverted
 	}
-	return output, env.Gas(), err
+
+	return ret, env.Gas(), err
 }
 
 type PrecompileMap = map[common.Address]Precompile

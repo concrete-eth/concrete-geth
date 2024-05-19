@@ -139,11 +139,8 @@ func NewWazeroEnvironmentCaller(apiGetter func() api.Environment) WazeroHostFunc
 		opcode.Decode(args[0])
 		args = args[1:]
 
-		out, err := env.Execute(opcode, args)
-		if err != nil {
-			panic(err)
-		}
+		ret := env.Execute(opcode, args)
 
-		return memory.PutValues(mem, out).Uint64()
+		return memory.PutValues(mem, ret).Uint64()
 	}
 }

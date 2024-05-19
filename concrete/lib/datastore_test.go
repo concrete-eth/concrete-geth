@@ -27,6 +27,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/concrete/api"
 	"github.com/ethereum/go-ethereum/concrete/mock"
+	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
 
@@ -34,9 +35,9 @@ func TestEnvKeyValueStore(t *testing.T) {
 	var (
 		r        = require.New(t)
 		address  = common.HexToAddress("0xc0ffee0001")
-		config   = api.EnvConfig{Static: false, Trusted: true}
+		config   = api.EnvConfig{}
 		meterGas = false
-		gas      = uint64(0)
+		contract = api.NewContract(common.Address{}, common.Address{}, address, new(uint256.Int))
 	)
 	tests := []struct {
 		name string
@@ -44,15 +45,13 @@ func TestEnvKeyValueStore(t *testing.T) {
 	}{
 		{
 			name: "Persistent",
-			kv:   newEnvStorageKeyValueStore(mock.NewMockEnvironment(address, config, meterGas, gas)),
+			kv:   newEnvStorageKeyValueStore(mock.NewMockEnvironment(config, meterGas, contract)),
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			var (
-				kv  = test.kv
-				key = common.Hash{0x01}
-			)
+			kv := test.kv
+			key := common.Hash{0x01}
 			value := kv.Get(key)
 			r.Equal(common.Hash{}, value)
 			kv.Set(key, common.Hash{0x02})
@@ -67,9 +66,9 @@ func newSlot(keyStr string) (DatastoreSlot, common.Address, []byte) {
 		address  = common.HexToAddress("0xc0ffee0001")
 		config   = api.EnvConfig{}
 		meterGas = false
-		gas      = uint64(0)
+		contract = api.NewContract(common.Address{}, common.Address{}, address, new(uint256.Int))
 	)
-	env := mock.NewMockEnvironment(address, config, meterGas, gas)
+	env := mock.NewMockEnvironment(config, meterGas, contract)
 	ds := NewStorageDatastore(env)
 	key := []byte(keyStr)
 	slot := ds.Get(key)

@@ -150,7 +150,7 @@ func (p *wasmerPrecompile) call_Bytes_Uint64(expFunc wasmer.NativeFunction, inpu
 	pointer := memory.PutValue(p.memory, input)
 	defer p.allocator.Free(pointer)
 	_ret, err := expFunc(int64(pointer))
-	if err != nil && p.environment.Error() == nil {
+	if err != nil {
 		panic(err)
 	}
 	ret, _ := _ret.(int64)
@@ -171,8 +171,8 @@ func (p *wasmerPrecompile) before(env api.Environment) {
 	var envImpl *api.Env
 	if env != nil {
 		envImpl = env.(*api.Env)
-		if !envImpl.Config().Trusted {
-			panic("untrusted environment")
+		if !envImpl.Config().IsTrusted {
+			panic(api.ErrEnvNotTrusted)
 		}
 	}
 	p.mutex.Lock()

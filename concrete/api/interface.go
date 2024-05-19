@@ -35,19 +35,10 @@ type BlockContext interface {
 	Random() common.Hash
 }
 
-type CallContext interface {
-	TxGasPrice() *uint256.Int
-	TxOrigin() common.Address
-	CallData() []byte
-	CallDataSize() int
-	Caller() common.Address
-	CallValue() *uint256.Int
-}
-
 type Caller interface {
 	CallStatic(addr common.Address, input []byte, gas uint64) ([]byte, uint64, error)
 	Call(addr common.Address, input []byte, gas uint64, value *uint256.Int) ([]byte, uint64, error)
 	CallDelegate(addr common.Address, input []byte, gas uint64) ([]byte, uint64, error)
-	Create(input []byte, gas uint64, value *uint256.Int) (common.Address, uint64, error)
-	Create2(input []byte, salt common.Hash, gas uint64, value *uint256.Int) (common.Address, uint64, error)
+	Create(input []byte, gas uint64, value *uint256.Int) ([]byte, common.Address, uint64, error)
+	Create2(input []byte, gas uint64, endowment *uint256.Int, salt *uint256.Int) ([]byte, common.Address, uint64, error)
 }

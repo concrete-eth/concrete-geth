@@ -16,8 +16,6 @@
 package api
 
 import (
-	"fmt"
-
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/concrete/utils"
 	"github.com/ethereum/go-ethereum/log"
@@ -25,21 +23,25 @@ import (
 )
 
 type Environment interface {
-	Execute(op OpCode, args [][]byte) ([][]byte, error)
+	Execute(op OpCode, args [][]byte) [][]byte
 
 	// Meta
 	EnableGasMetering(meter bool)
-	Debug(msg string)
+	Debug(msg string) // TODO: improve
 	TimeNow() uint64
 
 	// Utils
 	Keccak256(data []byte) common.Hash
+	// Flow control
+	Revert(error)
+	// Gas
+	UseGas(amount uint64)
 
 	// Ephemeral
 	// EphemeralLoad_Unsafe(key common.Hash) common.Hash
 	// EphemeralStore_Unsafe(key common.Hash, value common.Hash)
 
-	// INTERNAL - READ
+	// Local - READ
 	// Address
 	GetAddress() common.Address
 	// Gas
@@ -70,15 +72,13 @@ type Environment interface {
 	GetCode(address common.Address) []byte
 	GetCodeSize() int
 
-	// INTERNAL - WRITE
-	// Gas
-	UseGas(amount uint64)
+	// Local - WRITE
 	// Storage
 	StorageStore(key common.Hash, value common.Hash)
 	// Log
 	Log(topics []common.Hash, data []byte)
 
-	// EXTERNAL - READ
+	// External - READ
 	// Balance
 	GetExternalBalance(address common.Address) *uint256.Int
 	// Code
@@ -88,19 +88,19 @@ type Environment interface {
 	// Call
 	CallStatic(address common.Address, data []byte, gas uint64) ([]byte, error)
 
-	// EXTERNAL - WRITE
+	// External - WRITE
 	// Call
 	Call(address common.Address, data []byte, gas uint64, value *uint256.Int) ([]byte, error)
 	CallDelegate(address common.Address, data []byte, gas uint64) ([]byte, error)
 	// Create
 	Create(data []byte, value *uint256.Int) (common.Address, error)
-	Create2(data []byte, salt common.Hash, endowment *uint256.Int) (common.Address, error)
+	Create2(data []byte, endowment *uint256.Int, salt *uint256.Int) (common.Address, error)
 }
 
 type EnvConfig struct {
-	Static bool
+	IsStatic bool
 	// Ephemeral bool
-	Trusted bool
+	IsTrusted bool
 }
 
 type logger struct{}
@@ -111,166 +111,142 @@ func (logger) Debug(msg string) {
 
 var _ Logger = logger{}
 
+type Contract struct {
+	Address  common.Address
+	Origin   common.Address
+	Caller   common.Address
+	GasPrice *uint256.Int
+	Input    []byte
+	Gas      uint64
+	Value    *uint256.Int
+}
+
+func NewContract(origin, caller, address common.Address, gasPrice *uint256.Int) *Contract {
+	return &Contract{
+		Address:  address,
+		Origin:   origin,
+		Caller:   caller,
+		GasPrice: gasPrice,
+	}
+}
+
+func (c *Contract) useGas(gas uint64) bool {
+	if c.Gas < gas {
+		return false
+	}
+	c.Gas -= gas
+	return true
+}
+
 type Env struct {
 	table    JumpTable
 	_execute func(op OpCode, env *Env, args [][]byte) ([][]byte, error)
 
-	address common.Address
-	config  EnvConfig
+	config   EnvConfig
+	meterGas bool
 
 	logger  Logger
 	statedb StateDB
 	block   BlockContext
-	call    CallContext
 	caller  Caller
 
-	meterGas bool
-	gas      uint64
+	contract *Contract
 
-	envErr error
-
+	revertErr   error
 	callGasTemp uint64
 }
 
 func NewEnvironment(
-	address common.Address,
 	config EnvConfig,
+	meterGas bool,
 	statedb StateDB,
 	block BlockContext,
-	call CallContext,
 	caller Caller,
-	meterGas bool,
-	gas uint64,
+	contract *Contract,
 ) *Env {
-	env := NewNoCallEnvironment(address, config, statedb, meterGas, gas)
-	env.block = block
-	env.call = call
-	env.caller = caller
-	return env
-}
-
-func NewNoCallEnvironment(
-	address common.Address,
-	config EnvConfig,
-	statedb StateDB,
-	meterGas bool,
-	gas uint64,
-) *Env {
-	env := &Env{
-		address:  address,
+	return &Env{
+		table:    newEnvironmentMethods(),
+		_execute: execute,
 		config:   config,
+		meterGas: meterGas,
 		logger:   logger{},
 		statedb:  statedb,
-		meterGas: meterGas,
-		gas:      gas,
+		block:    block,
+		caller:   caller,
+		contract: contract,
 	}
-	env.table = newEnvironmentMethods()
-	env._execute = execute
-	return env
 }
 
 func NewProxyEnvironment(execute func(op OpCode, env *Env, args [][]byte) ([][]byte, error)) *Env {
-	env := &Env{
-		_execute: execute,
-	}
-	return env
+	return &Env{_execute: execute}
 }
 
 func execute(op OpCode, env *Env, args [][]byte) ([][]byte, error) {
-	err := env.Error()
-	if err != nil {
-		return nil, err
-	}
-
 	operation := env.table[op]
 
-	if !env.config.Trusted && operation.trusted {
-		env.setError(ErrEnvNotTrusted)
-		return nil, env.Error()
+	if !env.config.IsTrusted && operation.trusted {
+		return nil, ErrEnvNotTrusted
 	}
-
-	if env.config.Static && !operation.static {
-		env.setError(ErrWriteProtection)
-		return nil, env.Error()
+	if env.config.IsStatic && !operation.static {
+		return nil, ErrWriteProtection
 	}
 
 	if env.meterGas {
 		gasConst := operation.constantGas
 		if ok := env.useGas(gasConst); !ok {
-			env.setError(ErrOutOfGas)
-			return nil, env.Error()
+			return nil, ErrOutOfGas
 		}
 		if operation.dynamicGas != nil {
 			gasDyn, err := operation.dynamicGas(env, args)
 			if err != nil {
-				env.setError(err)
-				return nil, env.Error()
+				return nil, err
 			}
-			if !env.useGas(gasDyn) {
-				env.setError(ErrOutOfGas)
-				return nil, env.Error()
+			if ok := env.useGas(gasDyn); !ok {
+				return nil, ErrOutOfGas
 			}
 		}
 	}
 
-	output, err := operation.execute(env, args)
+	return operation.execute(env, args)
+}
 
-	// Panicking is preferable in trusted execution, as mistakenly using a
-	// disabled feature should be caught during testing.
-	switch err {
-	case ErrFeatureDisabled:
-		if env.config.Trusted {
-			panic(fmt.Sprintf("%s [opcode=0x%x]", err.Error(), op))
-		}
-	case ErrInvalidOpCode:
-		if env.config.Trusted {
-			panic(fmt.Sprintf("%s [opcode=0x%x]", err.Error(), op))
-		}
-	case ErrNoData:
-		if env.config.Trusted {
-			panic(fmt.Sprintf("%s [opcode=0x%x]", err.Error(), op))
-		}
-	}
-
+func (env *Env) execute(op OpCode, args [][]byte) [][]byte {
+	ret, err := env._execute(op, env, args)
 	if err != nil {
-		env.setError(err)
-		return nil, env.Error()
+		panic(err)
 	}
-
-	return output, nil
-}
-
-func (env *Env) setError(err error) {
-	if env.envErr == nil {
-		env.envErr = err
-	}
-}
-
-func (env *Env) execute(op OpCode, args [][]byte) ([][]byte, error) {
-	return env._execute(op, env, args)
-}
-
-func (env *Env) useGas(gas uint64) bool {
-	if env.gas < gas {
-		return false
-	}
-	env.gas -= gas
-	return true
+	return ret
 }
 
 func (env *Env) Config() EnvConfig {
 	return env.config
 }
 
+func (env *Env) Caller() Caller {
+	return env.caller
+}
+
+func (env *Env) Contract() *Contract {
+	return env.contract
+}
+
+func (env *Env) RevertError() error {
+	return env.revertErr
+}
+
 func (env *Env) Gas() uint64 {
-	return env.gas
+	return env.contract.Gas
 }
 
-func (env *Env) Error() error {
-	return env.envErr
+func (env *Env) useGas(gas uint64) bool {
+	return env.contract.useGas(gas)
 }
 
-func (env *Env) Execute(op OpCode, args [][]byte) ([][]byte, error) {
+func (env *Env) BlockContext() BlockContext {
+	return env.block
+}
+
+func (env *Env) Execute(op OpCode, args [][]byte) [][]byte {
 	return env.execute(op, args)
 }
 
@@ -288,190 +264,129 @@ func (env *Env) Debug(msg string) {
 }
 
 func (env *Env) TimeNow() uint64 {
-	output, err := env.execute(TimeNow_OpCode, nil)
-	if err != nil {
-		return 0
-	}
+	output := env.execute(TimeNow_OpCode, nil)
 	return utils.BytesToUint64(output[0])
-}
-
-func (env *Env) Keccak256(data []byte) common.Hash {
-	input := [][]byte{data}
-	output, err := env.execute(Keccak256_OpCode, input)
-	if err != nil {
-		return common.Hash{}
-	}
-	hash := common.BytesToHash(output[0])
-	return hash
-}
-
-func (env *Env) GetAddress() common.Address {
-	output, err := env.execute(GetAddress_OpCode, nil)
-	if err != nil {
-		return common.Address{}
-	}
-	return common.BytesToAddress(output[0])
-}
-
-func (env *Env) GetGasLeft() uint64 {
-	output, err := env.execute(GetGasLeft_OpCode, nil)
-	if err != nil {
-		return 0
-	}
-	return utils.BytesToUint64(output[0])
-}
-
-func (env *Env) GetBlockNumber() uint64 {
-	output, err := env.execute(GetBlockNumber_OpCode, nil)
-	if err != nil {
-		return 0
-	}
-	return utils.BytesToUint64(output[0])
-}
-
-func (env *Env) GetBlockGasLimit() uint64 {
-	output, err := env.execute(GetBlockGasLimit_OpCode, nil)
-	if err != nil {
-		return 0
-	}
-	return utils.BytesToUint64(output[0])
-}
-
-func (env *Env) GetBlockTimestamp() uint64 {
-	output, err := env.execute(GetBlockTimestamp_OpCode, nil)
-	if err != nil {
-		return 0
-	}
-	return utils.BytesToUint64(output[0])
-}
-
-func (env *Env) GetBlockDifficulty() *uint256.Int {
-	output, err := env.execute(GetBlockDifficulty_OpCode, nil)
-	if err != nil {
-		return nil
-	}
-	return new(uint256.Int).SetBytes(output[0])
-}
-
-func (env *Env) GetBlockBaseFee() *uint256.Int {
-	output, err := env.execute(GetBlockBaseFee_OpCode, nil)
-	if err != nil {
-		return nil
-	}
-	return new(uint256.Int).SetBytes(output[0])
-}
-
-func (env *Env) GetBlockCoinbase() common.Address {
-	output, err := env.execute(GetBlockCoinbase_OpCode, nil)
-	if err != nil {
-		return common.Address{}
-	}
-	return common.BytesToAddress(output[0])
-}
-
-func (env *Env) GetPrevRandom() common.Hash {
-	output, err := env.execute(GetPrevRandom_OpCode, nil)
-	if err != nil {
-		return common.Hash{}
-	}
-	return common.BytesToHash(output[0])
-}
-
-func (env *Env) GetBlockHash(number uint64) common.Hash {
-	input := [][]byte{utils.Uint64ToBytes(number)}
-	output, err := env.execute(GetBlockHash_OpCode, input)
-	if err != nil {
-		return common.Hash{}
-	}
-	return common.BytesToHash(output[0])
-}
-
-func (env *Env) GetBalance(address common.Address) *uint256.Int {
-	input := [][]byte{address.Bytes()}
-	output, err := env.execute(GetBalance_OpCode, input)
-	if err != nil {
-		return nil
-	}
-	return new(uint256.Int).SetBytes(output[0])
-}
-
-func (env *Env) GetTxGasPrice() *uint256.Int {
-	output, err := env.execute(GetTxGasPrice_OpCode, nil)
-	if err != nil {
-		return nil
-	}
-	return new(uint256.Int).SetBytes(output[0])
-}
-
-func (env *Env) GetTxOrigin() common.Address {
-	output, err := env.execute(GetTxOrigin_OpCode, nil)
-	if err != nil {
-		return common.Address{}
-	}
-	return common.BytesToAddress(output[0])
-}
-
-func (env *Env) GetCallData() []byte {
-	output, err := env.execute(GetCallData_OpCode, nil)
-	if err != nil {
-		return nil
-	}
-	return output[0]
-}
-
-func (env *Env) GetCallDataSize() int {
-	output, err := env.execute(GetCallDataSize_OpCode, nil)
-	if err != nil {
-		return 0
-	}
-	return int(utils.BytesToUint64(output[0]))
-}
-
-func (env *Env) GetCaller() common.Address {
-	output, err := env.execute(GetCaller_OpCode, nil)
-	if err != nil {
-		return common.Address{}
-	}
-	return common.BytesToAddress(output[0])
-}
-
-func (env *Env) GetCallValue() *uint256.Int {
-	output, err := env.execute(GetCallValue_OpCode, nil)
-	if err != nil {
-		return nil
-	}
-	return new(uint256.Int).SetBytes(output[0])
-}
-
-func (env *Env) StorageLoad(key common.Hash) common.Hash {
-	input := [][]byte{key.Bytes()}
-	output, err := env.execute(StorageLoad_OpCode, input)
-	if err != nil {
-		return common.Hash{}
-	}
-	return common.BytesToHash(output[0])
-}
-
-func (env *Env) GetCode(address common.Address) []byte {
-	input := [][]byte{address.Bytes()}
-	output, err := env.execute(GetCode_OpCode, input)
-	if err != nil {
-		return nil
-	}
-	return output[0]
-}
-
-func (env *Env) GetCodeSize() int {
-	output, err := env.execute(GetCodeSize_OpCode, nil)
-	if err != nil {
-		return 0
-	}
-	return int(utils.BytesToUint64(output[0]))
 }
 
 func (env *Env) UseGas(gas uint64) {
 	input := [][]byte{utils.Uint64ToBytes(gas)}
 	env.execute(UseGas_OpCode, input)
+}
+
+func (env *Env) Revert(err error) {
+	input := [][]byte{[]byte(err.Error())}
+	env.execute(Revert_OpCode, input)
+}
+
+func (env *Env) Keccak256(data []byte) common.Hash {
+	input := [][]byte{data}
+	output := env.execute(Keccak256_OpCode, input)
+	hash := common.BytesToHash(output[0])
+	return hash
+}
+
+func (env *Env) GetAddress() common.Address {
+	output := env.execute(GetAddress_OpCode, nil)
+	return common.BytesToAddress(output[0])
+}
+
+func (env *Env) GetGasLeft() uint64 {
+	output := env.execute(GetGasLeft_OpCode, nil)
+	return utils.BytesToUint64(output[0])
+}
+
+func (env *Env) GetBlockNumber() uint64 {
+	output := env.execute(GetBlockNumber_OpCode, nil)
+	return utils.BytesToUint64(output[0])
+}
+
+func (env *Env) GetBlockGasLimit() uint64 {
+	output := env.execute(GetBlockGasLimit_OpCode, nil)
+	return utils.BytesToUint64(output[0])
+}
+
+func (env *Env) GetBlockTimestamp() uint64 {
+	output := env.execute(GetBlockTimestamp_OpCode, nil)
+	return utils.BytesToUint64(output[0])
+}
+
+func (env *Env) GetBlockDifficulty() *uint256.Int {
+	output := env.execute(GetBlockDifficulty_OpCode, nil)
+	return new(uint256.Int).SetBytes(output[0])
+}
+
+func (env *Env) GetBlockBaseFee() *uint256.Int {
+	output := env.execute(GetBlockBaseFee_OpCode, nil)
+	return new(uint256.Int).SetBytes(output[0])
+}
+
+func (env *Env) GetBlockCoinbase() common.Address {
+	output := env.execute(GetBlockCoinbase_OpCode, nil)
+	return common.BytesToAddress(output[0])
+}
+
+func (env *Env) GetPrevRandom() common.Hash {
+	output := env.execute(GetPrevRandom_OpCode, nil)
+	return common.BytesToHash(output[0])
+}
+
+func (env *Env) GetBlockHash(number uint64) common.Hash {
+	input := [][]byte{utils.Uint64ToBytes(number)}
+	output := env.execute(GetBlockHash_OpCode, input)
+	return common.BytesToHash(output[0])
+}
+
+func (env *Env) GetBalance(address common.Address) *uint256.Int {
+	input := [][]byte{address.Bytes()}
+	output := env.execute(GetBalance_OpCode, input)
+	return new(uint256.Int).SetBytes(output[0])
+}
+
+func (env *Env) GetTxGasPrice() *uint256.Int {
+	output := env.execute(GetTxGasPrice_OpCode, nil)
+	return new(uint256.Int).SetBytes(output[0])
+}
+
+func (env *Env) GetTxOrigin() common.Address {
+	output := env.execute(GetTxOrigin_OpCode, nil)
+	return common.BytesToAddress(output[0])
+}
+
+func (env *Env) GetCallData() []byte {
+	output := env.execute(GetCallData_OpCode, nil)
+	return output[0]
+}
+
+func (env *Env) GetCallDataSize() int {
+	output := env.execute(GetCallDataSize_OpCode, nil)
+	return int(utils.BytesToUint64(output[0]))
+}
+
+func (env *Env) GetCaller() common.Address {
+	output := env.execute(GetCaller_OpCode, nil)
+	return common.BytesToAddress(output[0])
+}
+
+func (env *Env) GetCallValue() *uint256.Int {
+	output := env.execute(GetCallValue_OpCode, nil)
+	return new(uint256.Int).SetBytes(output[0])
+}
+
+func (env *Env) StorageLoad(key common.Hash) common.Hash {
+	input := [][]byte{key.Bytes()}
+	output := env.execute(StorageLoad_OpCode, input)
+	return common.BytesToHash(output[0])
+}
+
+func (env *Env) GetCode(address common.Address) []byte {
+	input := [][]byte{address.Bytes()}
+	output := env.execute(GetCode_OpCode, input)
+	return output[0]
+}
+
+func (env *Env) GetCodeSize() int {
+	output := env.execute(GetCodeSize_OpCode, nil)
+	return int(utils.BytesToUint64(output[0]))
 }
 
 func (env *Env) StorageStore(key common.Hash, value common.Hash) {
@@ -490,82 +405,55 @@ func (env *Env) Log(topics []common.Hash, data []byte) {
 
 func (env *Env) GetExternalBalance(address common.Address) *uint256.Int {
 	input := [][]byte{address.Bytes()}
-	output, err := env.execute(GetExternalBalance_OpCode, input)
-	if err != nil {
-		return nil
-	}
+	output := env.execute(GetExternalBalance_OpCode, input)
 	return new(uint256.Int).SetBytes(output[0])
 }
 
 func (env *Env) CallStatic(address common.Address, data []byte, gas uint64) ([]byte, error) {
 	input := [][]byte{utils.Uint64ToBytes(gas), address.Bytes(), data}
-	output, err := env.execute(CallStatic_OpCode, input)
-	if err != nil {
-		return nil, nil
-	}
+	output := env.execute(CallStatic_OpCode, input)
 	return output[0], utils.DecodeError(output[1])
 }
 
 func (env *Env) GetExternalCode(address common.Address) []byte {
 	input := [][]byte{address.Bytes()}
-	output, err := env.execute(GetExternalCode_OpCode, input)
-	if err != nil {
-		return nil
-	}
+	output := env.execute(GetExternalCode_OpCode, input)
 	return output[0]
 }
 
 func (env *Env) GetExternalCodeSize(address common.Address) int {
 	input := [][]byte{address.Bytes()}
-	output, err := env.execute(GetExternalCodeSize_OpCode, input)
-	if err != nil {
-		return 0
-	}
+	output := env.execute(GetExternalCodeSize_OpCode, input)
 	return int(utils.BytesToUint64(output[0]))
 }
 
 func (env *Env) GetExternalCodeHash(address common.Address) common.Hash {
 	input := [][]byte{address.Bytes()}
-	output, err := env.execute(GetExternalCodeHash_OpCode, input)
-	if err != nil {
-		return common.Hash{}
-	}
+	output := env.execute(GetExternalCodeHash_OpCode, input)
 	return common.BytesToHash(output[0])
 }
 
 func (env *Env) Call(address common.Address, data []byte, gas uint64, value *uint256.Int) ([]byte, error) {
 	input := [][]byte{utils.Uint64ToBytes(gas), address.Bytes(), value.Bytes(), data}
-	output, err := env.execute(Call_OpCode, input)
-	if err != nil {
-		return nil, err
-	}
+	output := env.execute(Call_OpCode, input)
 	return output[0], utils.DecodeError(output[1])
 }
 
 func (env *Env) CallDelegate(address common.Address, data []byte, gas uint64) ([]byte, error) {
 	input := [][]byte{utils.Uint64ToBytes(gas), address.Bytes(), data}
-	output, err := env.execute(CallDelegate_OpCode, input)
-	if err != nil {
-		return nil, nil
-	}
+	output := env.execute(CallDelegate_OpCode, input)
 	return output[0], utils.DecodeError(output[1])
 }
 
 func (env *Env) Create(data []byte, value *uint256.Int) (common.Address, error) {
-	input := [][]byte{value.Bytes(), data}
-	output, err := env.execute(Create_OpCode, input)
-	if err != nil {
-		return common.Address{}, err
-	}
+	input := [][]byte{data, value.Bytes()}
+	output := env.execute(Create_OpCode, input)
 	return common.BytesToAddress(output[0]), utils.DecodeError(output[1])
 }
 
-func (env *Env) Create2(data []byte, salt common.Hash, endowment *uint256.Int) (common.Address, error) {
-	input := [][]byte{endowment.Bytes(), data, salt.Bytes()}
-	output, err := env.execute(Create2_OpCode, input)
-	if err != nil {
-		return common.Address{}, err
-	}
+func (env *Env) Create2(data []byte, endowment *uint256.Int, salt *uint256.Int) (common.Address, error) {
+	input := [][]byte{data, endowment.Bytes(), salt.Bytes()}
+	output := env.execute(Create2_OpCode, input)
 	return common.BytesToAddress(output[0]), utils.DecodeError(output[1])
 }
 

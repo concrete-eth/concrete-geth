@@ -25,7 +25,6 @@ var (
 	ErrFeatureDisabled   = errors.New("feature disabled")
 	ErrInvalidOpCode     = errors.New("invalid opcode")
 	ErrInvalidInput      = errors.New("invalid input")
-	ErrNoData            = errors.New("no data")
 	ErrExecutionReverted = errors.New("execution reverted")
 )
 

@@ -120,14 +120,6 @@ func (p *wazeroPrecompile) call__Err(expFunc wz_api.Function) error {
 }
 
 func (p *wazeroPrecompile) call_Bytes_Uint64(expFunc wz_api.Function, input []byte) (ret uint64) {
-	defer func() {
-		if r := recover(); r != nil {
-			if p.environment.Error() == nil {
-				panic(r)
-			}
-			ret = memory.NullPointer.Uint64()
-		}
-	}()
 	ctx := context.Background()
 	pointer := memory.PutValue(p.memory, input)
 	defer p.allocator.Free(pointer)
@@ -152,8 +144,8 @@ func (p *wazeroPrecompile) before(env api.Environment) {
 	var envImpl *api.Env
 	if env != nil {
 		envImpl = env.(*api.Env)
-		if !envImpl.Config().Trusted {
-			panic("untrusted environment")
+		if !envImpl.Config().IsTrusted {
+			panic(api.ErrEnvNotTrusted)
 		}
 	}
 	p.mutex.Lock()
