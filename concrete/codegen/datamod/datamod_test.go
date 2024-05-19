@@ -70,11 +70,10 @@ func TestBadDatamod(t *testing.T) {
 }
 
 type testRowInterface interface {
-	Get() (*uint256.Int, *uint256.Int, string, []byte, bool, common.Address, []byte)
-	Set(*uint256.Int, *uint256.Int, string, []byte, bool, common.Address, []byte)
+	Get() (*uint256.Int, string, []byte, bool, common.Address, []byte)
+	Set(*uint256.Int, string, []byte, bool, common.Address, []byte)
 
 	SetValueUint(*uint256.Int)
-	SetValueInt(*uint256.Int)
 	SetValueString(string)
 	SetValueBytes([]byte)
 	SetValueBool(bool)
@@ -84,7 +83,6 @@ type testRowInterface interface {
 
 var (
 	uintVal    = uint256.NewInt(1)
-	intVal     = new(uint256.Int).Neg(uint256.NewInt(1))
 	stringVal  = "string"
 	bytesVal   = []byte("bytes")
 	boolVal    = true
@@ -98,9 +96,8 @@ func testRow(t *testing.T, getRow func() testRowInterface) {
 
 	r.NotNil(row)
 
-	uintValCur, intValCur, stringValCur, bytesValCur, boolValCur, addrValCur, bytes16ValCur := row.Get()
+	uintValCur, stringValCur, bytesValCur, boolValCur, addrValCur, bytes16ValCur := row.Get()
 	r.Equal(uint64(0), uintValCur.Uint64())
-	r.Equal(uint64(0), intValCur.Uint64())
 	r.Equal("", stringValCur)
 	r.Equal([]byte{}, bytesValCur)
 	r.Equal(false, boolValCur)
@@ -108,7 +105,6 @@ func testRow(t *testing.T, getRow func() testRowInterface) {
 	r.Equal(make([]byte, 16), bytes16ValCur)
 
 	row.SetValueUint(uintVal)
-	row.SetValueInt(intVal)
 	row.SetValueString(stringVal)
 	row.SetValueBytes(bytesVal)
 	row.SetValueBool(boolVal)
@@ -118,9 +114,8 @@ func testRow(t *testing.T, getRow func() testRowInterface) {
 	newRowInstance := getRow()
 
 	for _, rr := range []testRowInterface{row, newRowInstance} {
-		uintValCur, intValCur, stringValCur, bytesValCur, boolValCur, addrValCur, bytes16ValCur = rr.Get()
+		uintValCur, stringValCur, bytesValCur, boolValCur, addrValCur, bytes16ValCur = rr.Get()
 		r.Equal(uintVal.Uint64(), uintValCur.Uint64())
-		r.Equal(intVal.Uint64(), intValCur.Uint64())
 		r.Equal(stringVal, stringValCur)
 		r.Equal(bytesVal, bytesValCur)
 		r.Equal(boolVal, boolValCur)
@@ -142,7 +137,7 @@ func TestTables(t *testing.T) {
 	t.Run("KeyedTable", func(t *testing.T) {
 		table := testdata.NewKeyedTable(ds)
 		testRow(t, func() testRowInterface {
-			return table.Get(uintVal, intVal, stringVal, bytesVal, boolVal, addrVal, bytes16Val)
+			return table.Get(uintVal, stringVal, bytesVal, boolVal, addrVal, bytes16Val)
 		})
 	})
 
@@ -157,7 +152,7 @@ func TestTables(t *testing.T) {
 		row := table.Get(uintVal)
 		subTable := row.GetValueTable()
 		testRow(t, func() testRowInterface {
-			return subTable.Get(uintVal, intVal, stringVal, bytesVal, boolVal, addrVal, bytes16Val)
+			return subTable.Get(uintVal, stringVal, bytesVal, boolVal, addrVal, bytes16Val)
 		})
 	})
 
@@ -173,7 +168,7 @@ func TestTables(t *testing.T) {
 		row := testdata.NewKeylessWithKeyedTableValue(ds)
 		subTable := row.GetValueTable()
 		testRow(t, func() testRowInterface {
-			return subTable.Get(uintVal, intVal, stringVal, bytesVal, boolVal, addrVal, bytes16Val)
+			return subTable.Get(uintVal, stringVal, bytesVal, boolVal, addrVal, bytes16Val)
 		})
 	})
 

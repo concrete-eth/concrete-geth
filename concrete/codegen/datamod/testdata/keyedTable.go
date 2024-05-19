@@ -30,12 +30,11 @@ type KeyedTableRow struct {
 }
 
 func NewKeyedTableRow(dsSlot lib.DatastoreSlot) *KeyedTableRow {
-	sizes := []int{32, 32, 32, 32, 1, 20, 16}
+	sizes := []int{32, 32, 32, 1, 20, 16}
 	return &KeyedTableRow{*lib.NewDatastoreStruct(dsSlot, sizes)}
 }
 
 func (v *KeyedTableRow) Get() (
-	*uint256.Int,
 	*uint256.Int,
 	string,
 	[]byte,
@@ -44,17 +43,15 @@ func (v *KeyedTableRow) Get() (
 	[]byte,
 ) {
 	return codec.DecodeUint256(32, v.GetField(0)),
-		codec.DecodeInt256(32, v.GetField(1)),
-		codec.DecodeString(32, v.GetField_bytes(2)),
-		codec.DecodeBytes(32, v.GetField_bytes(3)),
-		codec.DecodeBool(1, v.GetField(4)),
-		codec.DecodeAddress(20, v.GetField(5)),
-		codec.DecodeFixedBytes(16, v.GetField(6))
+		codec.DecodeString(32, v.GetField_bytes(1)),
+		codec.DecodeBytes(32, v.GetField_bytes(2)),
+		codec.DecodeBool(1, v.GetField(3)),
+		codec.DecodeAddress(20, v.GetField(4)),
+		codec.DecodeFixedBytes(16, v.GetField(5))
 }
 
 func (v *KeyedTableRow) Set(
 	valueUint *uint256.Int,
-	valueInt *uint256.Int,
 	valueString string,
 	valueBytes []byte,
 	valueBool bool,
@@ -62,12 +59,11 @@ func (v *KeyedTableRow) Set(
 	valueBytes16 []byte,
 ) {
 	v.SetField(0, codec.EncodeUint256(32, valueUint))
-	v.SetField(1, codec.EncodeInt256(32, valueInt))
-	v.SetField_bytes(2, codec.EncodeString(32, valueString))
-	v.SetField_bytes(3, codec.EncodeBytes(32, valueBytes))
-	v.SetField(4, codec.EncodeBool(1, valueBool))
-	v.SetField(5, codec.EncodeAddress(20, valueAddress))
-	v.SetField(6, codec.EncodeFixedBytes(16, valueBytes16))
+	v.SetField_bytes(1, codec.EncodeString(32, valueString))
+	v.SetField_bytes(2, codec.EncodeBytes(32, valueBytes))
+	v.SetField(3, codec.EncodeBool(1, valueBool))
+	v.SetField(4, codec.EncodeAddress(20, valueAddress))
+	v.SetField(5, codec.EncodeFixedBytes(16, valueBytes16))
 }
 
 func (v *KeyedTableRow) GetValueUint() *uint256.Int {
@@ -80,64 +76,54 @@ func (v *KeyedTableRow) SetValueUint(value *uint256.Int) {
 	v.SetField(0, data)
 }
 
-func (v *KeyedTableRow) GetValueInt() *uint256.Int {
-	data := v.GetField(1)
-	return codec.DecodeInt256(32, data)
-}
-
-func (v *KeyedTableRow) SetValueInt(value *uint256.Int) {
-	data := codec.EncodeInt256(32, value)
-	v.SetField(1, data)
-}
-
 func (v *KeyedTableRow) GetValueString() string {
-	data := v.GetField_bytes(2)
+	data := v.GetField_bytes(1)
 	return codec.DecodeString(32, data)
 }
 
 func (v *KeyedTableRow) SetValueString(value string) {
 	data := codec.EncodeString(32, value)
-	v.SetField_bytes(2, data)
+	v.SetField_bytes(1, data)
 }
 
 func (v *KeyedTableRow) GetValueBytes() []byte {
-	data := v.GetField_bytes(3)
+	data := v.GetField_bytes(2)
 	return codec.DecodeBytes(32, data)
 }
 
 func (v *KeyedTableRow) SetValueBytes(value []byte) {
 	data := codec.EncodeBytes(32, value)
-	v.SetField_bytes(3, data)
+	v.SetField_bytes(2, data)
 }
 
 func (v *KeyedTableRow) GetValueBool() bool {
-	data := v.GetField(4)
+	data := v.GetField(3)
 	return codec.DecodeBool(1, data)
 }
 
 func (v *KeyedTableRow) SetValueBool(value bool) {
 	data := codec.EncodeBool(1, value)
-	v.SetField(4, data)
+	v.SetField(3, data)
 }
 
 func (v *KeyedTableRow) GetValueAddress() common.Address {
-	data := v.GetField(5)
+	data := v.GetField(4)
 	return codec.DecodeAddress(20, data)
 }
 
 func (v *KeyedTableRow) SetValueAddress(value common.Address) {
 	data := codec.EncodeAddress(20, value)
-	v.SetField(5, data)
+	v.SetField(4, data)
 }
 
 func (v *KeyedTableRow) GetValueBytes16() []byte {
-	data := v.GetField(6)
+	data := v.GetField(5)
 	return codec.DecodeFixedBytes(16, data)
 }
 
 func (v *KeyedTableRow) SetValueBytes16(value []byte) {
 	data := codec.EncodeFixedBytes(16, value)
-	v.SetField(6, data)
+	v.SetField(5, data)
 }
 
 type KeyedTable struct {
@@ -155,7 +141,6 @@ func NewKeyedTableFromSlot(dsSlot lib.DatastoreSlot) *KeyedTable {
 
 func (m *KeyedTable) Get(
 	keyUint *uint256.Int,
-	keyInt *uint256.Int,
 	keyString string,
 	keyBytes []byte,
 	keyBool bool,
@@ -164,7 +149,6 @@ func (m *KeyedTable) Get(
 ) *KeyedTableRow {
 	dsSlot := m.dsSlot.Mapping().GetNested(
 		codec.EncodeUint256(32, keyUint),
-		codec.EncodeInt256(32, keyInt),
 		codec.EncodeString(32, keyString),
 		codec.EncodeBytes(32, keyBytes),
 		codec.EncodeBool(1, keyBool),

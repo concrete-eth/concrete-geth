@@ -108,7 +108,8 @@ func nameToFieldType(name string) (FieldType, error) {
 	}
 
 	matchesUint := strings.HasPrefix(name, "uint")
-	matchesInt := strings.HasPrefix(name, "int")
+	// matchesInt := strings.HasPrefix(name, "int")
+	matchesInt := false
 
 	if matchesUint || matchesInt {
 		var noSizeTypeStr string
@@ -136,19 +137,19 @@ func nameToFieldType(name string) (FieldType, error) {
 			Size: size / 8,
 		}
 		var (
-			goType     string
-			codecSufix string
+			goType      string
+			codecSuffix string
 		)
 		if size <= 64 {
 			goType = noSizeTypeStr + fmt.Sprint(size)
-			codecSufix = fmt.Sprintf("Small%s%d", upperFirstLetter(noSizeTypeStr), size)
+			codecSuffix = fmt.Sprintf("%s%d", upperFirstLetter(noSizeTypeStr), size)
 		} else {
 			goType = "*uint256.Int"
-			codecSufix = fmt.Sprintf("%s256", upperFirstLetter(noSizeTypeStr))
+			codecSuffix = fmt.Sprintf("%s256", upperFirstLetter(noSizeTypeStr))
 		}
 		fieldType.GoType = goType
-		fieldType.EncodeFunc = "Encode" + codecSufix
-		fieldType.DecodeFunc = "Decode" + codecSufix
+		fieldType.EncodeFunc = "Encode" + codecSuffix
+		fieldType.DecodeFunc = "Decode" + codecSuffix
 		return fieldType, nil
 	}
 

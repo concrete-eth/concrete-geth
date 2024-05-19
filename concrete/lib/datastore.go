@@ -19,15 +19,17 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/concrete/api"
 	"github.com/ethereum/go-ethereum/concrete/crypto"
+	"github.com/holiman/uint256"
 )
 
 var (
 	// Redeclare constant from go-ethereum/accounts/abi to avoid importing
 	// the module and having issues with tinygo.
-	MaxUint256 = new(big.Int).Sub(new(big.Int).Lsh(common.Big1, 256), common.Big1)
+	Uint256_0  = uint256.NewInt(0)
+	Uint256_1  = uint256.NewInt(1)
+	MaxUint256 = new(uint256.Int).Not(Uint256_0)
 )
 
 type KeyValueStore interface {
@@ -103,10 +105,8 @@ type DatastoreSlot interface {
 	SetBool(value bool)
 	Address() common.Address
 	SetAddress(value common.Address)
-	BigUint() *big.Int
-	SetBigUint(value *big.Int)
-	BigInt() *big.Int
-	SetBigInt(value *big.Int)
+	Uint256() *uint256.Int
+	SetUint256(value *uint256.Int)
 	Uint64() uint64
 	SetUint64(value uint64)
 	Int64() int64
@@ -252,44 +252,40 @@ func (r *dsSlot) SetAddress(value common.Address) {
 	r.setBytes32(common.BytesToHash(value.Bytes()))
 }
 
-func (r *dsSlot) BigUint() *big.Int {
-	return r.getBytes32().Big()
+func (r *dsSlot) Uint256() *uint256.Int {
+	return new(uint256.Int).SetBytes(r.getBytes32().Bytes())
 }
 
-func (r *dsSlot) SetBigUint(value *big.Int) {
-	r.setBytes32(common.BigToHash(value))
-}
-
-func (r *dsSlot) BigInt() *big.Int {
-	ret := r.getBytes32().Big()
-	if ret.Bit(255) == 1 {
-		ret.Add(MaxUint256, new(big.Int).Neg(ret))
-		ret.Add(ret, common.Big1)
-		ret.Neg(ret)
-	}
-	return ret
-}
-
-func (r *dsSlot) SetBigInt(value *big.Int) {
-	value = new(big.Int).Set(value)
-	math.U256Bytes(value)
-	r.setBytes32(common.BigToHash(value))
+func (r *dsSlot) SetUint256(value *uint256.Int) {
+	r.setBytes32(value.Bytes32())
 }
 
 func (r *dsSlot) SetUint64(value uint64) {
-	r.SetBigUint(new(big.Int).SetUint64(value))
+	r.SetUint256(new(uint256.Int).SetUint64(value))
 }
 
 func (r *dsSlot) Uint64() uint64 {
-	return r.BigUint().Uint64()
+	return r.Uint256().Uint64()
 }
 
 func (r *dsSlot) SetInt64(value int64) {
-	r.SetBigInt(big.NewInt(value))
+	if value < 0 {
+		b := new(uint256.Int).SetUint64(uint64(-value))
+		b.Neg(b)
+		r.SetUint256(b)
+	} else {
+		r.SetUint64(uint64(value))
+	}
 }
 
 func (r *dsSlot) Int64() int64 {
-	return r.BigInt().Int64()
+	b := r.Uint256()
+	if b.Sign() < 0 {
+		b = b.Neg(b)
+		return int64(-b.Uint64())
+	} else {
+		return int64(b.Uint64())
+	}
 }
 
 func (r *dsSlot) Bytes() []byte {

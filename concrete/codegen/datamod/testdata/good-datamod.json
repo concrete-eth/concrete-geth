@@ -2,7 +2,6 @@
     "keyedTable": {
         "keySchema": {
             "keyUint": "uint",
-            "keyInt": "int",
             "keyString": "string",
             "keyBytes": "bytes",
             "keyBool": "bool",
@@ -11,7 +10,6 @@
         },
         "schema": {
             "valueUint": "uint",
-            "valueInt": "int",
             "valueString": "string",
             "valueBytes": "bytes",
             "valueBool": "bool",
@@ -22,7 +20,6 @@
     "keylessTable": {
         "schema": {
             "valueUint": "uint",
-            "valueInt": "int",
             "valueString": "string",
             "valueBytes": "bytes",
             "valueBool": "bool",

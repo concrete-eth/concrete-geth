@@ -21,7 +21,6 @@
 package lib
 
 import (
-	"math/big"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -104,8 +103,7 @@ func TestDatastoreSlot(t *testing.T) {
 	r.Equal(common.Hash{}, slot.Bytes32())
 	r.Equal(false, slot.Bool())
 	r.Equal(common.Address{}, slot.Address())
-	r.Equal(int64(0), slot.BigUint().Int64())
-	r.Equal(int64(0), slot.BigInt().Int64())
+	r.Equal(uint64(0), slot.Uint256().Uint64())
 	r.Equal(uint64(0), slot.Uint64())
 	r.Equal(int64(0), slot.Int64())
 	r.Equal([]byte{}, slot.Bytes())
@@ -119,11 +117,8 @@ func TestDatastoreSlot(t *testing.T) {
 	slot.SetAddress(address)
 	r.Equal(address, slot.Address())
 
-	slot.SetBigUint(big.NewInt(1))
-	r.Equal(int64(1), slot.BigUint().Int64())
-
-	slot.SetBigInt(big.NewInt(-1))
-	r.Equal(int64(-1), slot.BigInt().Int64())
+	slot.SetUint256(uint256.NewInt(1))
+	r.Equal(uint64(1), slot.Uint256().Uint64())
 
 	slot.SetUint64(1)
 	r.Equal(uint64(1), slot.Uint64())

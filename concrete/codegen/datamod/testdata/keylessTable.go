@@ -30,12 +30,11 @@ type KeylessTableRow struct {
 }
 
 func NewKeylessTableRow(dsSlot lib.DatastoreSlot) *KeylessTableRow {
-	sizes := []int{32, 32, 32, 32, 1, 20, 16}
+	sizes := []int{32, 32, 32, 1, 20, 16}
 	return &KeylessTableRow{*lib.NewDatastoreStruct(dsSlot, sizes)}
 }
 
 func (v *KeylessTableRow) Get() (
-	*uint256.Int,
 	*uint256.Int,
 	string,
 	[]byte,
@@ -44,17 +43,15 @@ func (v *KeylessTableRow) Get() (
 	[]byte,
 ) {
 	return codec.DecodeUint256(32, v.GetField(0)),
-		codec.DecodeInt256(32, v.GetField(1)),
-		codec.DecodeString(32, v.GetField_bytes(2)),
-		codec.DecodeBytes(32, v.GetField_bytes(3)),
-		codec.DecodeBool(1, v.GetField(4)),
-		codec.DecodeAddress(20, v.GetField(5)),
-		codec.DecodeFixedBytes(16, v.GetField(6))
+		codec.DecodeString(32, v.GetField_bytes(1)),
+		codec.DecodeBytes(32, v.GetField_bytes(2)),
+		codec.DecodeBool(1, v.GetField(3)),
+		codec.DecodeAddress(20, v.GetField(4)),
+		codec.DecodeFixedBytes(16, v.GetField(5))
 }
 
 func (v *KeylessTableRow) Set(
 	valueUint *uint256.Int,
-	valueInt *uint256.Int,
 	valueString string,
 	valueBytes []byte,
 	valueBool bool,
@@ -62,12 +59,11 @@ func (v *KeylessTableRow) Set(
 	valueBytes16 []byte,
 ) {
 	v.SetField(0, codec.EncodeUint256(32, valueUint))
-	v.SetField(1, codec.EncodeInt256(32, valueInt))
-	v.SetField_bytes(2, codec.EncodeString(32, valueString))
-	v.SetField_bytes(3, codec.EncodeBytes(32, valueBytes))
-	v.SetField(4, codec.EncodeBool(1, valueBool))
-	v.SetField(5, codec.EncodeAddress(20, valueAddress))
-	v.SetField(6, codec.EncodeFixedBytes(16, valueBytes16))
+	v.SetField_bytes(1, codec.EncodeString(32, valueString))
+	v.SetField_bytes(2, codec.EncodeBytes(32, valueBytes))
+	v.SetField(3, codec.EncodeBool(1, valueBool))
+	v.SetField(4, codec.EncodeAddress(20, valueAddress))
+	v.SetField(5, codec.EncodeFixedBytes(16, valueBytes16))
 }
 
 func (v *KeylessTableRow) GetValueUint() *uint256.Int {
@@ -80,64 +76,54 @@ func (v *KeylessTableRow) SetValueUint(value *uint256.Int) {
 	v.SetField(0, data)
 }
 
-func (v *KeylessTableRow) GetValueInt() *uint256.Int {
-	data := v.GetField(1)
-	return codec.DecodeInt256(32, data)
-}
-
-func (v *KeylessTableRow) SetValueInt(value *uint256.Int) {
-	data := codec.EncodeInt256(32, value)
-	v.SetField(1, data)
-}
-
 func (v *KeylessTableRow) GetValueString() string {
-	data := v.GetField_bytes(2)
+	data := v.GetField_bytes(1)
 	return codec.DecodeString(32, data)
 }
 
 func (v *KeylessTableRow) SetValueString(value string) {
 	data := codec.EncodeString(32, value)
-	v.SetField_bytes(2, data)
+	v.SetField_bytes(1, data)
 }
 
 func (v *KeylessTableRow) GetValueBytes() []byte {
-	data := v.GetField_bytes(3)
+	data := v.GetField_bytes(2)
 	return codec.DecodeBytes(32, data)
 }
 
 func (v *KeylessTableRow) SetValueBytes(value []byte) {
 	data := codec.EncodeBytes(32, value)
-	v.SetField_bytes(3, data)
+	v.SetField_bytes(2, data)
 }
 
 func (v *KeylessTableRow) GetValueBool() bool {
-	data := v.GetField(4)
+	data := v.GetField(3)
 	return codec.DecodeBool(1, data)
 }
 
 func (v *KeylessTableRow) SetValueBool(value bool) {
 	data := codec.EncodeBool(1, value)
-	v.SetField(4, data)
+	v.SetField(3, data)
 }
 
 func (v *KeylessTableRow) GetValueAddress() common.Address {
-	data := v.GetField(5)
+	data := v.GetField(4)
 	return codec.DecodeAddress(20, data)
 }
 
 func (v *KeylessTableRow) SetValueAddress(value common.Address) {
 	data := codec.EncodeAddress(20, value)
-	v.SetField(5, data)
+	v.SetField(4, data)
 }
 
 func (v *KeylessTableRow) GetValueBytes16() []byte {
-	data := v.GetField(6)
+	data := v.GetField(5)
 	return codec.DecodeFixedBytes(16, data)
 }
 
 func (v *KeylessTableRow) SetValueBytes16(value []byte) {
 	data := codec.EncodeFixedBytes(16, value)
-	v.SetField(6, data)
+	v.SetField(5, data)
 }
 
 type KeylessTable = KeylessTableRow
