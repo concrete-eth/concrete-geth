@@ -18,10 +18,10 @@
 package codec
 
 import (
-	"math/big"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
 
@@ -76,19 +76,19 @@ func TestCodec(t *testing.T) {
 
 	t.Run("uint256", func(t *testing.T) {
 		for i := 0; i < 256; i++ {
-			u := big.NewInt(1234567890)
+			u := uint256.NewInt(1234567890)
 			encoded := EncodeUint256(32, u)
 			decoded := DecodeUint256(32, encoded)
-			r.Equal(u.Int64(), decoded.Int64())
+			r.Equal(u.Uint64(), decoded.Uint64())
 		}
 	})
 
 	t.Run("int256", func(t *testing.T) {
 		for i := 0; i < 256; i++ {
-			u := big.NewInt(-1234567890)
+			u := new(uint256.Int).Neg(uint256.NewInt(1234567890))
 			encoded := EncodeInt256(32, u)
 			decoded := DecodeInt256(32, encoded)
-			r.Equal(u.Int64(), decoded.Int64())
+			r.Equal(u.Uint64(), decoded.Uint64())
 		}
 	})
 

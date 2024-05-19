@@ -142,9 +142,9 @@ func unmarshalTableSchemas(jsonContent []byte, allowTableTypes bool) ([]TableSch
 }
 
 type Config struct {
-	JSON    string
-	Out     string
-	Package string
+	SchemaFilePath string
+	OutDir         string
+	Package        string
 }
 
 func GenerateDataModel(config Config, allowTableTypes bool) error {
@@ -152,7 +152,7 @@ func GenerateDataModel(config Config, allowTableTypes bool) error {
 		return fmt.Errorf("invalid package name: %s", config.Package)
 	}
 
-	jsonContent, err := os.ReadFile(config.JSON)
+	jsonContent, err := os.ReadFile(config.SchemaFilePath)
 	if err != nil {
 		return err
 	}
@@ -196,8 +196,9 @@ func GenerateDataModel(config Config, allowTableTypes bool) error {
 		if err := tpl.Execute(&buf, data); err != nil {
 			return err
 		}
-		filename := camelToSnake(lowerFirstLetter(tableName)) + ".go"
-		outPath := filepath.Join(config.Out, filename)
+		filename := lowerFirstLetter(tableName) + ".go"
+		// filename := camelToSnake(lowerFirstLetter(tableName)) + ".go"
+		outPath := filepath.Join(config.OutDir, filename)
 		err := os.WriteFile(outPath, buf.Bytes(), 0644)
 		if err != nil {
 			return err

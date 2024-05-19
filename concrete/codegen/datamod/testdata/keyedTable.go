@@ -3,24 +3,27 @@
 package testdata
 
 import (
-	"math/big"
-
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/concrete/codegen/datamod/codec"
 	"github.com/ethereum/go-ethereum/concrete/crypto"
 	"github.com/ethereum/go-ethereum/concrete/lib"
+	"github.com/holiman/uint256"
 )
 
 // Reference imports to suppress errors if they are not used.
 var (
-	_ = big.NewInt
 	_ = common.Big1
 	_ = codec.EncodeAddress
+	_ = uint256.NewInt
 )
 
-var (
-	KeyedTableDefaultKey = crypto.Keccak256([]byte("datamod.v1.KeyedTable"))
-)
+// var (
+//	KeyedTableDefaultKey = crypto.Keccak256([]byte("datamod.v1.KeyedTable"))
+// )
+
+func KeyedTableDefaultKey() []byte {
+	return crypto.Keccak256([]byte("datamod.v1.KeyedTable"))
+}
 
 type KeyedTableRow struct {
 	lib.DatastoreStruct
@@ -32,8 +35,8 @@ func NewKeyedTableRow(dsSlot lib.DatastoreSlot) *KeyedTableRow {
 }
 
 func (v *KeyedTableRow) Get() (
-	*big.Int,
-	*big.Int,
+	*uint256.Int,
+	*uint256.Int,
 	string,
 	[]byte,
 	bool,
@@ -50,8 +53,8 @@ func (v *KeyedTableRow) Get() (
 }
 
 func (v *KeyedTableRow) Set(
-	valueUint *big.Int,
-	valueInt *big.Int,
+	valueUint *uint256.Int,
+	valueInt *uint256.Int,
 	valueString string,
 	valueBytes []byte,
 	valueBool bool,
@@ -67,22 +70,22 @@ func (v *KeyedTableRow) Set(
 	v.SetField(6, codec.EncodeFixedBytes(16, valueBytes16))
 }
 
-func (v *KeyedTableRow) GetValueUint() *big.Int {
+func (v *KeyedTableRow) GetValueUint() *uint256.Int {
 	data := v.GetField(0)
 	return codec.DecodeUint256(32, data)
 }
 
-func (v *KeyedTableRow) SetValueUint(value *big.Int) {
+func (v *KeyedTableRow) SetValueUint(value *uint256.Int) {
 	data := codec.EncodeUint256(32, value)
 	v.SetField(0, data)
 }
 
-func (v *KeyedTableRow) GetValueInt() *big.Int {
+func (v *KeyedTableRow) GetValueInt() *uint256.Int {
 	data := v.GetField(1)
 	return codec.DecodeInt256(32, data)
 }
 
-func (v *KeyedTableRow) SetValueInt(value *big.Int) {
+func (v *KeyedTableRow) SetValueInt(value *uint256.Int) {
 	data := codec.EncodeInt256(32, value)
 	v.SetField(1, data)
 }
@@ -142,7 +145,7 @@ type KeyedTable struct {
 }
 
 func NewKeyedTable(ds lib.Datastore) *KeyedTable {
-	dsSlot := ds.Get(KeyedTableDefaultKey)
+	dsSlot := ds.Get(KeyedTableDefaultKey())
 	return &KeyedTable{dsSlot}
 }
 
@@ -151,8 +154,8 @@ func NewKeyedTableFromSlot(dsSlot lib.DatastoreSlot) *KeyedTable {
 }
 
 func (m *KeyedTable) Get(
-	keyUint *big.Int,
-	keyInt *big.Int,
+	keyUint *uint256.Int,
+	keyInt *uint256.Int,
 	keyString string,
 	keyBytes []byte,
 	keyBool bool,

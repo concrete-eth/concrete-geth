@@ -3,24 +3,27 @@
 package testdata
 
 import (
-	"math/big"
-
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/concrete/codegen/datamod/codec"
 	"github.com/ethereum/go-ethereum/concrete/crypto"
 	"github.com/ethereum/go-ethereum/concrete/lib"
+	"github.com/holiman/uint256"
 )
 
 // Reference imports to suppress errors if they are not used.
 var (
-	_ = big.NewInt
 	_ = common.Big1
 	_ = codec.EncodeAddress
+	_ = uint256.NewInt
 )
 
-var (
-	KeylessTableDefaultKey = crypto.Keccak256([]byte("datamod.v1.KeylessTable"))
-)
+// var (
+//	KeylessTableDefaultKey = crypto.Keccak256([]byte("datamod.v1.KeylessTable"))
+// )
+
+func KeylessTableDefaultKey() []byte {
+	return crypto.Keccak256([]byte("datamod.v1.KeylessTable"))
+}
 
 type KeylessTableRow struct {
 	lib.DatastoreStruct
@@ -32,8 +35,8 @@ func NewKeylessTableRow(dsSlot lib.DatastoreSlot) *KeylessTableRow {
 }
 
 func (v *KeylessTableRow) Get() (
-	*big.Int,
-	*big.Int,
+	*uint256.Int,
+	*uint256.Int,
 	string,
 	[]byte,
 	bool,
@@ -50,8 +53,8 @@ func (v *KeylessTableRow) Get() (
 }
 
 func (v *KeylessTableRow) Set(
-	valueUint *big.Int,
-	valueInt *big.Int,
+	valueUint *uint256.Int,
+	valueInt *uint256.Int,
 	valueString string,
 	valueBytes []byte,
 	valueBool bool,
@@ -67,22 +70,22 @@ func (v *KeylessTableRow) Set(
 	v.SetField(6, codec.EncodeFixedBytes(16, valueBytes16))
 }
 
-func (v *KeylessTableRow) GetValueUint() *big.Int {
+func (v *KeylessTableRow) GetValueUint() *uint256.Int {
 	data := v.GetField(0)
 	return codec.DecodeUint256(32, data)
 }
 
-func (v *KeylessTableRow) SetValueUint(value *big.Int) {
+func (v *KeylessTableRow) SetValueUint(value *uint256.Int) {
 	data := codec.EncodeUint256(32, value)
 	v.SetField(0, data)
 }
 
-func (v *KeylessTableRow) GetValueInt() *big.Int {
+func (v *KeylessTableRow) GetValueInt() *uint256.Int {
 	data := v.GetField(1)
 	return codec.DecodeInt256(32, data)
 }
 
-func (v *KeylessTableRow) SetValueInt(value *big.Int) {
+func (v *KeylessTableRow) SetValueInt(value *uint256.Int) {
 	data := codec.EncodeInt256(32, value)
 	v.SetField(1, data)
 }
@@ -140,7 +143,7 @@ func (v *KeylessTableRow) SetValueBytes16(value []byte) {
 type KeylessTable = KeylessTableRow
 
 func NewKeylessTable(ds lib.Datastore) *KeylessTableRow {
-	dsSlot := ds.Get(KeylessTableDefaultKey)
+	dsSlot := ds.Get(KeylessTableDefaultKey())
 	return NewKeylessTableRow(dsSlot)
 }
 

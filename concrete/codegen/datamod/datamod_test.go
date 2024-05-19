@@ -16,8 +16,9 @@
 package datamod
 
 import (
-	"math/big"
+	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -30,23 +31,38 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestDatamod(t *testing.T) {
+	tmpDir := "./tmp-good"
+	os.Mkdir(tmpDir, 0755)
+	defer os.RemoveAll(tmpDir)
+	config := Config{
+		SchemaFilePath: filepath.Join("testdata", "good-datamod.json"),
+		OutDir:         filepath.Join(tmpDir),
+		Package:        "test",
+	}
+	if err := GenerateDataModel(config, true); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestBadDatamod(t *testing.T) {
-	dirPath := "./testdata/bad-datamods/"
+	dirPath := filepath.Join("testdata", "bad-datamods")
 	files, err := os.ReadDir(dirPath)
 	if err != nil {
 		t.Fatalf("Failed to read directory: %s", err)
 	}
-	for _, file := range files {
+	for idx, file := range files {
 		t.Run(file.Name(), func(t *testing.T) {
-			err := GenerateDataModel(Config{
-				JSON:    dirPath + file.Name(),
-				Out:     "./",
-				Package: "test",
-			}, true)
-			if err == nil {
+			tmpDir := fmt.Sprintf("./tmp-bad-%d", idx)
+			os.Mkdir(tmpDir, 0755)
+			defer os.RemoveAll(tmpDir)
+			if err := GenerateDataModel(Config{
+				SchemaFilePath: filepath.Join(dirPath, file.Name()),
+				OutDir:         filepath.Join(tmpDir),
+				Package:        "test",
+			}, true); err == nil {
 				t.Fatalf("Expected error but got nil")
-			}
-			if !strings.Contains(err.Error(), "schema for table") {
+			} else if !strings.Contains(err.Error(), "schema for table") { // Fragile
 				t.Fatalf("Unexpected error: %s", err)
 			}
 		})
@@ -54,11 +70,11 @@ func TestBadDatamod(t *testing.T) {
 }
 
 type testRowInterface interface {
-	Get() (*big.Int, *big.Int, string, []byte, bool, common.Address, []byte)
-	Set(*big.Int, *big.Int, string, []byte, bool, common.Address, []byte)
+	Get() (*uint256.Int, *uint256.Int, string, []byte, bool, common.Address, []byte)
+	Set(*uint256.Int, *uint256.Int, string, []byte, bool, common.Address, []byte)
 
-	SetValueUint(*big.Int)
-	SetValueInt(*big.Int)
+	SetValueUint(*uint256.Int)
+	SetValueInt(*uint256.Int)
 	SetValueString(string)
 	SetValueBytes([]byte)
 	SetValueBool(bool)
@@ -67,8 +83,8 @@ type testRowInterface interface {
 }
 
 var (
-	uintVal    = big.NewInt(1)
-	intVal     = new(big.Int).Neg(big.NewInt(1))
+	uintVal    = uint256.NewInt(1)
+	intVal     = new(uint256.Int).Neg(uint256.NewInt(1))
 	stringVal  = "string"
 	bytesVal   = []byte("bytes")
 	boolVal    = true
@@ -83,8 +99,8 @@ func testRow(t *testing.T, getRow func() testRowInterface) {
 	r.NotNil(row)
 
 	uintValCur, intValCur, stringValCur, bytesValCur, boolValCur, addrValCur, bytes16ValCur := row.Get()
-	r.Equal(int64(0), uintValCur.Int64())
-	r.Equal(int64(0), intValCur.Int64())
+	r.Equal(uint64(0), uintValCur.Uint64())
+	r.Equal(uint64(0), intValCur.Uint64())
 	r.Equal("", stringValCur)
 	r.Equal([]byte{}, bytesValCur)
 	r.Equal(false, boolValCur)
@@ -103,8 +119,8 @@ func testRow(t *testing.T, getRow func() testRowInterface) {
 
 	for _, rr := range []testRowInterface{row, newRowInstance} {
 		uintValCur, intValCur, stringValCur, bytesValCur, boolValCur, addrValCur, bytes16ValCur = rr.Get()
-		r.Equal(uintVal.Int64(), uintValCur.Int64())
-		r.Equal(intVal.Int64(), intValCur.Int64())
+		r.Equal(uintVal.Uint64(), uintValCur.Uint64())
+		r.Equal(intVal.Uint64(), intValCur.Uint64())
 		r.Equal(stringVal, stringValCur)
 		r.Equal(bytesVal, bytesValCur)
 		r.Equal(boolVal, boolValCur)

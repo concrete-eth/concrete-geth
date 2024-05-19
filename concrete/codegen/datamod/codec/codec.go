@@ -17,16 +17,18 @@ package codec
 
 import (
 	"encoding/binary"
-	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/math"
+	"github.com/holiman/uint256"
 )
 
 var (
 	// Redeclare constant from go-ethereum/accounts/abi to avoid importing
 	// the module and having issues with tinygo.
-	MaxUint256 = new(big.Int).Sub(new(big.Int).Lsh(common.Big1, 256), common.Big1)
+	MaxUint256 = new(uint256.Int).Sub(new(uint256.Int).Lsh(uint256.NewInt(1), 256), uint256.NewInt(1))
+	Uint256_0  = uint256.NewInt(0)
+	Uint256_1  = uint256.NewInt(1)
 )
 
 func EncodeAddress(_ int, address common.Address) []byte {
@@ -80,23 +82,24 @@ func DecodeString(_ int, data []byte) string {
 	return string(data)
 }
 
-func EncodeUint256(_ int, i *big.Int) []byte {
-	return math.U256Bytes(new(big.Int).Set(i))
+func EncodeUint256(_ int, i *uint256.Int) []byte {
+	return math.U256Bytes(i.ToBig())
 }
 
-func DecodeUint256(_ int, data []byte) *big.Int {
-	return new(big.Int).SetBytes(data)
+func DecodeUint256(_ int, data []byte) *uint256.Int {
+	return new(uint256.Int).SetBytes(data)
 }
 
-func EncodeInt256(_ int, i *big.Int) []byte {
-	return math.U256Bytes(new(big.Int).Set(i))
+func EncodeInt256(_ int, i *uint256.Int) []byte {
+	return math.U256Bytes(i.ToBig())
 }
 
-func DecodeInt256(_ int, data []byte) *big.Int {
-	ret := new(big.Int).SetBytes(data)
-	if ret.Bit(255) == 1 {
-		ret.Add(MaxUint256, new(big.Int).Neg(ret))
-		ret.Add(ret, common.Big1)
+func DecodeInt256(_ int, data []byte) *uint256.Int {
+	ret := new(uint256.Int).SetBytes(data)
+	bit255 := new(uint256.Int).Rsh(ret, 255)
+	if bit255.Cmp(Uint256_1) == 0 {
+		ret.Add(MaxUint256, new(uint256.Int).Neg(ret))
+		ret.Add(ret, Uint256_1)
 		ret.Neg(ret)
 	}
 	return ret

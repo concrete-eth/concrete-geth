@@ -143,7 +143,7 @@ func nameToFieldType(name string) (FieldType, error) {
 			goType = noSizeTypeStr + fmt.Sprint(size)
 			codecSufix = fmt.Sprintf("Small%s%d", upperFirstLetter(noSizeTypeStr), size)
 		} else {
-			goType = "*big.Int"
+			goType = "*uint256.Int"
 			codecSufix = fmt.Sprintf("%s256", upperFirstLetter(noSizeTypeStr))
 		}
 		fieldType.GoType = goType

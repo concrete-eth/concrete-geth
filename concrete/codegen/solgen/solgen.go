@@ -34,11 +34,12 @@ import (
 var solgenTpl string
 
 type Config struct {
-	Name    string
-	Address common.Address
-	ABI     string
-	Sol     string
-	Out     string
+	Name       string
+	Address    common.Address
+	Pragma     string
+	AbiPath    string
+	ImportPath string
+	OutPath    string
 }
 
 func isValidSolidityContractName(name string) bool {
@@ -85,7 +86,7 @@ func withLocation(typeStr string, arg abi.Argument) string {
 }
 
 func generateSolidityLibrary(ABI abi.ABI, cABI customABI, config Config) (string, error) {
-	config.Sol = filepath.ToSlash(config.Sol)
+	config.ImportPath = filepath.ToSlash(config.ImportPath)
 
 	tmpl, err := template.New("solgen").Parse(solgenTpl)
 	if err != nil {
@@ -96,20 +97,22 @@ func generateSolidityLibrary(ABI abi.ABI, cABI customABI, config Config) (string
 		return "", fmt.Errorf("invalid contract name: '%s'", config.Name)
 	}
 
-	var importPath string
-	if len(config.Sol) > 0 {
-		importPath, err = filepath.Rel(filepath.Dir(config.Out), config.Sol)
+	importPaths := []string{}
+	if len(config.ImportPath) > 0 {
+		importPath, err := filepath.Rel(filepath.Dir(config.OutPath), config.ImportPath)
 		if err != nil {
 			return "", err
 		}
 		importPath = formatPath(importPath)
+		importPaths = append(importPaths, importPath)
 	}
 
 	data := map[string]interface{}{
 		"Name":        config.Name,
 		"Address":     config.Address.Hex(),
+		"Pragma":      config.Pragma,
 		"Methods":     []map[string]interface{}{},
-		"ImportPaths": []string{importPath},
+		"ImportPaths": importPaths,
 	}
 
 	for mIdx, method := range ABI.Methods {
@@ -215,7 +218,7 @@ func GetABI(path string) (abi.ABI, customABI, error) {
 }
 
 func GenerateSolidityLibrary(config Config) error {
-	ABI, cABI, err := GetABI(config.ABI)
+	ABI, cABI, err := GetABI(config.AbiPath)
 	if err != nil {
 		return err
 	}
@@ -223,7 +226,7 @@ func GenerateSolidityLibrary(config Config) error {
 	if err != nil {
 		return err
 	}
-	err = os.WriteFile(config.Out, []byte(code), 0644)
+	err = os.WriteFile(config.OutPath, []byte(code), 0644)
 	if err != nil {
 		return err
 	}

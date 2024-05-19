@@ -15,7 +15,12 @@
 
 package solgen
 
-import "testing"
+import (
+	"path/filepath"
+	"testing"
+
+	"github.com/ethereum/go-ethereum/common"
+)
 
 func TestValidContractName(t *testing.T) {
 	testCases := []struct {
@@ -35,5 +40,19 @@ func TestValidContractName(t *testing.T) {
 		if isValidSolidityContractName(testCase.name) != testCase.expected {
 			t.Errorf("unexpected result for %q", testCase.name)
 		}
+	}
+}
+
+func TestSolgen(t *testing.T) {
+	config := Config{
+		Name:       "CounterPrecompile",
+		Address:    common.Address{0x80},
+		Pragma:     "^0.8.0",
+		AbiPath:    filepath.Join("testdata", "Counter.abi.json"),
+		OutPath:    filepath.Join("testdata", "CounterPrecompile.sol"),
+		ImportPath: filepath.Join("testdata", "Dependency.sol"),
+	}
+	if err := GenerateSolidityLibrary(config); err != nil {
+		t.Fatal(err)
 	}
 }

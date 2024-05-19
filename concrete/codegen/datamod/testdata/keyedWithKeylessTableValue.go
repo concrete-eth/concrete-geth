@@ -3,24 +3,27 @@
 package testdata
 
 import (
-	"math/big"
-
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/concrete/codegen/datamod/codec"
 	"github.com/ethereum/go-ethereum/concrete/crypto"
 	"github.com/ethereum/go-ethereum/concrete/lib"
+	"github.com/holiman/uint256"
 )
 
 // Reference imports to suppress errors if they are not used.
 var (
-	_ = big.NewInt
 	_ = common.Big1
 	_ = codec.EncodeAddress
+	_ = uint256.NewInt
 )
 
-var (
-	KeyedWithKeylessTableValueDefaultKey = crypto.Keccak256([]byte("datamod.v1.KeyedWithKeylessTableValue"))
-)
+// var (
+//	KeyedWithKeylessTableValueDefaultKey = crypto.Keccak256([]byte("datamod.v1.KeyedWithKeylessTableValue"))
+// )
+
+func KeyedWithKeylessTableValueDefaultKey() []byte {
+	return crypto.Keccak256([]byte("datamod.v1.KeyedWithKeylessTableValue"))
+}
 
 type KeyedWithKeylessTableValueRow struct {
 	lib.DatastoreStruct
@@ -51,7 +54,7 @@ type KeyedWithKeylessTableValue struct {
 }
 
 func NewKeyedWithKeylessTableValue(ds lib.Datastore) *KeyedWithKeylessTableValue {
-	dsSlot := ds.Get(KeyedWithKeylessTableValueDefaultKey)
+	dsSlot := ds.Get(KeyedWithKeylessTableValueDefaultKey())
 	return &KeyedWithKeylessTableValue{dsSlot}
 }
 
@@ -60,7 +63,7 @@ func NewKeyedWithKeylessTableValueFromSlot(dsSlot lib.DatastoreSlot) *KeyedWithK
 }
 
 func (m *KeyedWithKeylessTableValue) Get(
-	keyUint *big.Int,
+	keyUint *uint256.Int,
 ) *KeyedWithKeylessTableValueRow {
 	dsSlot := m.dsSlot.Mapping().GetNested(
 		codec.EncodeUint256(32, keyUint),
