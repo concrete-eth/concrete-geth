@@ -23,6 +23,8 @@ import (
 	"github.com/holiman/uint256"
 )
 
+type Environment = api.Environment
+
 type Precompile interface {
 	IsStatic(input []byte) bool
 	Run(env api.Environment, input []byte) ([]byte, error)
