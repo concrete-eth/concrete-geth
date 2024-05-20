@@ -108,8 +108,7 @@ func nameToFieldType(name string) (FieldType, error) {
 	}
 
 	matchesUint := strings.HasPrefix(name, "uint")
-	// matchesInt := strings.HasPrefix(name, "int")
-	matchesInt := false
+	matchesInt := strings.HasPrefix(name, "int")
 
 	if matchesUint || matchesInt {
 		var noSizeTypeStr string
@@ -130,6 +129,10 @@ func nameToFieldType(name string) (FieldType, error) {
 		}
 		if size < 8 || (size > 64 && size != 256) || size%8 != 0 {
 			return FieldType{}, fmt.Errorf("invalid integer size %d", size)
+		}
+
+		if noSizeTypeStr == "int" && size == 256 {
+			return FieldType{}, fmt.Errorf("int256 is not valid, use uint256 with Sign() and Neg() to represent negative big numbers")
 		}
 
 		fieldType := FieldType{

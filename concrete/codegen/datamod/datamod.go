@@ -60,7 +60,7 @@ func newFieldSchema(name string, index int, typeStr string) (FieldSchema, error)
 	}, nil
 }
 
-func unmarshalTableSchemas(jsonContent []byte, allowTableTypes bool) ([]TableSchema, error) {
+func UnmarshalTableSchemas(jsonContent []byte, allowTableTypes bool) ([]TableSchema, error) {
 	jsonSchemas := orderedmap.New()
 	err := json.Unmarshal(jsonContent, &jsonSchemas)
 	if err != nil {
@@ -156,17 +156,13 @@ func GenerateDataModel(config Config, allowTableTypes bool) error {
 	if err != nil {
 		return err
 	}
-	schemas, err := unmarshalTableSchemas(jsonContent, allowTableTypes)
+	schemas, err := UnmarshalTableSchemas(jsonContent, allowTableTypes)
 	if err != nil {
 		return err
 	}
 
 	funcMap := template.FuncMap{
 		"sub": func(a, b int) int { return a - b },
-	}
-	tpl, err := template.New("table").Funcs(funcMap).Parse(tableTpl)
-	if err != nil {
-		return err
 	}
 
 	for _, schema := range schemas {
@@ -192,17 +188,23 @@ func GenerateDataModel(config Config, allowTableTypes bool) error {
 			"SizesStr":        sizesStr,
 		}
 
-		var buf bytes.Buffer
-		if err := tpl.Execute(&buf, data); err != nil {
+		filename := lowerFirstLetter(tableName) + ".go"
+
+		tpl, err := template.New("table").Funcs(funcMap).Parse(tableTpl)
+		if err != nil {
 			return err
 		}
-		filename := lowerFirstLetter(tableName) + ".go"
-		// filename := camelToSnake(lowerFirstLetter(tableName)) + ".go"
-		outPath := filepath.Join(config.OutDir, filename)
-		err := os.WriteFile(outPath, buf.Bytes(), 0644)
-		if err != nil {
+		if err = ExecuteTemplate(tpl, data, filepath.Join(config.OutDir, filename+".go")); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func ExecuteTemplate(tpl *template.Template, data map[string]interface{}, outPath string) error {
+	var buf bytes.Buffer
+	if err := tpl.Execute(&buf, data); err != nil {
+		return err
+	}
+	return os.WriteFile(outPath, buf.Bytes(), 0644)
 }
