@@ -44,7 +44,7 @@ func TestEnvKeyValueStore(t *testing.T) {
 	}{
 		{
 			name: "Persistent",
-			kv:   newEnvStorageKeyValueStore(mock.NewMockEnvironment(config, meterGas, contract)),
+			kv:   NewEnvStorageKeyValueStore(mock.NewMockEnvironment(config, meterGas, contract)),
 		},
 	}
 	for _, test := range tests {

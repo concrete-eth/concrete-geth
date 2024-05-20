@@ -41,7 +41,7 @@ type envStorageKV struct {
 	env api.Environment
 }
 
-func newEnvStorageKeyValueStore(env api.Environment) *envStorageKV {
+func NewEnvStorageKeyValueStore(env api.Environment) *envStorageKV {
 	return &envStorageKV{env: env}
 }
 
@@ -81,8 +81,12 @@ func (ds *datastore) Get(key []byte) DatastoreSlot {
 
 var _ Datastore = (*datastore)(nil)
 
+func NewKVDatastore(kv KeyValueStore) Datastore {
+	return newDatastore(kv)
+}
+
 func NewStorageDatastore(env api.Environment) Datastore {
-	kv := newEnvStorageKeyValueStore(env)
+	kv := NewEnvStorageKeyValueStore(env)
 	return newDatastore(kv)
 }
 

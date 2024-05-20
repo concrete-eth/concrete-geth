@@ -36,7 +36,7 @@ func New{{$.RowStructName}}(dsSlot lib.DatastoreSlot) *{{$.RowStructName}} {
 
 func (v *{{$.RowStructName}}) Get() (
 {{- range $value := $.Schema.Values }}
-	{{if eq $value.Type.Type 2}}*{{end}}{{$value.Type.GoType}},
+	{{$value.Name}} {{if eq $value.Type.Type 2}}*{{end}}{{$value.Type.GoType}},
 {{- end }}
 ) {
 	return {{ range $value := $.Schema.Values }}
@@ -67,7 +67,7 @@ func (v *{{$.RowStructName}}) Set(
 {{range $value := .Schema.Values}}
 {{- if lt $value.Type.Type 2 }}
 func (v *{{$.RowStructName}}) Get{{$value.Title}}() {{$value.Type.GoType}} {
-	data := {{if eq $value.Type.Type 0}}v.GetField{{else}}v.GetField_bytes{{end}}({{.Index}})
+	data := {{if eq $value.Type.Type 0}}v.GetField{{else}}v.GetField_bytes{{end}}({{$value.Index}})
 	return codec.{{$value.Type.DecodeFunc}}({{$value.Type.Size}}, data)
 }
 
@@ -82,7 +82,6 @@ func (v *{{$.RowStructName}}) Get{{$value.Title}}() *{{$value.Type.GoType}} {
 }
 {{ end}}
 {{- end}}
-{{- if $.Schema.Keys }}
 type {{$.TableStructName}} struct {
 	dsSlot lib.DatastoreSlot
 }
@@ -96,27 +95,21 @@ func New{{$.TableStructName}}FromSlot(dsSlot lib.DatastoreSlot) *{{$.TableStruct
 	return &{{$.TableStructName}}{dsSlot}
 }
 
+{{- if $.Schema.Keys }}
 func (m *{{$.TableStructName}}) Get(
-{{- range $key := .Schema.Keys }}
+{{- range $key := $.Schema.Keys }}
 	{{$key.Name}} {{$key.Type.GoType}},
 {{- end }}
 ) *{{$.RowStructName}} {
 	dsSlot := m.dsSlot.Mapping().GetNested(
-		{{- range $key := .Schema.Keys }}
+		{{- range $key := $.Schema.Keys }}
 		codec.{{$key.Type.EncodeFunc}}({{$key.Type.Size}}, {{$key.Name}}),
 		{{- end }}
 	)
 	return New{{$.RowStructName}}(dsSlot)
 }
 {{- else }}
-type {{$.TableStructName}} = {{$.RowStructName}}
-
-func New{{$.TableStructName}}(ds lib.Datastore) *{{$.RowStructName}} {
-	dsSlot := ds.Get({{$.TableStructName}}DefaultKey())
-	return New{{$.RowStructName}}(dsSlot)
-}
-
-func New{{$.TableStructName}}FromSlot(dsSlot lib.DatastoreSlot) *{{$.RowStructName}} {
-	return New{{$.RowStructName}}(dsSlot)
+func (m *{{$.TableStructName}}) Get() *{{$.RowStructName}} {
+	return New{{$.RowStructName}}(m.dsSlot)
 }
 {{- end }}

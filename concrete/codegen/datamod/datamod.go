@@ -194,7 +194,7 @@ func GenerateDataModel(config Config, allowTableTypes bool) error {
 		if err != nil {
 			return err
 		}
-		if err = ExecuteTemplate(tpl, data, filepath.Join(config.OutDir, filename+".go")); err != nil {
+		if err = ExecuteTemplate(tpl, data, filepath.Join(config.OutDir, filename)); err != nil {
 			return err
 		}
 	}
