@@ -40,14 +40,6 @@ func (pc *pcBlank) IsStatic(input []byte) bool {
 	return true
 }
 
-func (pc *pcBlank) Finalise(API api.Environment) error {
-	return nil
-}
-
-func (pc *pcBlank) Commit(API api.Environment) error {
-	return nil
-}
-
 func (pc *pcBlank) Run(API api.Environment, input []byte) ([]byte, error) {
 	return []byte{}, nil
 }

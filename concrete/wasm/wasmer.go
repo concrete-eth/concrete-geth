@@ -91,9 +91,9 @@ type wasmerPrecompile struct {
 	allocator   memory.Allocator
 	environment *api.Env
 	expIsStatic wasmer.NativeFunction
-	expFinalise wasmer.NativeFunction
-	expCommit   wasmer.NativeFunction
-	expRun      wasmer.NativeFunction
+	// expFinalise wasmer.NativeFunction
+	// expCommit wasmer.NativeFunction
+	expRun wasmer.NativeFunction
 }
 
 func newWasmerPrecompile(code []byte, engineConfig *wasmer.Config) *wasmerPrecompile {
@@ -113,14 +113,14 @@ func newWasmerPrecompile(code []byte, engineConfig *wasmer.Config) *wasmerPrecom
 	if err != nil {
 		panic(err)
 	}
-	pc.expFinalise, err = instance.Exports.GetFunction(Finalise_WasmFuncName)
-	if err != nil {
-		panic(err)
-	}
-	pc.expCommit, err = instance.Exports.GetFunction(Commit_WasmFuncName)
-	if err != nil {
-		panic(err)
-	}
+	// pc.expFinalise, err = instance.Exports.GetFunction(Finalise_WasmFuncName)
+	// if err != nil {
+	// 	panic(err)
+	// }
+	// pc.expCommit, err = instance.Exports.GetFunction(Commit_WasmFuncName)
+	// if err != nil {
+	// 	panic(err)
+	// }
 	pc.expRun, err = instance.Exports.GetFunction(Run_WasmFuncName)
 	if err != nil {
 		panic(err)
@@ -150,7 +150,7 @@ func (p *wasmerPrecompile) call_Bytes_Uint64(expFunc wasmer.NativeFunction, inpu
 	pointer := memory.PutValue(p.memory, input)
 	defer p.allocator.Free(pointer)
 	_ret, err := expFunc(int64(pointer))
-	if err != nil && p.environment.Error() == nil {
+	if err != nil {
 		panic(err)
 	}
 	ret, _ := _ret.(int64)
@@ -171,8 +171,8 @@ func (p *wasmerPrecompile) before(env api.Environment) {
 	var envImpl *api.Env
 	if env != nil {
 		envImpl = env.(*api.Env)
-		if !envImpl.Config().Trusted {
-			panic("untrusted environment")
+		if !envImpl.Config().IsTrusted {
+			panic(api.ErrEnvNotTrusted)
 		}
 	}
 	p.mutex.Lock()
@@ -189,18 +189,6 @@ func (p *wasmerPrecompile) IsStatic(input []byte) bool {
 	p.before(nil)
 	defer p.after(nil)
 	return p.call_Bytes_Uint64(p.expIsStatic, input) != 0
-}
-
-func (p *wasmerPrecompile) Finalise(env api.Environment) error {
-	p.before(env)
-	defer p.after(env)
-	return p.call__Err(p.expFinalise)
-}
-
-func (p *wasmerPrecompile) Commit(env api.Environment) error {
-	p.before(env)
-	defer p.after(env)
-	return p.call__Err(p.expCommit)
 }
 
 func (p *wasmerPrecompile) Run(env api.Environment, input []byte) ([]byte, error) {

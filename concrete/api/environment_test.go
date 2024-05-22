@@ -24,25 +24,21 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
 
 func TestGas(t *testing.T) {
 	var (
-		r       = require.New(t)
-		address = common.HexToAddress("0xc0ffee0001")
-		config  = EnvConfig{
-			Static:    false,
-			Ephemeral: false,
-			Trusted:   false,
-		}
+		r        = require.New(t)
+		config   = EnvConfig{IsStatic: false, IsTrusted: false}
 		meterGas = true
+		contract = NewContract(common.Address{}, common.Address{}, common.HexToAddress("0xc0ffee0001"), new(uint256.Int))
 		gas      = uint64(1e6)
 	)
 
-	env := NewMockEnvironment(address, config, meterGas, gas)
-
-	r.Equal(gas, env.Gas())
+	env := NewMockEnvironment(config, meterGas, contract)
+	env.contract.Gas = gas
 
 	// GetGasLeft() costs gas, so the cost of that operation must be subtracted
 	// from the total gas.
@@ -50,23 +46,19 @@ func TestGas(t *testing.T) {
 	gas -= getGasLeftOpCost
 	r.Equal(gas, env.GetGasLeft())
 	r.Equal(gas, env.Gas())
-	r.NoError(env.Error())
 }
 
 func TestBlockOps_Minimal(t *testing.T) {
 	var (
-		r       = require.New(t)
-		address = common.HexToAddress("0xc0ffee0001")
-		config  = EnvConfig{
-			Static:    true,
-			Ephemeral: false,
-			Trusted:   false,
-		}
+		r        = require.New(t)
+		config   = EnvConfig{IsStatic: false, IsTrusted: false}
 		meterGas = true
+		contract = NewContract(common.Address{}, common.Address{}, common.HexToAddress("0xc0ffee0001"), new(uint256.Int))
 		gas      = uint64(1e6)
 	)
 
-	env := NewMockEnvironment(address, config, meterGas, gas)
+	env := NewMockEnvironment(config, meterGas, contract)
+	env.contract.Gas = gas
 
 	r.Equal(env.block.GetHash(0), env.GetBlockHash(0))
 	r.Equal(env.block.GasLimit(), env.GetBlockGasLimit())
@@ -76,61 +68,63 @@ func TestBlockOps_Minimal(t *testing.T) {
 	r.Equal(env.block.BaseFee(), env.GetBlockBaseFee())
 	r.Equal(env.block.Coinbase(), env.GetBlockCoinbase())
 	r.Equal(env.block.Random(), env.GetPrevRandom())
-	r.NoError(env.Error())
 }
 
 func TestCallOps_Minimal(t *testing.T) {
 	var (
-		r       = require.New(t)
-		address = common.HexToAddress("0xc0ffee0001")
-		config  = EnvConfig{
-			Static:    true,
-			Ephemeral: false,
-			Trusted:   false,
-		}
+		r        = require.New(t)
+		config   = EnvConfig{IsStatic: false, IsTrusted: false}
 		meterGas = true
+		contract = NewContract(common.Address{}, common.Address{}, common.HexToAddress("0xc0ffee0001"), new(uint256.Int))
 		gas      = uint64(1e6)
 	)
 
-	env := NewMockEnvironment(address, config, meterGas, gas)
+	env := NewMockEnvironment(config, meterGas, contract)
+	env.contract.Input = []byte{0x01, 0x02, 0x03}
+	env.contract.Gas = gas
+	env.contract.Value = uint256.NewInt(1)
 
-	r.Equal(env.call.TxGasPrice(), env.GetTxGasPrice())
-	r.Equal(env.call.TxOrigin(), env.GetTxOrigin())
-	r.Equal(env.call.CallData(), env.GetCallData())
-	r.Equal(env.call.CallDataSize(), env.GetCallDataSize())
-	r.Equal(env.call.Caller(), env.GetCaller())
-	r.Equal(env.call.CallValue(), env.GetCallValue())
-	r.NoError(env.Error())
+	r.Equal(env.contract.GasPrice, env.GetTxGasPrice())
+	r.Equal(env.contract.Origin, env.GetTxOrigin())
+	r.Equal(env.contract.Input, env.GetCallData())
+	r.Equal(len(env.contract.Input), env.GetCallDataSize())
+	r.Equal(env.contract.Caller, env.GetCaller())
+	r.Equal(env.contract.Value, env.GetCallValue())
 }
 
 func TestTrustAndWriteProtection(t *testing.T) {
 	var (
-		r       = require.New(t)
-		address = common.HexToAddress("0xc0ffee0001")
-		config  = EnvConfig{
-			Static:    true,
-			Ephemeral: true,
-			Trusted:   false,
-		}
-		meterGas = true
-		gas      = uint64(1e6)
+		r        = require.New(t)
+		config   = EnvConfig{IsStatic: true, IsTrusted: false}
+		meterGas = false
+		contract = NewContract(common.Address{}, common.Address{}, common.HexToAddress("0xc0ffee0001"), new(uint256.Int))
 	)
 
-	env := NewMockEnvironment(address, config, meterGas, gas)
-	env.EnableGasMetering(false)
+	env := NewMockEnvironment(config, meterGas, contract)
+	env.contract.Input = []byte{0x01, 0x02, 0x03}
+	env.contract.Value = uint256.NewInt(1)
 
 	table := newEnvironmentMethods()
 	for opcode, method := range table {
-		env.envErr = nil
-		env.execute(OpCode(opcode), nil)
+		err := func() (err error) {
+			defer func() {
+				if r := recover(); r != nil {
+					err = r.(error)
+				}
+			}()
+			env.execute(OpCode(opcode), nil)
+			return nil
+		}()
 		if method.trusted {
-			r.Equal(ErrEnvNotTrusted, env.Error())
+			r.Equal(ErrEnvNotTrusted, err)
 		} else if !method.static {
-			r.Equal(ErrWriteProtection, env.Error())
+			r.Equal(ErrWriteProtection, err)
 		} else {
-			err := env.Error()
 			if err != nil && err != ErrInvalidOpCode {
-				r.Equal(ErrInvalidInput, err)
+				if err != ErrInvalidInput {
+					_, err = method.dynamicGas(env, nil)
+					r.Equal(ErrInvalidInput, err)
+				}
 			}
 		}
 	}

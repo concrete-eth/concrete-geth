@@ -32,6 +32,7 @@ type FieldType struct {
 	Type       int
 	Size       int
 	GoType     string
+	SolType    string
 	EncodeFunc string
 	DecodeFunc string
 }
@@ -43,6 +44,7 @@ func nameToFieldType(name string) (FieldType, error) {
 			Name:       "address",
 			Size:       20,
 			GoType:     "common.Address",
+			SolType:    "address",
 			EncodeFunc: "EncodeAddress",
 			DecodeFunc: "DecodeAddress",
 		}, nil
@@ -51,6 +53,7 @@ func nameToFieldType(name string) (FieldType, error) {
 			Name:       "bool",
 			Size:       1,
 			GoType:     "bool",
+			SolType:    "bool",
 			EncodeFunc: "EncodeBool",
 			DecodeFunc: "DecodeBool",
 		}, nil
@@ -63,6 +66,7 @@ func nameToFieldType(name string) (FieldType, error) {
 			Name:       "bytes",
 			Size:       32,
 			GoType:     "[]byte",
+			SolType:    "memory bytes",
 			EncodeFunc: "EncodeBytes",
 			DecodeFunc: "DecodeBytes",
 			Type:       BytesType,
@@ -72,6 +76,7 @@ func nameToFieldType(name string) (FieldType, error) {
 			Name:       "string",
 			Size:       32,
 			GoType:     "string",
+			SolType:    "memory string",
 			EncodeFunc: "EncodeString",
 			DecodeFunc: "DecodeString",
 			Type:       BytesType,
@@ -96,6 +101,7 @@ func nameToFieldType(name string) (FieldType, error) {
 			Name:       name,
 			Size:       size,
 			GoType:     "[]byte",
+			SolType:    fmt.Sprintf("bytes%d", size),
 			EncodeFunc: "EncodeFixedBytes",
 			DecodeFunc: "DecodeFixedBytes",
 		}
@@ -131,24 +137,29 @@ func nameToFieldType(name string) (FieldType, error) {
 			return FieldType{}, fmt.Errorf("invalid integer size %d", size)
 		}
 
+		if noSizeTypeStr == "int" && size == 256 {
+			return FieldType{}, fmt.Errorf("int256 is not valid, use uint256 with Sign() and Neg() to represent negative big numbers")
+		}
+
 		fieldType := FieldType{
 			Name: name,
 			Size: size / 8,
 		}
 		var (
-			goType     string
-			codecSufix string
+			goType      string
+			codecSuffix string
 		)
 		if size <= 64 {
 			goType = noSizeTypeStr + fmt.Sprint(size)
-			codecSufix = fmt.Sprintf("Small%s%d", upperFirstLetter(noSizeTypeStr), size)
+			codecSuffix = fmt.Sprintf("%s%d", upperFirstLetter(noSizeTypeStr), size)
 		} else {
-			goType = "*big.Int"
-			codecSufix = fmt.Sprintf("%s256", upperFirstLetter(noSizeTypeStr))
+			goType = "*uint256.Int"
+			codecSuffix = fmt.Sprintf("%s256", upperFirstLetter(noSizeTypeStr))
 		}
 		fieldType.GoType = goType
-		fieldType.EncodeFunc = "Encode" + codecSufix
-		fieldType.DecodeFunc = "Decode" + codecSufix
+		fieldType.SolType = fmt.Sprintf("%s%d", noSizeTypeStr, size)
+		fieldType.EncodeFunc = "Encode" + codecSuffix
+		fieldType.DecodeFunc = "Decode" + codecSuffix
 		return fieldType, nil
 	}
 
@@ -158,10 +169,11 @@ func nameToFieldType(name string) (FieldType, error) {
 			return FieldType{}, fmt.Errorf("invalid table name %s", tableName)
 		}
 		return FieldType{
-			Name:   tableName,
-			Size:   32,
-			GoType: formatTableName(tableName),
-			Type:   TableType,
+			Name:    tableName,
+			Size:    32,
+			GoType:  formatTableName(tableName),
+			SolType: fmt.Sprintf("memory %s", formatTableName(tableName)),
+			Type:    TableType,
 		}, nil
 	}
 

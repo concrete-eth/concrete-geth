@@ -2472,11 +2472,7 @@ func (bc *BlockChain) GetTrieFlushInterval() time.Duration {
 }
 
 func (bs *BlockChain) SetConcrete(concreteRegistry concrete.PrecompileRegistry) {
-	if concreteRegistry == nil {
-		bs.concrete = &concrete.GenericPrecompileRegistry{}
-	} else {
-		bs.concrete = concreteRegistry
-	}
+	bs.concrete = concreteRegistry
 }
 
 func (bs *BlockChain) Concrete() concrete.PrecompileRegistry {

@@ -50,10 +50,9 @@ func newEnvironmentMethods() JumpTable {
 			trusted: true,
 			static:  true,
 		},
-		Keccak256_OpCode: {
-			execute:     opKeccak256,
-			constantGas: params.Keccak256Gas,
-			dynamicGas:  gasKeccak256,
+		Revert_OpCode: {
+			execute:     opRevert,
+			constantGas: GasQuickStep,
 			static:      true,
 		},
 		UseGas_OpCode: {
@@ -61,16 +60,10 @@ func newEnvironmentMethods() JumpTable {
 			dynamicGas: gasUseGas,
 			static:     true,
 		},
-		EphemeralStore_OpCode: {
-			execute:     opEphemeralStore,
-			constantGas: params.WarmStorageReadCostEIP2929,
-			trusted:     true,
-			static:      false,
-		},
-		EphemeralLoad_OpCode: {
-			execute:     opEphemeralLoad,
-			constantGas: params.WarmStorageReadCostEIP2929,
-			trusted:     true,
+		Keccak256_OpCode: {
+			execute:     opKeccak256,
+			constantGas: params.Keccak256Gas,
+			dynamicGas:  gasKeccak256,
 			static:      true,
 		},
 		GetAddress_OpCode: {
@@ -165,6 +158,7 @@ func newEnvironmentMethods() JumpTable {
 		},
 		GetCode_OpCode: {
 			// disabled
+			// TODO: Why is this disabled?
 			execute:     opGetCode,
 			constantGas: 0,
 			static:      true,
@@ -270,7 +264,7 @@ func gasExternalCall(env *Env, address common.Address, callCost uint64) (uint64,
 	if err != nil {
 		return 0, err
 	}
-	gasAvailable, overflow := math.SafeSub(env.gas, baseCost)
+	gasAvailable, overflow := math.SafeSub(env.contract.Gas, baseCost)
 	if overflow {
 		return 0, ErrGasUintOverflow
 	}
@@ -280,7 +274,6 @@ func gasExternalCall(env *Env, address common.Address, callCost uint64) (uint64,
 	} else {
 		env.callGasTemp = callCost
 	}
-	// baseCost < MAX_UINT64 / 64, so this cannot overflow
 	return env.callGasTemp + baseCost, nil
 }
 
@@ -295,9 +288,6 @@ func opEnableGasMetering(env *Env, args [][]byte) ([][]byte, error) {
 	var meter bool
 	if args[0][0]&1 == byte(0x01) {
 		meter = true
-	}
-	if env.meterGas == meter {
-		return nil, nil
 	}
 	env.meterGas = meter
 	return nil, nil
@@ -354,57 +344,32 @@ func opUseGas(env *Env, args [][]byte) ([][]byte, error) {
 	return nil, nil
 }
 
-func opEphemeralStore(env *Env, args [][]byte) ([][]byte, error) {
-	if len(args) != 2 {
-		return nil, ErrInvalidInput
-	}
-	if len(args[0]) != 32 || len(args[1]) != 32 {
-		return nil, ErrInvalidInput
-	}
-	if !env.config.Ephemeral {
-		return nil, ErrFeatureDisabled
-	}
-	key := common.BytesToHash(args[0])
-	value := common.BytesToHash(args[1])
-	env.statedb.SetEphemeralState(env.address, key, value)
-	return nil, nil
-}
-
-func opEphemeralLoad(env *Env, args [][]byte) ([][]byte, error) {
+func opRevert(env *Env, args [][]byte) ([][]byte, error) {
 	if len(args) != 1 {
 		return nil, ErrInvalidInput
 	}
-	if len(args[0]) != 32 {
-		return nil, ErrInvalidInput
-	}
-	if !env.config.Ephemeral {
-		return nil, ErrFeatureDisabled
-	}
-	key := common.BytesToHash(args[0])
-	value := env.statedb.GetEphemeralState(env.address, key)
-	return [][]byte{value.Bytes()}, nil
+	reason := string(args[0])
+	env.revertErr = errors.New(reason)
+	return nil, ErrExecutionReverted
 }
 
 func opGetAddress(env *Env, args [][]byte) ([][]byte, error) {
 	if len(args) != 0 {
 		return nil, ErrInvalidInput
 	}
-	return [][]byte{env.address.Bytes()}, nil
+	return [][]byte{env.contract.Address.Bytes()}, nil
 }
 
 func opGetGasLeft(env *Env, args [][]byte) ([][]byte, error) {
 	if len(args) != 0 {
 		return nil, ErrInvalidInput
 	}
-	return [][]byte{utils.Uint64ToBytes(env.gas)}, nil
+	return [][]byte{utils.Uint64ToBytes(env.Gas())}, nil
 }
 
 func opGetBlockNumber(env *Env, args [][]byte) ([][]byte, error) {
 	if len(args) != 0 {
 		return nil, ErrInvalidInput
-	}
-	if env.block == nil {
-		return nil, ErrNoData
 	}
 	number := env.block.BlockNumber()
 	return [][]byte{utils.Uint64ToBytes(number)}, nil
@@ -414,9 +379,6 @@ func opGetBlockGasLimit(env *Env, args [][]byte) ([][]byte, error) {
 	if len(args) != 0 {
 		return nil, ErrInvalidInput
 	}
-	if env.block == nil {
-		return nil, ErrNoData
-	}
 	limit := env.block.GasLimit()
 	return [][]byte{utils.Uint64ToBytes(limit)}, nil
 }
@@ -424,9 +386,6 @@ func opGetBlockGasLimit(env *Env, args [][]byte) ([][]byte, error) {
 func opGetBlockTimestamp(env *Env, args [][]byte) ([][]byte, error) {
 	if len(args) != 0 {
 		return nil, ErrInvalidInput
-	}
-	if env.block == nil {
-		return nil, ErrNoData
 	}
 	timestamp := env.block.Timestamp()
 	return [][]byte{utils.Uint64ToBytes(timestamp)}, nil
@@ -436,9 +395,6 @@ func opGetBlockDifficulty(env *Env, args [][]byte) ([][]byte, error) {
 	if len(args) != 0 {
 		return nil, ErrInvalidInput
 	}
-	if env.block == nil {
-		return nil, ErrNoData
-	}
 	difficulty := env.block.Difficulty()
 	return [][]byte{difficulty.Bytes()}, nil
 }
@@ -446,9 +402,6 @@ func opGetBlockDifficulty(env *Env, args [][]byte) ([][]byte, error) {
 func opGetBlockBaseFee(env *Env, args [][]byte) ([][]byte, error) {
 	if len(args) != 0 {
 		return nil, ErrInvalidInput
-	}
-	if env.block == nil {
-		return nil, ErrNoData
 	}
 	baseFee := env.block.BaseFee()
 	return [][]byte{baseFee.Bytes()}, nil
@@ -458,9 +411,6 @@ func opGetBlockCoinbase(env *Env, args [][]byte) ([][]byte, error) {
 	if len(args) != 0 {
 		return nil, ErrInvalidInput
 	}
-	if env.block == nil {
-		return nil, ErrNoData
-	}
 	coinbase := env.block.Coinbase()
 	return [][]byte{coinbase.Bytes()}, nil
 }
@@ -469,9 +419,6 @@ func opGetPrevRandom(env *Env, args [][]byte) ([][]byte, error) {
 	if len(args) != 0 {
 		return nil, ErrInvalidInput
 	}
-	if env.block == nil {
-		return nil, ErrNoData
-	}
 	random := env.block.Random()
 	return [][]byte{random.Bytes()}, nil
 }
@@ -479,9 +426,6 @@ func opGetPrevRandom(env *Env, args [][]byte) ([][]byte, error) {
 func opGetBlockHash(env *Env, args [][]byte) ([][]byte, error) {
 	if len(args) != 1 {
 		return nil, ErrInvalidInput
-	}
-	if env.block == nil {
-		return nil, ErrNoData
 	}
 	if len(args[0]) != 8 {
 		return nil, ErrInvalidInput
@@ -505,7 +449,7 @@ func opGetBalance(env *Env, args [][]byte) ([][]byte, error) {
 	if len(args) != 0 {
 		return nil, ErrInvalidInput
 	}
-	balance := env.statedb.GetBalance(env.address)
+	balance := env.statedb.GetBalance(env.contract.Address)
 	return [][]byte{balance.Bytes()}, nil
 }
 
@@ -513,10 +457,7 @@ func opGetTxGasPrice(env *Env, args [][]byte) ([][]byte, error) {
 	if len(args) != 0 {
 		return nil, ErrInvalidInput
 	}
-	if env.call == nil {
-		return nil, ErrNoData
-	}
-	price := env.call.TxGasPrice()
+	price := env.contract.GasPrice
 	return [][]byte{price.Bytes()}, nil
 }
 
@@ -524,18 +465,15 @@ func opGetTxOrigin(env *Env, args [][]byte) ([][]byte, error) {
 	if len(args) != 0 {
 		return nil, ErrInvalidInput
 	}
-	if env.call == nil {
-		return nil, ErrNoData
-	}
-	origin := env.call.TxOrigin()
+	origin := env.contract.Origin
 	return [][]byte{origin.Bytes()}, nil
 }
 
 func opGetCallData(env *Env, args [][]byte) ([][]byte, error) {
-	if env.call == nil {
-		return nil, ErrNoData
+	if len(args) != 0 {
+		return nil, ErrInvalidInput
 	}
-	data := env.call.CallData()
+	data := env.contract.Input
 	dataCopy := make([]byte, len(data))
 	copy(dataCopy, data)
 	return [][]byte{dataCopy}, nil
@@ -545,10 +483,7 @@ func opGetCallDataSize(env *Env, args [][]byte) ([][]byte, error) {
 	if len(args) != 0 {
 		return nil, ErrInvalidInput
 	}
-	if env.call == nil {
-		return nil, ErrNoData
-	}
-	size := env.call.CallDataSize()
+	size := len(env.contract.Input)
 	return [][]byte{utils.Uint64ToBytes(uint64(size))}, nil
 }
 
@@ -556,10 +491,7 @@ func opGetCaller(env *Env, args [][]byte) ([][]byte, error) {
 	if len(args) != 0 {
 		return nil, ErrInvalidInput
 	}
-	if env.call == nil {
-		return nil, ErrNoData
-	}
-	caller := env.call.Caller()
+	caller := env.contract.Caller
 	return [][]byte{caller.Bytes()}, nil
 }
 
@@ -567,10 +499,7 @@ func opGetCallValue(env *Env, args [][]byte) ([][]byte, error) {
 	if len(args) != 0 {
 		return nil, ErrInvalidInput
 	}
-	if env.call == nil {
-		return nil, ErrNoData
-	}
-	value := env.call.CallValue()
+	value := env.contract.Value
 	return [][]byte{value.Bytes()}, nil
 }
 
@@ -582,8 +511,8 @@ func gasStorageLoad(env *Env, args [][]byte) (uint64, error) {
 		return 0, ErrInvalidInput
 	}
 	key := common.BytesToHash(args[0])
-	if _, slotPresent := env.statedb.SlotInAccessList(env.address, key); !slotPresent {
-		env.statedb.AddSlotToAccessList(env.address, key)
+	if _, slotPresent := env.statedb.SlotInAccessList(env.contract.Address, key); !slotPresent {
+		env.statedb.AddSlotToAccessList(env.contract.Address, key)
 		return params.ColdSloadCostEIP2929, nil
 	}
 	return params.WarmStorageReadCostEIP2929, nil
@@ -591,7 +520,7 @@ func gasStorageLoad(env *Env, args [][]byte) (uint64, error) {
 
 func opStorageLoad(env *Env, args [][]byte) ([][]byte, error) {
 	key := common.BytesToHash(args[0])
-	value := env.statedb.GetPersistentState(env.address, key)
+	value := env.statedb.GetState(env.contract.Address, key)
 	return [][]byte{value.Bytes()}, nil
 }
 
@@ -613,23 +542,23 @@ func gasStorageStore(env *Env, args [][]byte) (uint64, error) {
 	if len(args[0]) != 32 || len(args[1]) != 32 {
 		return 0, ErrInvalidInput
 	}
-	if env.gas <= params.SstoreSentryGasEIP2200 {
+	if env.contract.Gas <= params.SstoreSentryGasEIP2200 {
 		return 0, errors.New("not enough gas for reentrancy sentry")
 	}
 	var (
 		key     = common.BytesToHash(args[0])
-		current = env.statedb.GetPersistentState(env.address, key)
+		current = env.statedb.GetState(env.contract.Address, key)
 		cost    = uint64(0)
 	)
-	if _, slotPresent := env.statedb.SlotInAccessList(env.address, key); !slotPresent {
+	if _, slotPresent := env.statedb.SlotInAccessList(env.contract.Address, key); !slotPresent {
 		cost = params.ColdSloadCostEIP2929
-		env.statedb.AddSlotToAccessList(env.address, key)
+		env.statedb.AddSlotToAccessList(env.contract.Address, key)
 	}
 	value := common.BytesToHash(args[1])
 	if current == value {
 		return cost + params.WarmStorageReadCostEIP2929, nil
 	}
-	original := env.statedb.GetCommittedState(env.address, key)
+	original := env.statedb.GetCommittedState(env.contract.Address, key)
 	if original == current {
 		if original == (common.Hash{}) {
 			return cost + params.SstoreSetGasEIP2200, nil
@@ -659,7 +588,7 @@ func gasStorageStore(env *Env, args [][]byte) (uint64, error) {
 func opStorageStore(env *Env, args [][]byte) ([][]byte, error) {
 	key := common.BytesToHash(args[0])
 	value := common.BytesToHash(args[1])
-	env.statedb.SetPersistentState(env.address, key, value)
+	env.statedb.SetState(env.contract.Address, key, value)
 	return nil, nil
 }
 
@@ -673,8 +602,6 @@ func gasLog(env *Env, args [][]byte) (uint64, error) {
 			return 0, ErrInvalidInput
 		}
 	}
-	// We assume len() to always be much smaller than (MAX_UINT64 - LogGas - 4 * LogTopicGas) / LogDataGas
-	// so this cannot overflow
 	topicGas := uint64(nTopics) * params.LogTopicGas
 	dataSize := uint64(len(args[nTopics]))
 	dataGas := dataSize * params.LogDataGas
@@ -690,7 +617,7 @@ func opLog(env *Env, args [][]byte) ([][]byte, error) {
 	dataCopy := make([]byte, len(data))
 	copy(dataCopy, data)
 	env.statedb.AddLog(&types.Log{
-		Address:     env.address,
+		Address:     env.contract.Address,
 		Topics:      topics,
 		Data:        dataCopy,
 		BlockNumber: env.block.BlockNumber(),
@@ -784,16 +711,13 @@ func gasCallStatic(env *Env, args [][]byte) (uint64, error) {
 }
 
 func opCallStatic(env *Env, args [][]byte) ([][]byte, error) {
-	if env.caller == nil {
-		return nil, ErrNoData
-	}
 	var (
 		address = common.BytesToAddress(args[0])
 		input   = args[1]
 		gas     = env.callGasTemp
 	)
 	output, gasLeft, err := env.caller.CallStatic(address, input, gas)
-	env.gas += gasLeft
+	env.contract.Gas += gasLeft
 	return [][]byte{output, utils.EncodeError(err)}, nil
 }
 
@@ -816,9 +740,6 @@ func gasCall(env *Env, args [][]byte) (uint64, error) {
 }
 
 func opCall(env *Env, args [][]byte) ([][]byte, error) {
-	if env.caller == nil {
-		return nil, ErrNoData
-	}
 	var (
 		address = common.BytesToAddress(args[0])
 		input   = args[1]
@@ -826,7 +747,7 @@ func opCall(env *Env, args [][]byte) ([][]byte, error) {
 		value   = new(uint256.Int).SetBytes(args[3])
 	)
 	output, gasLeft, err := env.caller.Call(address, input, gas, value)
-	env.gas += gasLeft
+	env.contract.Gas += gasLeft
 	return [][]byte{output, utils.EncodeError(err)}, nil
 }
 
@@ -846,16 +767,13 @@ func gasCallDelegate(env *Env, args [][]byte) (uint64, error) {
 }
 
 func opCallDelegate(env *Env, args [][]byte) ([][]byte, error) {
-	if env.caller == nil {
-		return nil, ErrNoData
-	}
 	var (
 		address = common.BytesToAddress(args[0])
 		input   = args[1]
 		gas     = env.callGasTemp
 	)
 	output, gasLeft, err := env.caller.CallDelegate(address, input, gas)
-	env.gas += gasLeft
+	env.contract.Gas += gasLeft
 	return [][]byte{output, utils.EncodeError(err)}, nil
 }
 
@@ -874,18 +792,16 @@ func gasCreate(env *Env, args [][]byte) (uint64, error) {
 }
 
 func opCreate(env *Env, args [][]byte) ([][]byte, error) {
-	if env.caller == nil {
-		return nil, ErrNoData
-	}
 	var (
 		input = args[0]
 		value = new(uint256.Int).SetBytes(args[1])
-		gas   = env.gas
+		gas   = env.contract.Gas
 	)
 	gas -= gas / 64
 	env.useGas(gas) // This will always return true since we are using a fraction of the gas left
-	address, gasLeft, err := env.caller.Create(input, gas, value)
-	env.gas += gasLeft
+	// TODO: return value
+	_, address, gasLeft, err := env.caller.Create(input, gas, value)
+	env.contract.Gas += gasLeft
 	return [][]byte{address.Bytes(), utils.EncodeError(err)}, nil
 }
 
@@ -896,12 +812,6 @@ func gasCreate2(env *Env, args [][]byte) (uint64, error) {
 	if len(args[1]) != 32 || len(args[2]) != 32 {
 		return 0, ErrInvalidInput
 	}
-	if len(args) != 2 {
-		return 0, ErrInvalidInput
-	}
-	if len(args[1]) != 32 {
-		return 0, ErrInvalidInput
-	}
 	// We assume len() to always be much smaller than 32 * MAX_UINT64 / (InitCodeWordGas + Keccak256WordGas)
 	// so this cannot overflow
 	wordSize := toWordSize(len(args[0]))
@@ -910,18 +820,15 @@ func gasCreate2(env *Env, args [][]byte) (uint64, error) {
 }
 
 func opCreate2(env *Env, args [][]byte) ([][]byte, error) {
-	if env.caller == nil {
-		return nil, ErrNoData
-	}
 	var (
 		input = args[0]
 		value = new(uint256.Int).SetBytes(args[1])
-		salt  = common.BytesToHash(args[2])
-		gas   = env.gas
+		salt  = new(uint256.Int).SetBytes(args[2])
+		gas   = env.contract.Gas
 	)
 	gas -= gas / 64
 	env.useGas(gas) // This will always return true since we are using a fraction of the gas left
-	address, gasLeft, err := env.caller.Create2(input, salt, gas, value)
-	env.gas += gasLeft
+	_, address, gasLeft, err := env.caller.Create2(input, gas, value, salt)
+	env.contract.Gas += gasLeft
 	return [][]byte{address.Bytes(), utils.EncodeError(err)}, nil
 }

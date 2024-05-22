@@ -21,12 +21,12 @@
 package lib
 
 import (
-	"math/big"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/concrete/api"
 	"github.com/ethereum/go-ethereum/concrete/mock"
+	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
 
@@ -34,9 +34,9 @@ func TestEnvKeyValueStore(t *testing.T) {
 	var (
 		r        = require.New(t)
 		address  = common.HexToAddress("0xc0ffee0001")
-		config   = api.EnvConfig{Trusted: true, Ephemeral: true}
+		config   = api.EnvConfig{}
 		meterGas = false
-		gas      = uint64(0)
+		contract = api.NewContract(common.Address{}, common.Address{}, address, new(uint256.Int))
 	)
 	tests := []struct {
 		name string
@@ -44,19 +44,13 @@ func TestEnvKeyValueStore(t *testing.T) {
 	}{
 		{
 			name: "Persistent",
-			kv:   newEnvPersistentKeyValueStore(mock.NewMockEnvironment(address, config, meterGas, gas)),
-		},
-		{
-			name: "Ephemeral",
-			kv:   newEnvEphemeralKeyValueStore(mock.NewMockEnvironment(address, config, meterGas, gas)),
+			kv:   NewEnvStorageKeyValueStore(mock.NewMockEnvironment(config, meterGas, contract)),
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			var (
-				kv  = test.kv
-				key = common.Hash{0x01}
-			)
+			kv := test.kv
+			key := common.Hash{0x01}
 			value := kv.Get(key)
 			r.Equal(common.Hash{}, value)
 			kv.Set(key, common.Hash{0x02})
@@ -71,10 +65,10 @@ func newSlot(keyStr string) (DatastoreSlot, common.Address, []byte) {
 		address  = common.HexToAddress("0xc0ffee0001")
 		config   = api.EnvConfig{}
 		meterGas = false
-		gas      = uint64(0)
+		contract = api.NewContract(common.Address{}, common.Address{}, address, new(uint256.Int))
 	)
-	env := mock.NewMockEnvironment(address, config, meterGas, gas)
-	ds := NewPersistentDatastore(env)
+	env := mock.NewMockEnvironment(config, meterGas, contract)
+	ds := NewStorageDatastore(env)
 	key := []byte(keyStr)
 	slot := ds.Get(key)
 	return slot, address, key
@@ -109,8 +103,7 @@ func TestDatastoreSlot(t *testing.T) {
 	r.Equal(common.Hash{}, slot.Bytes32())
 	r.Equal(false, slot.Bool())
 	r.Equal(common.Address{}, slot.Address())
-	r.Equal(int64(0), slot.BigUint().Int64())
-	r.Equal(int64(0), slot.BigInt().Int64())
+	r.Equal(uint64(0), slot.Uint256().Uint64())
 	r.Equal(uint64(0), slot.Uint64())
 	r.Equal(int64(0), slot.Int64())
 	r.Equal([]byte{}, slot.Bytes())
@@ -124,11 +117,8 @@ func TestDatastoreSlot(t *testing.T) {
 	slot.SetAddress(address)
 	r.Equal(address, slot.Address())
 
-	slot.SetBigUint(big.NewInt(1))
-	r.Equal(int64(1), slot.BigUint().Int64())
-
-	slot.SetBigInt(big.NewInt(-1))
-	r.Equal(int64(-1), slot.BigInt().Int64())
+	slot.SetUint256(uint256.NewInt(1))
+	r.Equal(uint64(1), slot.Uint256().Uint64())
 
 	slot.SetUint64(1)
 	r.Equal(uint64(1), slot.Uint64())

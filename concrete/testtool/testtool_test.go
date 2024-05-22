@@ -16,22 +16,39 @@
 package testtool
 
 import (
-	_ "embed"
+	"bytes"
+	"os/exec"
+	"path/filepath"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/concrete"
 )
 
-//go:embed testdata/out/Test.sol/Test.json
-var testContractJsonBytes []byte
+func forgeBuild(t *testing.T) error {
+	cmd := exec.Command("forge", "build")
+	var stdout, stderr bytes.Buffer
+	cmd.Dir = "./testdata"
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		return err
+	}
+	t.Log(stdout.String())
+	t.Log(stderr.String())
+	return nil
+}
 
 func TestRunTestContract(t *testing.T) {
-	bytecode, ABI, _, err := extractTestData(testContractJsonBytes)
-	if err != nil {
+	if err := forgeBuild(t); err != nil {
 		t.Fatal(err)
 	}
-	precompileRegistry := concrete.NewRegistry()
-	passed, failed := RunTestContract(precompileRegistry, bytecode, ABI)
+	config := TestConfig{
+		Contract: filepath.Join("testdata", "src", "Test.sol:Test"),
+		TestDir:  filepath.Join("testdata", "src"),
+		OutDir:   filepath.Join("testdata", "out"),
+	}
+	concreteRegistry := concrete.NewRegistry()
+	passed, failed := Test(concreteRegistry, config)
 	if failed > 0 {
 		t.Errorf("failed tests: %v", failed)
 	}

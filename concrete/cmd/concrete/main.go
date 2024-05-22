@@ -25,25 +25,16 @@ import (
 	"github.com/ethereum/go-ethereum/concrete/codegen/datamod"
 	"github.com/ethereum/go-ethereum/concrete/codegen/solgen"
 	"github.com/ethereum/go-ethereum/internal/version"
+	"github.com/naoina/toml"
 	"github.com/spf13/cobra"
 )
-
-func exit(msg string) {
-	fmt.Println("--------------------------------")
-	fmt.Println("[ERROR]")
-	fmt.Println(msg)
-	os.Exit(1)
-}
-
-func checkErr(err error) {
-	if err != nil {
-		exit(err.Error())
-	}
-}
 
 func isDir(path string) (bool, error) {
 	info, err := os.Stat(path)
 	if err != nil {
+		if os.IsNotExist(err) {
+			return false, nil
+		}
 		return false, err
 	}
 	if info.IsDir() {
@@ -55,12 +46,42 @@ func isDir(path string) (bool, error) {
 
 func fileName(path string) string {
 	filenameWithExt := filepath.Base(path)
-	filename := strings.TrimSuffix(filenameWithExt, filepath.Ext(filenameWithExt))
+	filename := strings.Split(filenameWithExt, ".")[0]
 	return filename
+}
+
+func getStringFlags(cmd *cobra.Command, flagPairs ...interface{}) error {
+	if len(flagPairs)%2 != 0 {
+		return fmt.Errorf("flagPairs must have an even number of elements")
+	}
+	for i := 0; i < len(flagPairs); i += 2 {
+		ptr := flagPairs[i].(*string)
+		name := flagPairs[i+1].(string)
+		val, err := cmd.Flags().GetString(name)
+		if err != nil {
+			return err
+		}
+		*ptr = val
+	}
+	return nil
+}
+
+func logMustBeProvided(cmd *cobra.Command, flagName string) {
+	logFatalNoContext(fmt.Errorf("%s must be provided", flagName))
+}
+
+func logConfig(config interface{}) {
+	configToml, err := toml.Marshal(config)
+	if err != nil {
+		logFatal(err)
+	}
+	logDebug(string(configToml))
 }
 
 func main() {
 	var rootCmd = &cobra.Command{Use: "concrete"}
+
+	rootCmd.PersistentFlags().BoolP("verbose", "v", false, "enable verbose output")
 
 	var versionCmd = &cobra.Command{
 		Use:   "version",
@@ -78,11 +99,12 @@ func main() {
 		Run:   runSolgen,
 	}
 
-	cmdSolgen.Flags().String("abi", "", "path to the ABI file")
-	cmdSolgen.Flags().String("out", "./", "path to the output file")
-	cmdSolgen.Flags().String("solidity", "", "path to the solidity file")
 	cmdSolgen.Flags().StringP("name", "n", "", "name for the generated library")
 	cmdSolgen.Flags().StringP("address", "a", "", "precompile address")
+	cmdSolgen.Flags().StringP("pragma", "p", "^0.8.0", "precompile address")
+	cmdSolgen.Flags().String("abi", "", "path to the ABI file")
+	cmdSolgen.Flags().StringP("out", "o", "./", "path to the output file")
+	cmdSolgen.Flags().StringP("import", "i", "", "solidity file to import in the generated LIBRARY")
 	rootCmd.AddCommand(cmdSolgen)
 
 	var cmdDatamod = &cobra.Command{
@@ -92,113 +114,132 @@ func main() {
 		Run:   runDatamod,
 	}
 
-	cmdDatamod.Flags().String("out", "./", "dir to write the generated files to")
-	cmdDatamod.Flags().String("pkg", "main", "package name for the generated files")
-	cmdDatamod.Flags().Bool("table-type-experimental", false, "whether to enable experimental table value type")
+	cmdDatamod.Flags().StringP("out", "o", "./", "dir to write the generated files to")
+	cmdDatamod.Flags().StringP("pkg", "p", "main", "package name for the generated files")
+	cmdDatamod.Flags().Bool("table-type-experimental", false, "whether to enable experimental features for table types")
 	rootCmd.AddCommand(cmdDatamod)
 
 	if err := rootCmd.Execute(); err != nil {
-		exit(err.Error())
+		logFatalNoContext(err)
 	}
 }
 
 func runSolgen(cmd *cobra.Command, args []string) {
-	abiPath, err := cmd.Flags().GetString("abi")
-	checkErr(err)
-	outPath, err := cmd.Flags().GetString("out")
-	checkErr(err)
-	solPath, err := cmd.Flags().GetString("solidity")
-	checkErr(err)
-	name, err := cmd.Flags().GetString("name")
-	checkErr(err)
-	address, err := cmd.Flags().GetString("address")
-	checkErr(err)
+	var name, addressHex, pragma, abiPath, outPath, importPath string
+	if err := getStringFlags(cmd, &name, "name", &addressHex, "address", &pragma, "pragma", &abiPath, "abi", &outPath, "out", &importPath, "import"); err != nil {
+		logFatal(err)
+	}
 
 	if abiPath == "" {
-		exit("ABI file path (--abi) must be provided")
+		logMustBeProvided(cmd, "abi path")
 	}
 	if outPath == "" {
-		exit("Output file path (--out) must be provided")
+		logMustBeProvided(cmd, "output path")
+	}
+	if addressHex == "" {
+		logMustBeProvided(cmd, "precompile address")
 	}
 
-	if address == "" {
-		exit("Precompile address (--address) must be provided")
-	} else if !common.IsHexAddress(common.HexToAddress(address).Hex()) {
-		exit("Precompile address (--address) must be a valid hex address")
+	var address common.Address
+	if strings.HasPrefix(addressHex, "0x") && len(addressHex) < 42 {
+		addressHex = "0x" + strings.Repeat("0", 42-len(addressHex)) + addressHex[2:]
+	}
+	if common.IsHexAddress(addressHex) {
+		address = common.HexToAddress(addressHex)
 	} else {
-		address = common.HexToAddress(address).Hex()
+		logFatalNoContext(fmt.Errorf("invalid precompile address: %s", addressHex))
 	}
 
-	abiIsDir, err := isDir(abiPath)
-	checkErr(err)
-	outIsDir, err := isDir(outPath)
-	checkErr(err)
+	var err error
+	var abiIsDir, outIsDir bool
 
+	if abiIsDir, err = isDir(abiPath); err != nil {
+		logFatal(err)
+	}
 	if abiIsDir {
-		exit("ABI path must be a file")
+		logFatalNoContext(fmt.Errorf("ABI path must be a file"))
+	}
+
+	if outIsDir, err = isDir(outPath); err != nil {
+		logFatal(err)
+	}
+	if outIsDir {
+		outPath = filepath.Join(outPath, name+".sol")
 	}
 
 	if name == "" {
 		name = fileName(abiPath) + "Precompile"
 	}
 
-	if outIsDir {
-		outPath = filepath.Join(outPath, name+".sol")
-	}
-
 	config := solgen.Config{
-		Name:    name,
-		Address: common.HexToAddress(address),
-		ABI:     abiPath,
-		Out:     outPath,
-		Sol:     solPath,
+		Name:       name,
+		Address:    address,
+		Pragma:     pragma,
+		AbiPath:    abiPath,
+		OutPath:    outPath,
+		ImportPath: importPath,
 	}
 
-	fmt.Printf(`Generating solidity library
-Name     : %s
-Address  : %s
-ABI      : %s
-Output   : %s
-Solidity : %s
-`, name, address, abiPath, outPath, solPath)
+	if v, err := cmd.Flags().GetBool("verbose"); err != nil {
+		logFatal(err)
+	} else if v {
+		logConfig(config)
+	}
 
-	err = solgen.GenerateSolidityLibrary(config)
-	checkErr(err)
+	if err := solgen.GenerateSolidityLibrary(config); err != nil {
+		logFatal(err)
+	}
 
-	fmt.Printf("Library generated successfully.\nLibrary written to: %s\n", outPath)
+	logInfo("Library generated successfully.")
+	logInfo("Library written to: %s", outPath)
 }
 
 func runDatamod(cmd *cobra.Command, args []string) {
 	jsonPath := args[0]
-	outPath, err := cmd.Flags().GetString("out")
-	checkErr(err)
-	pkg, err := cmd.Flags().GetString("pkg")
-	checkErr(err)
-	allowTableTypes, err := cmd.Flags().GetBool("table-type-experimental")
-	checkErr(err)
 
-	jsonIsDir, err := isDir(jsonPath)
-	checkErr(err)
-	if jsonIsDir {
-		exit("JSON path must be a file")
+	var outPath, pkg string
+	if err := getStringFlags(cmd, &outPath, "out", &pkg, "pkg"); err != nil {
+		logFatal(err)
 	}
 
-	outIsDir, err := isDir(outPath)
-	checkErr(err)
+	var err error
+	var allowTableTypes bool
+	if allowTableTypes, err = cmd.Flags().GetBool("table-type-experimental"); err != nil {
+		logFatal(err)
+	}
+
+	var jsonIsDir, outIsDir bool
+
+	if jsonIsDir, err = isDir(jsonPath); err != nil {
+		logFatal(err)
+	}
+	if jsonIsDir {
+		logFatalNoContext(fmt.Errorf("JSON path must be a file"))
+	}
+
+	if outIsDir, err = isDir(outPath); err != nil {
+		logFatal(err)
+	}
 	if !outIsDir {
-		exit("Output path must be a directory")
+		logFatalNoContext(fmt.Errorf("output path must be a directory"))
 	}
 
 	config := datamod.Config{
-		JSON:    jsonPath,
-		Out:     outPath,
-		Package: pkg,
+		SchemaFilePath: jsonPath,
+		OutDir:         outPath,
+		Package:        pkg,
 	}
 
-	fmt.Println("Generating data model wrappers for:", jsonPath)
+	if v, err := cmd.Flags().GetBool("verbose"); err != nil {
+		logFatal(err)
+	} else if v {
+		logConfig(config)
+	}
 
-	err = datamod.GenerateDataModel(config, allowTableTypes)
-	checkErr(err)
+	if err := datamod.GenerateDataModel(config, allowTableTypes); err != nil {
+		logFatal(err)
+	}
 
-	fmt.Println("Data model wrappers generated successfully.\nFiles written to:", outPath)
+	logInfo("Data model wrappers generated successfully.")
+	logInfo("Files written to: %s", outPath)
 }

@@ -26,16 +26,14 @@ import (
 	"github.com/holiman/uint256"
 )
 
-func NewMockEnvironment(addr common.Address, config EnvConfig, meterGas bool, gas uint64) *Env {
+func NewMockEnvironment(config EnvConfig, meterGas bool, contract *Contract) *Env {
 	return NewEnvironment(
-		addr,
 		config,
+		meterGas,
 		NewMockStateDB(),
 		NewMockBlockContext(),
-		NewMockCallContext(),
 		NewMockCaller(),
-		meterGas,
-		gas,
+		contract,
 	)
 }
 
@@ -58,12 +56,8 @@ func (m *mockStateDB) AddLog(*types.Log)                                        
 func (m *mockStateDB) GetCommittedState(addr common.Address, key common.Hash) common.Hash {
 	return common.Hash{}
 }
-func (m *mockStateDB) SetPersistentState(addr common.Address, key common.Hash, value common.Hash) {}
-func (m *mockStateDB) GetPersistentState(addr common.Address, key common.Hash) common.Hash {
-	return common.Hash{}
-}
-func (m *mockStateDB) SetEphemeralState(addr common.Address, key common.Hash, value common.Hash) {}
-func (m *mockStateDB) GetEphemeralState(addr common.Address, key common.Hash) common.Hash {
+func (m *mockStateDB) SetState(addr common.Address, key common.Hash, value common.Hash) {}
+func (m *mockStateDB) GetState(addr common.Address, key common.Hash) common.Hash {
 	return common.Hash{}
 }
 
@@ -88,37 +82,30 @@ func (m *mockBlockContext) Random() common.Hash        { return common.Hash{} }
 
 var _ BlockContext = (*mockBlockContext)(nil)
 
-type mockCallContext struct{}
-
-func NewMockCallContext() *mockCallContext { return &mockCallContext{} }
-
-func (m *mockCallContext) TxGasPrice() *uint256.Int { return uint256.NewInt(0) }
-func (m *mockCallContext) TxOrigin() common.Address { return common.Address{} }
-func (m *mockCallContext) CallData() []byte         { return []byte{} }
-func (m *mockCallContext) CallDataSize() int        { return 0 }
-func (m *mockCallContext) Caller() common.Address   { return common.Address{} }
-func (m *mockCallContext) CallValue() *uint256.Int  { return uint256.NewInt(0) }
-
-var _ CallContext = (*mockCallContext)(nil)
-
 type mockCaller struct{}
 
-func NewMockCaller() *mockCaller { return &mockCaller{} }
+func NewMockCaller() *mockCaller {
+	return &mockCaller{}
+}
 
-func (m *mockCaller) CallStatic(common.Address, []byte, uint64) ([]byte, uint64, error) {
-	return []byte{}, 0, nil
+func (c *mockCaller) CallStatic(addr common.Address, input []byte, gas uint64) ([]byte, uint64, error) {
+	return nil, 0, nil
 }
-func (m *mockCaller) Call(common.Address, []byte, uint64, *uint256.Int) ([]byte, uint64, error) {
-	return []byte{}, 0, nil
+
+func (c *mockCaller) Call(addr common.Address, input []byte, gas uint64, value *uint256.Int) ([]byte, uint64, error) {
+	return nil, 0, nil
 }
-func (m *mockCaller) CallDelegate(common.Address, []byte, uint64) ([]byte, uint64, error) {
-	return []byte{}, 0, nil
+
+func (c *mockCaller) CallDelegate(addr common.Address, input []byte, gas uint64) ([]byte, uint64, error) {
+	return nil, 0, nil
 }
-func (m *mockCaller) Create([]byte, uint64, *uint256.Int) (common.Address, uint64, error) {
-	return common.Address{}, 0, nil
+
+func (c *mockCaller) Create(input []byte, gas uint64, value *uint256.Int) ([]byte, common.Address, uint64, error) {
+	return nil, common.Address{}, 0, nil
 }
-func (m *mockCaller) Create2([]byte, common.Hash, uint64, *uint256.Int) (common.Address, uint64, error) {
-	return common.Address{}, 0, nil
+
+func (c *mockCaller) Create2(input []byte, gas uint64, endowment *uint256.Int, salt *uint256.Int) ([]byte, common.Address, uint64, error) {
+	return nil, common.Address{}, 0, nil
 }
 
 var _ Caller = (*mockCaller)(nil)

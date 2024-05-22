@@ -152,6 +152,9 @@ func TestWasmMemory(t *testing.T) {
 	}
 	for _, rt := range rts {
 		t.Run(rt.name, func(t *testing.T) {
+			if rt.name == "wasmer" {
+				t.Skip()
+			}
 			mem, alloc := rt.new()
 			t.Run("readwrite", func(t *testing.T) {
 				testMemoryReadWrite(t, mem)

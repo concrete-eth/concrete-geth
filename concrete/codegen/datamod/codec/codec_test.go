@@ -18,10 +18,10 @@
 package codec
 
 import (
-	"math/big"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
 
@@ -76,75 +76,66 @@ func TestCodec(t *testing.T) {
 
 	t.Run("uint256", func(t *testing.T) {
 		for i := 0; i < 256; i++ {
-			u := big.NewInt(1234567890)
+			u := uint256.NewInt(1234567890)
 			encoded := EncodeUint256(32, u)
 			decoded := DecodeUint256(32, encoded)
-			r.Equal(u.Int64(), decoded.Int64())
-		}
-	})
-
-	t.Run("int256", func(t *testing.T) {
-		for i := 0; i < 256; i++ {
-			u := big.NewInt(-1234567890)
-			encoded := EncodeInt256(32, u)
-			decoded := DecodeInt256(32, encoded)
-			r.Equal(u.Int64(), decoded.Int64())
+			r.Equal(u.Uint64(), decoded.Uint64())
 		}
 	})
 
 	t.Run("uint8", func(t *testing.T) {
 		u := uint8(123)
-		encoded := EncodeSmallUint8(1, u)
-		decoded := DecodeSmallUint8(1, encoded)
+		encoded := EncodeUint8(1, u)
+		decoded := DecodeUint8(1, encoded)
 		r.Equal(u, decoded)
 	})
 
 	t.Run("uint16", func(t *testing.T) {
 		u := uint16(123)
-		encoded := EncodeSmallUint16(2, u)
-		decoded := DecodeSmallUint16(2, encoded)
+		encoded := EncodeUint16(2, u)
+		decoded := DecodeUint16(2, encoded)
 		r.Equal(u, decoded)
 	})
 
 	t.Run("uint32", func(t *testing.T) {
 		u := uint32(123)
-		encoded := EncodeSmallUint32(4, u)
-		decoded := DecodeSmallUint32(4, encoded)
+		encoded := EncodeUint32(4, u)
+		decoded := DecodeUint32(4, encoded)
 		r.Equal(u, decoded)
 	})
 
 	t.Run("uint64", func(t *testing.T) {
 		u := uint64(123)
-		encoded := EncodeSmallUint64(8, u)
-		decoded := DecodeSmallUint64(8, encoded)
+		encoded := EncodeUint64(8, u)
+		decoded := DecodeUint64(8, encoded)
 		r.Equal(u, decoded)
 	})
 
 	t.Run("int8", func(t *testing.T) {
 		u := int8(123)
-		encoded := EncodeSmallInt8(1, u)
-		decoded := DecodeSmallInt8(1, encoded)
+		encoded := EncodeInt8(1, u)
+		decoded := DecodeInt8(1, encoded)
 		r.Equal(u, decoded)
 	})
 
 	t.Run("int16", func(t *testing.T) {
 		u := int16(123)
-		encoded := EncodeSmallInt16(2, u)
-		decoded := DecodeSmallInt16(2, encoded)
+		encoded := EncodeInt16(2, u)
+		decoded := DecodeInt16(2, encoded)
 		r.Equal(u, decoded)
 	})
 
 	t.Run("int32", func(t *testing.T) {
 		u := int32(123)
-		encoded := EncodeSmallInt32(4, u)
-		decoded := DecodeSmallInt32(4, encoded)
+		encoded := EncodeInt32(4, u)
+		decoded := DecodeInt32(4, encoded)
 		r.Equal(u, decoded)
 	})
 
 	t.Run("int64", func(t *testing.T) {
 		u := int64(123)
-		encoded := EncodeSmallInt64(8, u)
-		decoded := DecodeSmallInt64(8, encoded)
+		encoded := EncodeInt64(8, u)
+		decoded := DecodeInt64(8, encoded)
 		r.Equal(u, decoded)
 	})
 }

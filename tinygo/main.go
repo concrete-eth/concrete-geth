@@ -54,20 +54,6 @@ func isStatic(pointer uint64) uint64 {
 	}
 }
 
-//export concrete_Finalise
-func finalise() uint64 {
-	env := newEnvironment()
-	err := precompile.Finalise(env)
-	return memory.PutError(infra.Memory, err).Uint64()
-}
-
-//export concrete_Commit
-func commit() uint64 {
-	env := newEnvironment()
-	err := precompile.Commit(env)
-	return memory.PutError(infra.Memory, err).Uint64()
-}
-
 //export concrete_Run
 func run(pointer uint64) uint64 {
 	env := newEnvironment()

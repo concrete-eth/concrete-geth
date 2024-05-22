@@ -27,18 +27,16 @@ func (opcode *OpCode) Decode(data []byte) {
 
 const (
 	// Meta-ops
-	ManyOps_OpCode OpCode = 0x04
+	// ManyOps_OpCode OpCode = 0x04
 	// Meta-env
 	EnableGasMetering_OpCode OpCode = 0x08
 	// Debug
 	Debug_OpCode   OpCode = 0x0c
 	TimeNow_OpCode OpCode = 0x0d
-	// Utils
-	Keccak256_OpCode OpCode = 0x10
-	UseGas_OpCode    OpCode = 0x50
-	// Ephemeral
-	EphemeralStore_OpCode OpCode = 0x20
-	EphemeralLoad_OpCode  OpCode = 0x21
+	// Utils, gas, revert
+	UseGas_OpCode    OpCode = 0x10
+	Revert_OpCode    OpCode = 0x11
+	Keccak256_OpCode OpCode = 0x12
 	// Internal reads
 	GetAddress_OpCode         OpCode = 0x30
 	GetGasLeft_OpCode         OpCode = 0x31
