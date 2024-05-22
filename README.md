@@ -29,3 +29,6 @@ Run the following command from the project root to install the `concrete` CLI to
 go install ./concrete/cmd/concrete
 ```
 
+## Discord server
+
+Join the Concrete Labs Discord server here: [https://discord.gg/xW4unzxbqT](https://discord.gg/xW4unzxbqT)
