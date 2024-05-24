@@ -263,6 +263,25 @@ func (env *Env) Debug(msg string) {
 	env.execute(Debug_OpCode, input)
 }
 
+func (env *Env) Debugf(msg string, ctx ...interface{}) {
+	if len(ctx) % 2 != 0 {
+		panic("Debugf: context must be provided in key-value pairs")
+	}
+
+	formattedMsg := msg
+	
+	for i := 0; i < len(ctx); i += 2 {
+		key, okKey := ctx[i].(string)
+		value := ctx[i+1]
+		if !okKey {
+			panic("Debugf: keys must be strings")
+		}
+		formattedMsg += fmt.Sprintf(" %s=%v", key, value)
+	}
+
+	env.Debug(formattedMsg)
+}
+
 func (env *Env) TimeNow() uint64 {
 	output := env.execute(TimeNow_OpCode, nil)
 	return utils.BytesToUint64(output[0])
