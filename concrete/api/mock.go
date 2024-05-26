@@ -173,30 +173,96 @@ func (m *mockBlockContext) Random() common.Hash      { return m.random }
 
 var _ BlockContext = (*mockBlockContext)(nil)
 
-type mockCaller struct{}
+type mockCallerOut struct {
+	output []byte
+	gas    uint64
+	err    error
+}
+
+type mockCallerCreateOut struct {
+	output []byte
+	addr   common.Address
+	gas    uint64
+	err    error
+}
+
+type mockCaller struct {
+	expectedCallOut         *mockCallerOut
+	expectedCallStaticOut   *mockCallerOut
+	expectedCallDelegateOut *mockCallerOut
+
+	expectedCallCreateOut  *mockCallerCreateOut
+	expectedCallCreate2Out *mockCallerCreateOut
+}
 
 func NewMockCaller() *mockCaller {
-	return &mockCaller{}
+	return &mockCaller{
+		expectedCallOut:         nil,
+		expectedCallStaticOut:   nil,
+		expectedCallDelegateOut: nil,
+		expectedCallCreateOut:   nil,
+		expectedCallCreate2Out:  nil,
+	}
+}
+
+func (c *mockCaller) SetExpectedCallOut(out *mockCallerOut) {
+	c.expectedCallOut = out
+}
+
+func (c *mockCaller) GetExpectedCallOut() *mockCallerOut {
+	return c.expectedCallOut
+}
+
+func (c *mockCaller) SetExpectedCallStaticOut(out *mockCallerOut) {
+	c.expectedCallStaticOut = out
+}
+
+func (c *mockCaller) GetExpectedCallStaticOut() *mockCallerOut {
+	return c.expectedCallStaticOut
+}
+
+func (c *mockCaller) SetExpectedCallDelegateOut(out *mockCallerOut) {
+	c.expectedCallDelegateOut = out
+}
+
+func (c *mockCaller) GetExpectedCallDelegateOut() *mockCallerOut {
+	return c.expectedCallDelegateOut
+}
+
+func (c *mockCaller) SetExpectedCallCreateOut(out *mockCallerCreateOut) {
+	c.expectedCallCreateOut = out
+}
+
+func (c *mockCaller) GetExpectedCallCreateOut() *mockCallerCreateOut {
+	return c.expectedCallCreateOut
+}
+
+func (c *mockCaller) SetExpectedCallCreate2Out(out *mockCallerCreateOut) {
+	c.expectedCallCreate2Out = out
+}
+
+func (c *mockCaller) GetExpectedCallCreate2Out() *mockCallerCreateOut {
+	return c.expectedCallCreate2Out
 }
 
 func (c *mockCaller) CallStatic(addr common.Address, input []byte, gas uint64) ([]byte, uint64, error) {
-	return nil, 0, nil
+	return c.expectedCallStaticOut.output, c.expectedCallStaticOut.gas, c.expectedCallStaticOut.err
 }
 
 func (c *mockCaller) Call(addr common.Address, input []byte, gas uint64, value *uint256.Int) ([]byte, uint64, error) {
-	return nil, 0, nil
+	return c.expectedCallOut.output, c.expectedCallOut.gas, c.expectedCallOut.err
 }
 
 func (c *mockCaller) CallDelegate(addr common.Address, input []byte, gas uint64) ([]byte, uint64, error) {
-	return nil, 0, nil
+	return c.expectedCallDelegateOut.output, c.expectedCallDelegateOut.gas, c.expectedCallDelegateOut.err
 }
 
 func (c *mockCaller) Create(input []byte, gas uint64, value *uint256.Int) ([]byte, common.Address, uint64, error) {
-	return nil, common.Address{}, 0, nil
+	return c.expectedCallCreateOut.output, c.expectedCallCreateOut.addr, c.expectedCallCreateOut.gas, c.expectedCallCreateOut.err
 }
 
 func (c *mockCaller) Create2(input []byte, gas uint64, endowment *uint256.Int, salt *uint256.Int) ([]byte, common.Address, uint64, error) {
-	return nil, common.Address{}, 0, nil
+	return c.expectedCallCreate2Out.output, c.expectedCallCreate2Out.addr, c.expectedCallCreate2Out.gas, c.expectedCallCreate2Out.err
 }
 
 var _ Caller = (*mockCaller)(nil)
