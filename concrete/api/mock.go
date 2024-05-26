@@ -26,12 +26,30 @@ import (
 	"github.com/holiman/uint256"
 )
 
+type (
+	// CanTransferFunc is the signature of a transfer guard function
+	CanTransferFunc func(mockStateDB, common.Address, *uint256.Int) bool
+	// TransferFunc is the signature of a transfer function
+	TransferFunc func(mockStateDB, common.Address, common.Address, *uint256.Int)
+	// GetHashFunc returns the n'th block hash in the blockchain
+	// and is used by the BLOCKHASH EVM op code.
+	GetHashFunc func(uint64) common.Hash
+)
+
 func NewMockEnvironment(config EnvConfig, meterGas bool, contract *Contract) *Env {
 	return NewEnvironment(
 		config,
 		meterGas,
 		NewMockStateDB(),
-		NewMockBlockContext(),
+		NewMockBlockContext(
+			common.Address{},
+			0,
+			0,
+			0,
+			uint256.NewInt(0),
+			uint256.NewInt(0),
+			common.Hash{},
+		),
 		NewMockCaller(),
 		contract,
 	)
@@ -65,20 +83,93 @@ func (m *mockStateDB) AddRefund(uint64)  {}
 func (m *mockStateDB) SubRefund(uint64)  {}
 func (m *mockStateDB) GetRefund() uint64 { return 0 }
 
+func (m *mockStateDB) SubBalance(common.Address, *uint256.Int) {}
+func (m *mockStateDB) AddBalance(common.Address, *uint256.Int) {}
+
 var _ StateDB = (*mockStateDB)(nil)
 
-type mockBlockContext struct{}
+type mockBlockContext struct {
+	CanTransfer CanTransferFunc
+	Transfer    TransferFunc
+	getHash     GetHashFunc
+	L1CostFunc  types.L1CostFunc
+	coinbase    common.Address
+	gasLimit    uint64
+	blockNumber uint64
+	time        uint64
+	difficulty  *uint256.Int
+	baseFee     *uint256.Int
+	random      common.Hash
+}
 
-func NewMockBlockContext() *mockBlockContext { return &mockBlockContext{} }
+func NewMockBlockContext(
+	coinBase common.Address,
+	gasLimit uint64,
+	blockNumber uint64,
+	time uint64,
+	difficulty *uint256.Int,
+	baseFee *uint256.Int,
+	random common.Hash,
+) *mockBlockContext {
+	return &mockBlockContext{
+		CanTransfer: CanTransfer,
+		Transfer:    Transfer,
+		getHash:     GetHash,
+		L1CostFunc:  nil,
+		coinbase:    coinBase,
+		gasLimit:    gasLimit,
+		blockNumber: blockNumber,
+		time:        time,
+		difficulty:  difficulty,
+		baseFee:     baseFee,
+		random:      random,
+	}
+}
 
-func (m *mockBlockContext) GetHash(uint64) common.Hash { return common.Hash{} }
-func (m *mockBlockContext) GasLimit() uint64           { return 0 }
-func (m *mockBlockContext) BlockNumber() uint64        { return 0 }
-func (m *mockBlockContext) Timestamp() uint64          { return 0 }
-func (m *mockBlockContext) Difficulty() *uint256.Int   { return uint256.NewInt(0) }
-func (m *mockBlockContext) BaseFee() *uint256.Int      { return uint256.NewInt(0) }
-func (m *mockBlockContext) Coinbase() common.Address   { return common.Address{} }
-func (m *mockBlockContext) Random() common.Hash        { return common.Hash{} }
+func CanTransfer(db mockStateDB, addr common.Address, amount *uint256.Int) bool {
+	return db.GetBalance(addr).Cmp(amount) >= 0
+}
+
+func Transfer(db mockStateDB, sender, recipient common.Address, amount *uint256.Int) {
+	db.SubBalance(sender, amount)
+	db.AddBalance(recipient, amount)
+}
+
+func GetHash(uint64) common.Hash {
+	return common.Hash{}
+}
+
+func (m *mockBlockContext) SetGasLimit(gasLimit uint64) {
+	m.gasLimit = gasLimit
+}
+func (m *mockBlockContext) SetBlockNumber(blockNumber uint64) {
+	m.blockNumber = blockNumber
+}
+func (m *mockBlockContext) SetTimestamp(timeStamp uint64) {
+	m.time = timeStamp
+}
+func (m *mockBlockContext) SetDifficulty(difficulty *uint256.Int) {
+	m.difficulty = difficulty
+}
+func (m *mockBlockContext) SetBaseFee(baseFee *uint256.Int) {
+	m.baseFee = baseFee
+}
+func (m *mockBlockContext) SetCoinbase(coinBase common.Address) {
+	m.coinbase = coinBase
+}
+func (m *mockBlockContext) SetRandom(random common.Hash) {
+	m.random = random
+}
+
+func (m *mockBlockContext) GetHash(blockNumber uint64) common.Hash { return m.getHash(blockNumber) }
+func (m *mockBlockContext) GasLimit() uint64                       { return m.gasLimit }
+func (m *mockBlockContext) BlockNumber() uint64                    { return m.blockNumber }
+func (m *mockBlockContext) Timestamp() uint64                      { return m.time }
+
+func (m *mockBlockContext) Difficulty() *uint256.Int { return m.difficulty }
+func (m *mockBlockContext) BaseFee() *uint256.Int    { return m.baseFee }
+func (m *mockBlockContext) Coinbase() common.Address { return m.coinbase }
+func (m *mockBlockContext) Random() common.Hash      { return m.random }
 
 var _ BlockContext = (*mockBlockContext)(nil)
 
