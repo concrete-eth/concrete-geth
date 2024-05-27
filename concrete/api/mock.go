@@ -94,21 +94,27 @@ func NewMockBlockContext() *mockBlockContext {
 func (m *mockBlockContext) SetGasLimit(gasLimit uint64) {
 	m.gasLimit = gasLimit
 }
+
 func (m *mockBlockContext) SetBlockNumber(blockNumber uint64) {
 	m.blockNumber = blockNumber
 }
+
 func (m *mockBlockContext) SetTimestamp(timeStamp uint64) {
 	m.time = timeStamp
 }
+
 func (m *mockBlockContext) SetDifficulty(difficulty *uint256.Int) {
 	m.difficulty = difficulty
 }
+
 func (m *mockBlockContext) SetBaseFee(baseFee *uint256.Int) {
 	m.baseFee = baseFee
 }
+
 func (m *mockBlockContext) SetCoinbase(coinBase common.Address) {
 	m.coinbase = coinBase
 }
+
 func (m *mockBlockContext) SetRandom(random common.Hash) {
 	m.random = random
 }
@@ -121,11 +127,10 @@ func (m *mockBlockContext) GetHash(blockNumber uint64) common.Hash { return m.bl
 func (m *mockBlockContext) GasLimit() uint64                       { return m.gasLimit }
 func (m *mockBlockContext) BlockNumber() uint64                    { return m.blockNumber }
 func (m *mockBlockContext) Timestamp() uint64                      { return m.time }
-
-func (m *mockBlockContext) Difficulty() *uint256.Int { return m.difficulty }
-func (m *mockBlockContext) BaseFee() *uint256.Int    { return m.baseFee }
-func (m *mockBlockContext) Coinbase() common.Address { return m.coinbase }
-func (m *mockBlockContext) Random() common.Hash      { return m.random }
+func (m *mockBlockContext) Difficulty() *uint256.Int               { return m.difficulty }
+func (m *mockBlockContext) BaseFee() *uint256.Int                  { return m.baseFee }
+func (m *mockBlockContext) Coinbase() common.Address               { return m.coinbase }
+func (m *mockBlockContext) Random() common.Hash                    { return m.random }
 
 var _ BlockContext = (*mockBlockContext)(nil)
 
