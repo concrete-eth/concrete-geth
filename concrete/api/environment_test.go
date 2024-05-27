@@ -21,6 +21,9 @@
 package api
 
 import (
+	"bytes"
+	"io"
+	"os"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -128,4 +131,41 @@ func TestTrustAndWriteProtection(t *testing.T) {
 			}
 		}
 	}
+}
+
+func TestDebugf(t *testing.T) {
+
+	var (
+		r        = require.New(t)
+		config   = EnvConfig{IsStatic: true, IsTrusted: true}
+		meterGas = false
+		contract = NewContract(common.Address{}, common.Address{}, common.HexToAddress("0xc0ffee0001"), new(uint256.Int))
+	)
+
+	env := NewMockEnvironment(config, meterGas, NewMockBlockContext(), NewMockCaller(), contract)
+
+	read, write, _ := os.Pipe()
+
+	// Capture stderr
+	stderr := os.Stderr
+	os.Stderr = write
+	defer func() {
+		os.Stderr = stderr
+	}()
+
+	// Copy catured stderr to a buffer
+	done := make(chan *bytes.Buffer)
+	go func() {
+		defer read.Close()
+		var buf bytes.Buffer
+		io.Copy(&buf, read)
+		done <- &buf
+	}()
+
+	env.Debugf("Message", "arg1", 1, "arg2", "val2", "arg3", struct{ A int }{A: 3})
+
+	write.Close()
+	buf := <-done
+
+	r.Equal("Message                                  \x1b[36marg1\x1b[0m=1 \x1b[36marg2\x1b[0m=val2 \x1b[36marg3\x1b[0m={A:3}\n", buf.String()[35:])
 }
