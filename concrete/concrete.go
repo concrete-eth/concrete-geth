@@ -45,13 +45,18 @@ func RunPrecompile(p Precompile, env *api.Env, input []byte, gas uint64, value *
 
 	defer func() {
 		if r := recover(); r != nil {
-			revertErr := env.RevertError()
-			if revertErr != nil {
+			if revertErr := env.RevertError(); revertErr != nil {
 				// Execution reverted
 				ret = []byte(revertErr.Error()) // Return the revert reason
 				err = api.ErrExecutionReverted
+				remainingGas = env.Gas()
+			} else if nonRevertErr := env.NonRevertError(); nonRevertErr != nil {
+				// Explicit error
+				ret = nil
+				err = nonRevertErr
+				remainingGas = 0
 			} else {
-				// Either explicit non-revert panic or runtime panic
+				// Runtime panic
 				ret = nil
 				if e, ok := r.(error); ok {
 					err = e
@@ -60,8 +65,8 @@ func RunPrecompile(p Precompile, env *api.Env, input []byte, gas uint64, value *
 				} else {
 					err = fmt.Errorf("runtime panic: %v", r)
 				}
+				remainingGas = 0
 			}
-			remainingGas = env.Gas() // For non-revert panics, all gas will be consumed later
 		}
 	}()
 

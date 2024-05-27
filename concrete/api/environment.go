@@ -155,8 +155,9 @@ type Env struct {
 
 	contract *Contract
 
-	revertErr   error
-	callGasTemp uint64
+	revertErr    error
+	nonRevertErr error
+	callGasTemp  uint64
 }
 
 func NewEnvironment(
@@ -215,6 +216,7 @@ func execute(op OpCode, env *Env, args [][]byte) ([][]byte, error) {
 func (env *Env) execute(op OpCode, args [][]byte) [][]byte {
 	ret, err := env._execute(op, env, args)
 	if err != nil {
+		env.nonRevertErr = err
 		panic(err)
 	}
 	return ret
@@ -234,6 +236,10 @@ func (env *Env) Contract() *Contract {
 
 func (env *Env) RevertError() error {
 	return env.revertErr
+}
+
+func (env *Env) NonRevertError() error {
+	return env.nonRevertErr
 }
 
 func (env *Env) Gas() uint64 {
