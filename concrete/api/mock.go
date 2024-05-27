@@ -26,30 +26,12 @@ import (
 	"github.com/holiman/uint256"
 )
 
-type (
-	// CanTransferFunc is the signature of a transfer guard function
-	CanTransferFunc func(mockStateDB, common.Address, *uint256.Int) bool
-	// TransferFunc is the signature of a transfer function
-	TransferFunc func(mockStateDB, common.Address, common.Address, *uint256.Int)
-	// GetHashFunc returns the n'th block hash in the blockchain
-	// and is used by the BLOCKHASH EVM op code.
-	GetHashFunc func(uint64) common.Hash
-)
-
 func NewMockEnvironment(config EnvConfig, meterGas bool, contract *Contract) *Env {
 	return NewEnvironment(
 		config,
 		meterGas,
 		NewMockStateDB(),
-		NewMockBlockContext(
-			common.Address{},
-			0,
-			0,
-			0,
-			uint256.NewInt(0),
-			uint256.NewInt(0),
-			common.Hash{},
-		),
+		NewMockBlockContext(),
 		NewMockCaller(),
 		contract,
 	)
@@ -89,10 +71,6 @@ func (m *mockStateDB) AddBalance(common.Address, *uint256.Int) {}
 var _ StateDB = (*mockStateDB)(nil)
 
 type mockBlockContext struct {
-	CanTransfer CanTransferFunc
-	Transfer    TransferFunc
-	getHash     GetHashFunc
-	L1CostFunc  types.L1CostFunc
 	coinbase    common.Address
 	gasLimit    uint64
 	blockNumber uint64
@@ -100,43 +78,20 @@ type mockBlockContext struct {
 	difficulty  *uint256.Int
 	baseFee     *uint256.Int
 	random      common.Hash
+	blockHashes map[uint64]common.Hash
 }
 
-func NewMockBlockContext(
-	coinBase common.Address,
-	gasLimit uint64,
-	blockNumber uint64,
-	time uint64,
-	difficulty *uint256.Int,
-	baseFee *uint256.Int,
-	random common.Hash,
-) *mockBlockContext {
+func NewMockBlockContext() *mockBlockContext {
 	return &mockBlockContext{
-		CanTransfer: CanTransfer,
-		Transfer:    Transfer,
-		getHash:     GetHash,
-		L1CostFunc:  nil,
-		coinbase:    coinBase,
-		gasLimit:    gasLimit,
-		blockNumber: blockNumber,
-		time:        time,
-		difficulty:  difficulty,
-		baseFee:     baseFee,
-		random:      random,
+		coinbase:    common.Address{},
+		gasLimit:    0,
+		blockNumber: 0,
+		time:        0,
+		difficulty:  uint256.NewInt(0),
+		baseFee:     uint256.NewInt(0),
+		random:      common.Hash{},
+		blockHashes: make(map[uint64]common.Hash),
 	}
-}
-
-func CanTransfer(db mockStateDB, addr common.Address, amount *uint256.Int) bool {
-	return db.GetBalance(addr).Cmp(amount) >= 0
-}
-
-func Transfer(db mockStateDB, sender, recipient common.Address, amount *uint256.Int) {
-	db.SubBalance(sender, amount)
-	db.AddBalance(recipient, amount)
-}
-
-func GetHash(uint64) common.Hash {
-	return common.Hash{}
 }
 
 func (m *mockBlockContext) SetGasLimit(gasLimit uint64) {
@@ -161,7 +116,11 @@ func (m *mockBlockContext) SetRandom(random common.Hash) {
 	m.random = random
 }
 
-func (m *mockBlockContext) GetHash(blockNumber uint64) common.Hash { return m.getHash(blockNumber) }
+func (m *mockBlockContext) SetBlockHash(blockNumber uint64, hash common.Hash) {
+	m.blockHashes[blockNumber] = hash
+}
+
+func (m *mockBlockContext) GetHash(blockNumber uint64) common.Hash { return m.blockHashes[blockNumber] }
 func (m *mockBlockContext) GasLimit() uint64                       { return m.gasLimit }
 func (m *mockBlockContext) BlockNumber() uint64                    { return m.blockNumber }
 func (m *mockBlockContext) Timestamp() uint64                      { return m.time }
@@ -173,96 +132,71 @@ func (m *mockBlockContext) Random() common.Hash      { return m.random }
 
 var _ BlockContext = (*mockBlockContext)(nil)
 
-type mockCallerOut struct {
-	output []byte
-	gas    uint64
-	err    error
-}
-
-type mockCallerCreateOut struct {
-	output []byte
-	addr   common.Address
-	gas    uint64
-	err    error
-}
-
 type mockCaller struct {
-	expectedCallOut         *mockCallerOut
-	expectedCallStaticOut   *mockCallerOut
-	expectedCallDelegateOut *mockCallerOut
-
-	expectedCallCreateOut  *mockCallerCreateOut
-	expectedCallCreate2Out *mockCallerCreateOut
+	callFn         func(common.Address, []byte, uint64, *uint256.Int) ([]byte, uint64, error)
+	callStaticFn   func(common.Address, []byte, uint64) ([]byte, uint64, error)
+	callDelegateFn func(common.Address, []byte, uint64) ([]byte, uint64, error)
+	createFn       func([]byte, uint64, *uint256.Int) ([]byte, common.Address, uint64, error)
+	create2Fn      func([]byte, uint64, *uint256.Int, *uint256.Int) ([]byte, common.Address, uint64, error)
 }
 
 func NewMockCaller() *mockCaller {
-	return &mockCaller{
-		expectedCallOut:         nil,
-		expectedCallStaticOut:   nil,
-		expectedCallDelegateOut: nil,
-		expectedCallCreateOut:   nil,
-		expectedCallCreate2Out:  nil,
-	}
+	return &mockCaller{}
 }
 
-func (c *mockCaller) SetExpectedCallOut(out *mockCallerOut) {
-	c.expectedCallOut = out
+func (c *mockCaller) SetCallFn(fn func(common.Address, []byte, uint64, *uint256.Int) ([]byte, uint64, error)) {
+	c.callFn = fn
 }
 
-func (c *mockCaller) GetExpectedCallOut() *mockCallerOut {
-	return c.expectedCallOut
+func (c *mockCaller) SetCallStaticFn(fn func(common.Address, []byte, uint64) ([]byte, uint64, error)) {
+	c.callStaticFn = fn
 }
 
-func (c *mockCaller) SetExpectedCallStaticOut(out *mockCallerOut) {
-	c.expectedCallStaticOut = out
+func (c *mockCaller) SetCallDelegateFn(fn func(common.Address, []byte, uint64) ([]byte, uint64, error)) {
+	c.callDelegateFn = fn
 }
 
-func (c *mockCaller) GetExpectedCallStaticOut() *mockCallerOut {
-	return c.expectedCallStaticOut
+func (c *mockCaller) SetCreateFn(fn func([]byte, uint64, *uint256.Int) ([]byte, common.Address, uint64, error)) {
+	c.createFn = fn
 }
 
-func (c *mockCaller) SetExpectedCallDelegateOut(out *mockCallerOut) {
-	c.expectedCallDelegateOut = out
-}
-
-func (c *mockCaller) GetExpectedCallDelegateOut() *mockCallerOut {
-	return c.expectedCallDelegateOut
-}
-
-func (c *mockCaller) SetExpectedCallCreateOut(out *mockCallerCreateOut) {
-	c.expectedCallCreateOut = out
-}
-
-func (c *mockCaller) GetExpectedCallCreateOut() *mockCallerCreateOut {
-	return c.expectedCallCreateOut
-}
-
-func (c *mockCaller) SetExpectedCallCreate2Out(out *mockCallerCreateOut) {
-	c.expectedCallCreate2Out = out
-}
-
-func (c *mockCaller) GetExpectedCallCreate2Out() *mockCallerCreateOut {
-	return c.expectedCallCreate2Out
-}
-
-func (c *mockCaller) CallStatic(addr common.Address, input []byte, gas uint64) ([]byte, uint64, error) {
-	return c.expectedCallStaticOut.output, c.expectedCallStaticOut.gas, c.expectedCallStaticOut.err
+func (c *mockCaller) SetCreate2Fn(fn func([]byte, uint64, *uint256.Int, *uint256.Int) ([]byte, common.Address, uint64, error)) {
+	c.create2Fn = fn
 }
 
 func (c *mockCaller) Call(addr common.Address, input []byte, gas uint64, value *uint256.Int) ([]byte, uint64, error) {
-	return c.expectedCallOut.output, c.expectedCallOut.gas, c.expectedCallOut.err
+	if c.callFn == nil {
+		return nil, 0, nil
+	}
+	return c.callFn(addr, input, gas, value)
+}
+
+func (c *mockCaller) CallStatic(addr common.Address, input []byte, gas uint64) ([]byte, uint64, error) {
+	if c.callStaticFn == nil {
+		return nil, 0, nil
+	}
+	return c.callStaticFn(addr, input, gas)
 }
 
 func (c *mockCaller) CallDelegate(addr common.Address, input []byte, gas uint64) ([]byte, uint64, error) {
-	return c.expectedCallDelegateOut.output, c.expectedCallDelegateOut.gas, c.expectedCallDelegateOut.err
+	if c.callDelegateFn == nil {
+		return nil, 0, nil
+	}
+	return c.callDelegateFn(addr, input, gas)
 }
 
 func (c *mockCaller) Create(input []byte, gas uint64, value *uint256.Int) ([]byte, common.Address, uint64, error) {
-	return c.expectedCallCreateOut.output, c.expectedCallCreateOut.addr, c.expectedCallCreateOut.gas, c.expectedCallCreateOut.err
+	if c.createFn == nil {
+		return nil, common.Address{}, 0, nil
+	}
+	return c.createFn(input, gas, value)
 }
 
 func (c *mockCaller) Create2(input []byte, gas uint64, endowment *uint256.Int, salt *uint256.Int) ([]byte, common.Address, uint64, error) {
-	return c.expectedCallCreate2Out.output, c.expectedCallCreate2Out.addr, c.expectedCallCreate2Out.gas, c.expectedCallCreate2Out.err
+	if c.create2Fn == nil {
+		return nil, common.Address{}, 0, nil
+	}
+	return c.create2Fn(input, gas, endowment, salt)
 }
 
 var _ Caller = (*mockCaller)(nil)
