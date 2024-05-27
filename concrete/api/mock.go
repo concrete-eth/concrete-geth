@@ -26,15 +26,24 @@ import (
 	"github.com/holiman/uint256"
 )
 
-func NewMockEnvironment(config EnvConfig, meterGas bool, contract *Contract) *Env {
-	return NewEnvironment(
+func NewMockEnvironment(config EnvConfig, meterGas bool) (*Env, *mockBlockContext, *mockCaller, *Contract) {
+	blockCtx := NewMockBlockContext()
+	caller := NewMockCaller()
+	contract := &Contract{
+		// Set values that would otherwise be nil to 0 or empty
+		GasPrice: uint256.NewInt(0),
+		Value:    uint256.NewInt(0),
+		Input:    []byte{},
+	}
+	env := NewEnvironment(
 		config,
 		meterGas,
 		NewMockStateDB(),
-		NewMockBlockContext(),
-		NewMockCaller(),
+		blockCtx,
+		caller,
 		contract,
 	)
+	return env, blockCtx, caller, contract
 }
 
 type mockStateDB struct{}
