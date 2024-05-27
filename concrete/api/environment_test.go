@@ -37,7 +37,7 @@ func TestGas(t *testing.T) {
 		gas      = uint64(1e6)
 	)
 
-	env := NewMockEnvironment(config, meterGas, contract)
+	env := NewMockEnvironment(config, meterGas, NewMockBlockContext(), NewMockCaller(), contract)
 	env.contract.Gas = gas
 
 	// GetGasLeft() costs gas, so the cost of that operation must be subtracted
@@ -57,7 +57,7 @@ func TestBlockOps_Minimal(t *testing.T) {
 		gas      = uint64(1e6)
 	)
 
-	env := NewMockEnvironment(config, meterGas, contract)
+	env := NewMockEnvironment(config, meterGas, NewMockBlockContext(), NewMockCaller(), contract)
 	env.contract.Gas = gas
 
 	r.Equal(env.block.GetHash(0), env.GetBlockHash(0))
@@ -79,7 +79,7 @@ func TestCallOps_Minimal(t *testing.T) {
 		gas      = uint64(1e6)
 	)
 
-	env := NewMockEnvironment(config, meterGas, contract)
+	env := NewMockEnvironment(config, meterGas, NewMockBlockContext(), NewMockCaller(), contract)
 	env.contract.Input = []byte{0x01, 0x02, 0x03}
 	env.contract.Gas = gas
 	env.contract.Value = uint256.NewInt(1)
@@ -100,7 +100,7 @@ func TestTrustAndWriteProtection(t *testing.T) {
 		contract = NewContract(common.Address{}, common.Address{}, common.HexToAddress("0xc0ffee0001"), new(uint256.Int))
 	)
 
-	env := NewMockEnvironment(config, meterGas, contract)
+	env := NewMockEnvironment(config, meterGas, NewMockBlockContext(), NewMockCaller(), contract)
 	env.contract.Input = []byte{0x01, 0x02, 0x03}
 	env.contract.Value = uint256.NewInt(1)
 

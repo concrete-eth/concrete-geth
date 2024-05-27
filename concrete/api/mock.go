@@ -26,13 +26,13 @@ import (
 	"github.com/holiman/uint256"
 )
 
-func NewMockEnvironment(config EnvConfig, meterGas bool, contract *Contract) *Env {
+func NewMockEnvironment(config EnvConfig, meterGas bool, blockContext BlockContext, caller Caller, contract *Contract) *Env {
 	return NewEnvironment(
 		config,
 		meterGas,
 		NewMockStateDB(),
-		NewMockBlockContext(),
-		NewMockCaller(),
+		blockContext,
+		caller,
 		contract,
 	)
 }
