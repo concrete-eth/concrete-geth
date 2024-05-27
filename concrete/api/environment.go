@@ -16,6 +16,7 @@
 package api
 
 import (
+	"bytes"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/concrete/utils"
 	"github.com/ethereum/go-ethereum/log"
@@ -28,6 +29,7 @@ type Environment interface {
 	// Meta
 	EnableGasMetering(meter bool)
 	Debug(msg string) // TODO: improve
+	Debugf(msg string, ctx ...interface{})
 	TimeNow() uint64
 
 	// Utils
@@ -264,22 +266,15 @@ func (env *Env) Debug(msg string) {
 }
 
 func (env *Env) Debugf(msg string, ctx ...interface{}) {
-	if len(ctx) % 2 != 0 {
-		panic("Debugf: context must be provided in key-value pairs")
-	}
-
-	formattedMsg := msg
-	
-	for i := 0; i < len(ctx); i += 2 {
-		key, okKey := ctx[i].(string)
-		value := ctx[i+1]
-		if !okKey {
-			panic("Debugf: keys must be strings")
-		}
-		formattedMsg += fmt.Sprintf(" %s=%v", key, value)
-	}
-
+	formattedMsg := debugfFormat(msg, ctx...)
 	env.Debug(formattedMsg)
+}
+
+func debugfFormat(msg string, ctx ...interface{}) string {
+	var buf bytes.Buffer
+	logger := log.NewLogger(log.NewTerminalHandlerWithLevel(&buf, log.LevelDebug, true))
+	logger.Debug(msg, ctx...)
+	return buf.String()
 }
 
 func (env *Env) TimeNow() uint64 {
