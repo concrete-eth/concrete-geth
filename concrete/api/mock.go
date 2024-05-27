@@ -65,9 +65,6 @@ func (m *mockStateDB) AddRefund(uint64)  {}
 func (m *mockStateDB) SubRefund(uint64)  {}
 func (m *mockStateDB) GetRefund() uint64 { return 0 }
 
-func (m *mockStateDB) SubBalance(common.Address, *uint256.Int) {}
-func (m *mockStateDB) AddBalance(common.Address, *uint256.Int) {}
-
 var _ StateDB = (*mockStateDB)(nil)
 
 type mockBlockContext struct {
