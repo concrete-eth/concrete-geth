@@ -79,7 +79,7 @@ type PrecompileMap = map[common.Address]Precompile
 
 type PrecompileRegistry interface {
 	Precompile(address common.Address, blockNumber uint64) (Precompile, bool)
-	Precompiles(blockNumber uint64) (PrecompileMap, []common.Address)
+	Precompiles(blockNumber uint64) PrecompileMap
 	AddPrecompiles(startingBlock uint64, precompiles PrecompileMap)
 	AddPrecompile(startingBlock uint64, address common.Address, precompile Precompile)
 }
@@ -160,12 +160,12 @@ func (c *GenericPrecompileRegistry) Precompile(address common.Address, blockNumb
 	return pc, true
 }
 
-func (c *GenericPrecompileRegistry) Precompiles(blockNumber uint64) (PrecompileMap, []common.Address) {
+func (c *GenericPrecompileRegistry) Precompiles(blockNumber uint64) PrecompileMap {
 	idx := c.index(blockNumber)
 	if idx < 0 {
-		return PrecompileMap{}, []common.Address{}
+		return PrecompileMap{}
 	}
-	return c.precompiles[idx], c.addresses[idx]
+	return c.precompiles[idx]
 }
 
 func insert[T any](slice []T, index int, value T) []T {
