@@ -72,14 +72,20 @@ func (evm *EVM) concretePrecompile(addr common.Address) (concrete.Precompile, bo
 	return pc, ok
 }
 
-func (evm *EVM) newConcreteEnvironment(contract *cc_api.Contract, static bool) *cc_api.Env {
+func (evm *EVM) newConcreteEnvironment(contract *Contract, static bool) *cc_api.Env {
 	env := cc_api.NewEnvironment(
 		cc_api.EnvConfig{IsStatic: static, IsTrusted: true},
 		true,
 		evm.StateDB,
 		concreteBlockContext{&evm.Context},
-		&concreteEVM{evm, contract.Address},
-		contract,
+		&concreteEVM{evm, contract},
+		&cc_api.Contract{
+			Origin:   evm.TxContext.Origin,
+			Caller:   contract.Caller(),
+			Address:  contract.Address(),
+			GasPrice: uint256.MustFromBig(evm.TxContext.GasPrice),
+			// input, gas, value are set in RunPrecompile
+		},
 	)
 	return env
 }
@@ -282,8 +288,7 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 	} else if isConcretePrecompile {
 		var (
 			addrCopy = addr
-			gasPrice = uint256.MustFromBig(evm.TxContext.GasPrice)
-			contract = cc_api.NewContract(evm.TxContext.Origin, caller.Address(), addrCopy, gasPrice)
+			contract = NewContract(caller, AccountRef(addrCopy), value, gas)
 			static   = evm.Interpreter().readOnly
 		)
 		env := evm.newConcreteEnvironment(contract, static)
@@ -400,8 +405,7 @@ func (evm *EVM) DelegateCall(caller ContractRef, addr common.Address, input []by
 	} else if ccp, isConcretePrecompile := evm.concretePrecompile(addr); isConcretePrecompile {
 		var (
 			parent   = caller.(*Contract)
-			gasPrice = uint256.MustFromBig(evm.TxContext.GasPrice)
-			contract = cc_api.NewContract(evm.TxContext.Origin, parent.CallerAddress, parent.Address(), gasPrice)
+			contract = NewContract(caller, AccountRef(caller.Address()), nil, gas).AsDelegate()
 			static   = evm.Interpreter().readOnly
 		)
 		env := evm.newConcreteEnvironment(contract, static)
@@ -459,8 +463,7 @@ func (evm *EVM) StaticCall(caller ContractRef, addr common.Address, input []byte
 	} else if ccp, isConcretePrecompile := evm.concretePrecompile(addr); isConcretePrecompile {
 		var (
 			addrCopy = addr
-			gasPrice = uint256.MustFromBig(evm.TxContext.GasPrice)
-			contract = cc_api.NewContract(evm.TxContext.Origin, caller.Address(), addrCopy, gasPrice)
+			contract = NewContract(caller, AccountRef(addrCopy), new(uint256.Int), gas)
 			static   = true
 		)
 		env := evm.newConcreteEnvironment(contract, static)
@@ -652,29 +655,39 @@ func (b concreteBlockContext) Random() common.Hash {
 
 var _ cc_api.BlockContext = (*concreteBlockContext)(nil)
 
-type concreteEVM struct {
-	evm    *EVM
-	caller common.Address
+type extCaller interface {
+	Call(caller ContractRef, addr common.Address, input []byte, gas uint64, value *uint256.Int) (ret []byte, leftOverGas uint64, err error)
+	StaticCall(caller ContractRef, addr common.Address, input []byte, gas uint64) (ret []byte, leftOverGas uint64, err error)
+	DelegateCall(caller ContractRef, addr common.Address, input []byte, gas uint64) (ret []byte, leftOverGas uint64, err error)
+	Create(caller ContractRef, code []byte, gas uint64, value *uint256.Int) (ret []byte, contractAddr common.Address, leftOverGas uint64, err error)
+	Create2(caller ContractRef, code []byte, gas uint64, endowment *uint256.Int, salt *uint256.Int) (ret []byte, contractAddr common.Address, leftOverGas uint64, err error)
 }
 
-func (c *concreteEVM) CallStatic(addr common.Address, input []byte, gas uint64) ([]byte, uint64, error) {
-	return c.evm.StaticCall(AccountRef(c.caller), addr, input, gas)
+var _ extCaller = (*EVM)(nil)
+
+type concreteEVM struct {
+	evm      extCaller
+	contract *Contract
 }
 
 func (c *concreteEVM) Call(addr common.Address, input []byte, gas uint64, value *uint256.Int) ([]byte, uint64, error) {
-	return c.evm.Call(AccountRef(c.caller), addr, input, gas, value)
+	return c.evm.Call(c.contract, addr, input, gas, value)
+}
+
+func (c *concreteEVM) CallStatic(addr common.Address, input []byte, gas uint64) ([]byte, uint64, error) {
+	return c.evm.StaticCall(c.contract, addr, input, gas)
 }
 
 func (c *concreteEVM) CallDelegate(addr common.Address, input []byte, gas uint64) ([]byte, uint64, error) {
-	return c.evm.DelegateCall(AccountRef(c.caller), addr, input, gas)
+	return c.evm.DelegateCall(c.contract, addr, input, gas)
 }
 
 func (c *concreteEVM) Create(input []byte, gas uint64, value *uint256.Int) ([]byte, common.Address, uint64, error) {
-	return c.evm.Create(AccountRef(c.caller), input, gas, value)
+	return c.evm.Create(c.contract, input, gas, value)
 }
 
 func (c *concreteEVM) Create2(input []byte, gas uint64, endowment *uint256.Int, salt *uint256.Int) ([]byte, common.Address, uint64, error) {
-	return c.evm.Create2(AccountRef(c.caller), input, gas, endowment, salt)
+	return c.evm.Create2(c.contract, input, gas, endowment, salt)
 }
 
 var _ cc_api.Caller = (*concreteEVM)(nil)
