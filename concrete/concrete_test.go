@@ -101,7 +101,7 @@ func verifyPrecompileSet(t *testing.T, registry *GenericPrecompileRegistry, num 
 	r := require.New(t)
 	// Assert that all the provided addresses have been returned and all the returned
 	// addresses were provided
-	addresses := registry.ActivePrecompiles(num)
+	pcs, addresses := registry.Precompiles(num)
 	r.Len(addresses, len(p.precompiles))
 	for _, address := range addresses {
 		_, ok := p.precompiles[address]
@@ -121,7 +121,6 @@ func verifyPrecompileSet(t *testing.T, registry *GenericPrecompileRegistry, num 
 	r.Nil(pc)
 	r.False(ok)
 	// Assert that Precompiles returns the correct set of precompiles
-	pcs := registry.Precompiles(num)
 	r.Equal(p.precompiles, pcs)
 }
 
@@ -129,7 +128,7 @@ func verifyPrecompileSingle(t *testing.T, registry *GenericPrecompileRegistry, n
 	r := require.New(t)
 	// Assert that all the provided addresses have been returned and all the returned
 	// addresses were provided
-	addresses := registry.ActivePrecompiles(num)
+	pcs, addresses := registry.Precompiles(num)
 	r.Len(addresses, 1)
 	r.Equal(p.address, addresses[0])
 	// Assert that all active addresses map to the correct precompile
@@ -141,7 +140,6 @@ func verifyPrecompileSingle(t *testing.T, registry *GenericPrecompileRegistry, n
 	r.Nil(pc)
 	r.False(ok)
 	// Assert that Precompiles returns the correct set of precompiles
-	pcs := registry.Precompiles(num)
 	r.Len(pcs, 1)
 	r.Equal(p.precompile, pcs[p.address])
 }
