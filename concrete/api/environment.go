@@ -103,8 +103,8 @@ type Environment interface {
 	Call(address common.Address, data []byte, gas uint64, value *uint256.Int) ([]byte, error)
 	CallDelegate(address common.Address, data []byte, gas uint64) ([]byte, error)
 	// Create
-	Create(data []byte, value *uint256.Int) (common.Address, error)
-	Create2(data []byte, endowment *uint256.Int, salt *uint256.Int) (common.Address, error)
+	Create(data []byte, value *uint256.Int) ([]byte, common.Address, error)
+	Create2(data []byte, endowment *uint256.Int, salt *uint256.Int) ([]byte, common.Address, error)
 }
 
 type EnvConfig struct {
@@ -450,16 +450,16 @@ func (env *Env) CallDelegate(address common.Address, data []byte, gas uint64) ([
 	return output[0], utils.DecodeError(output[1])
 }
 
-func (env *Env) Create(data []byte, value *uint256.Int) (common.Address, error) {
+func (env *Env) Create(data []byte, value *uint256.Int) ([]byte, common.Address, error) {
 	input := [][]byte{data, value.Bytes()}
 	output := env.execute(Create_OpCode, input)
-	return common.BytesToAddress(output[0]), utils.DecodeError(output[1])
+	return output[0], common.BytesToAddress(output[1]), utils.DecodeError(output[2])
 }
 
-func (env *Env) Create2(data []byte, endowment *uint256.Int, salt *uint256.Int) (common.Address, error) {
+func (env *Env) Create2(data []byte, endowment *uint256.Int, salt *uint256.Int) ([]byte, common.Address, error) {
 	input := [][]byte{data, endowment.Bytes(), salt.Bytes()}
 	output := env.execute(Create2_OpCode, input)
-	return common.BytesToAddress(output[0]), utils.DecodeError(output[1])
+	return output[0], common.BytesToAddress(output[1]), utils.DecodeError(output[2])
 }
 
 var _ Environment = (*Env)(nil)
