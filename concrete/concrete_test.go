@@ -99,17 +99,13 @@ var (
 
 func verifyPrecompileSet(t *testing.T, registry *GenericPrecompileRegistry, num uint64, p pcSet) {
 	r := require.New(t)
-	// Assert that all the provided addresses have been returned and all the returned
-	// addresses were provided
-	addresses := registry.ActivePrecompiles(num)
-	r.Len(addresses, len(p.precompiles))
-	for _, address := range addresses {
-		_, ok := p.precompiles[address]
-		r.True(ok)
-	}
+	// Assert that PrecompiledAddresses returns the correct slice of addresses
+	pcsAddr := registry.PrecompiledAddresses(num)
+	expPcsAddr := make([]common.Address, 0, len(p.precompiles))
 	for address := range p.precompiles {
-		r.Contains(addresses, address)
+		expPcsAddr = append(expPcsAddr, address)
 	}
+	r.ElementsMatch(expPcsAddr, pcsAddr)
 	// Assert that all active addresses map to the correct precompile
 	for address, setPc := range p.precompiles {
 		registryPc, ok := registry.Precompile(address, num)
@@ -127,9 +123,8 @@ func verifyPrecompileSet(t *testing.T, registry *GenericPrecompileRegistry, num 
 
 func verifyPrecompileSingle(t *testing.T, registry *GenericPrecompileRegistry, num uint64, p pcSingle) {
 	r := require.New(t)
-	// Assert that all the provided addresses have been returned and all the returned
-	// addresses were provided
-	addresses := registry.ActivePrecompiles(num)
+	// Assert that PrecompiledAddresses returns the correct slice of addresses
+	addresses := registry.PrecompiledAddresses(num)
 	r.Len(addresses, 1)
 	r.Equal(p.address, addresses[0])
 	// Assert that all active addresses map to the correct precompile

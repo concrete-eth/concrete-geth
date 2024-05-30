@@ -80,7 +80,7 @@ type PrecompileMap = map[common.Address]Precompile
 type PrecompileRegistry interface {
 	Precompile(address common.Address, blockNumber uint64) (Precompile, bool)
 	Precompiles(blockNumber uint64) PrecompileMap
-	ActivePrecompiles(blockNumber uint64) []common.Address
+	PrecompiledAddresses(blockNumber uint64) []common.Address
 }
 
 type GenericPrecompileRegistry struct {
@@ -100,18 +100,12 @@ func NewRegistry() *GenericPrecompileRegistry {
 }
 
 func (c *GenericPrecompileRegistry) index(blockNumber uint64) int {
-	for ii, startingBlock := range c.startingBlocks {
+	for idx, startingBlock := range c.startingBlocks {
 		if blockNumber < startingBlock {
-			continue
-		}
-		if ii == len(c.startingBlocks)-1 {
-			return ii
-		}
-		if blockNumber < c.startingBlocks[ii+1] {
-			return ii
+			return idx - 1
 		}
 	}
-	return -1
+	return len(c.startingBlocks) - 1
 }
 
 func (c *GenericPrecompileRegistry) AddPrecompiles(startingBlock uint64, precompiles PrecompileMap) {
@@ -119,15 +113,15 @@ func (c *GenericPrecompileRegistry) AddPrecompiles(startingBlock uint64, precomp
 	if idx >= 0 && c.startingBlocks[idx] == startingBlock {
 		panic("precompiles already set for this block")
 	}
-
 	addresses := []common.Address{}
 	for address := range precompiles {
 		addresses = append(addresses, address)
 	}
 
-	c.startingBlocks = insert[uint64](c.startingBlocks, idx+1, startingBlock)
-	c.precompiles = insert[PrecompileMap](c.precompiles, idx+1, precompiles)
-	c.addresses = insert[[]common.Address](c.addresses, idx+1, addresses)
+	c.startingBlocks = insert(c.startingBlocks, idx+1, startingBlock)
+	c.precompiles = insert(c.precompiles, idx+1, precompiles)
+	c.addresses = insert(c.addresses, idx+1, addresses)
+
 }
 
 func (c *GenericPrecompileRegistry) AddPrecompile(startingBlock uint64, address common.Address, precompile Precompile) {
@@ -140,11 +134,11 @@ func (c *GenericPrecompileRegistry) AddPrecompile(startingBlock uint64, address 
 		}
 		precompiles[address] = precompile
 		c.addresses[idx] = append(c.addresses[idx], address)
+	} else {
+		c.startingBlocks = insert(c.startingBlocks, idx+1, startingBlock)
+		c.precompiles = insert(c.precompiles, idx+1, PrecompileMap{address: precompile})
+		c.addresses = insert(c.addresses, idx+1, []common.Address{address})
 	}
-
-	c.startingBlocks = insert[uint64](c.startingBlocks, idx+1, startingBlock)
-	c.precompiles = insert[PrecompileMap](c.precompiles, idx+1, PrecompileMap{address: precompile})
-	c.addresses = insert[[]common.Address](c.addresses, idx+1, []common.Address{address})
 }
 
 func (c *GenericPrecompileRegistry) Precompile(address common.Address, blockNumber uint64) (Precompile, bool) {
@@ -167,9 +161,8 @@ func (c *GenericPrecompileRegistry) Precompiles(blockNumber uint64) PrecompileMa
 	return c.precompiles[idx]
 }
 
-func (c *GenericPrecompileRegistry) ActivePrecompiles(blockNumber uint64) []common.Address {
+func (c *GenericPrecompileRegistry) PrecompiledAddresses(blockNumber uint64) []common.Address {
 	idx := c.index(blockNumber)
-
 	if idx < 0 {
 		return []common.Address{}
 	}
@@ -177,6 +170,9 @@ func (c *GenericPrecompileRegistry) ActivePrecompiles(blockNumber uint64) []comm
 }
 
 func insert[T any](slice []T, index int, value T) []T {
+	if index < 0 || index > len(slice) {
+		panic("index out of bounds")
+	}
 	if len(slice) == 0 {
 		return []T{value}
 	} else if index == len(slice) {
