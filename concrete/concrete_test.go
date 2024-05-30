@@ -123,7 +123,7 @@ func verifyPrecompileSet(t *testing.T, registry *GenericPrecompileRegistry, num 
 
 func verifyPrecompileSingle(t *testing.T, registry *GenericPrecompileRegistry, num uint64, p pcSingle) {
 	r := require.New(t)
-	//Assert that addresses match
+	// Assert that PrecompiledAddresses returns the correct slice of addresses
 	addresses := registry.PrecompiledAddresses(num)
 	r.Len(addresses, 1)
 	r.Equal(p.address, addresses[0])

@@ -100,7 +100,6 @@ func NewRegistry() *GenericPrecompileRegistry {
 }
 
 func (c *GenericPrecompileRegistry) index(blockNumber uint64) int {
-	// Iterate over blocks and return index if found else return -1
 	for idx, startingBlock := range c.startingBlocks {
 		if blockNumber < startingBlock {
 			return idx - 1
@@ -113,17 +112,16 @@ func (c *GenericPrecompileRegistry) AddPrecompiles(startingBlock uint64, precomp
 	idx := c.index(startingBlock)
 	if idx >= 0 && c.startingBlocks[idx] == startingBlock {
 		panic("precompiles already set for this block")
-	} else {
-		//Append the addresses and then insert
-		addresses := []common.Address{}
-		for address := range precompiles {
-			addresses = append(addresses, address)
-		}
-
-		c.startingBlocks = insert(c.startingBlocks, idx+1, startingBlock)
-		c.precompiles = insert(c.precompiles, idx+1, precompiles)
-		c.addresses = insert(c.addresses, idx+1, addresses)
 	}
+	addresses := []common.Address{}
+	for address := range precompiles {
+		addresses = append(addresses, address)
+	}
+
+	c.startingBlocks = insert(c.startingBlocks, idx+1, startingBlock)
+	c.precompiles = insert(c.precompiles, idx+1, precompiles)
+	c.addresses = insert(c.addresses, idx+1, addresses)
+
 }
 
 func (c *GenericPrecompileRegistry) AddPrecompile(startingBlock uint64, address common.Address, precompile Precompile) {
@@ -134,9 +132,7 @@ func (c *GenericPrecompileRegistry) AddPrecompile(startingBlock uint64, address 
 		if _, ok := precompiles[address]; ok {
 			panic("precompile already set at this address for this block")
 		}
-		// Add the new precompile to the existing map
 		precompiles[address] = precompile
-		// Append the address to the list of addresses for this block
 		c.addresses[idx] = append(c.addresses[idx], address)
 	} else {
 		c.startingBlocks = insert(c.startingBlocks, idx+1, startingBlock)
@@ -174,7 +170,6 @@ func (c *GenericPrecompileRegistry) PrecompiledAddresses(blockNumber uint64) []c
 }
 
 func insert[T any](slice []T, index int, value T) []T {
-	//edge case
 	if index < 0 || index > len(slice) {
 		panic("index out of bounds")
 	}
