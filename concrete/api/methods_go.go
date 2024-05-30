@@ -22,6 +22,8 @@ package api
 
 import (
 	"errors"
+	"fmt"
+	"os"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -298,7 +300,7 @@ func opDebug(env *Env, args [][]byte) ([][]byte, error) {
 		return nil, ErrInvalidInput
 	}
 	msg := string(args[0])
-	env.logger.Debug(msg)
+	fmt.Fprint(os.Stderr, msg)
 	return nil, nil
 }
 

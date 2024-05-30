@@ -26,15 +26,24 @@ import (
 	"github.com/holiman/uint256"
 )
 
-func NewMockEnvironment(config EnvConfig, meterGas bool, contract *Contract) *Env {
-	return NewEnvironment(
+func NewMockEnvironment(config EnvConfig, meterGas bool) (*Env, *mockBlockContext, *mockCaller, *Contract) {
+	blockCtx := NewMockBlockContext()
+	caller := NewMockCaller()
+	contract := &Contract{
+		// Set values that would otherwise be nil to 0 or empty
+		GasPrice: uint256.NewInt(0),
+		Value:    uint256.NewInt(0),
+		Input:    []byte{},
+	}
+	env := NewEnvironment(
 		config,
 		meterGas,
 		NewMockStateDB(),
-		NewMockBlockContext(),
-		NewMockCaller(),
+		blockCtx,
+		caller,
 		contract,
 	)
+	return env, blockCtx, caller, contract
 }
 
 type mockStateDB struct{}
@@ -67,45 +76,138 @@ func (m *mockStateDB) GetRefund() uint64 { return 0 }
 
 var _ StateDB = (*mockStateDB)(nil)
 
-type mockBlockContext struct{}
+type mockBlockContext struct {
+	coinbase    common.Address
+	gasLimit    uint64
+	blockNumber uint64
+	time        uint64
+	difficulty  *uint256.Int
+	baseFee     *uint256.Int
+	random      common.Hash
+	blockHashes map[uint64]common.Hash
+}
 
-func NewMockBlockContext() *mockBlockContext { return &mockBlockContext{} }
+func NewMockBlockContext() *mockBlockContext {
+	return &mockBlockContext{
+		coinbase:    common.Address{},
+		gasLimit:    0,
+		blockNumber: 0,
+		time:        0,
+		difficulty:  uint256.NewInt(0),
+		baseFee:     uint256.NewInt(0),
+		random:      common.Hash{},
+		blockHashes: make(map[uint64]common.Hash),
+	}
+}
 
-func (m *mockBlockContext) GetHash(uint64) common.Hash { return common.Hash{} }
-func (m *mockBlockContext) GasLimit() uint64           { return 0 }
-func (m *mockBlockContext) BlockNumber() uint64        { return 0 }
-func (m *mockBlockContext) Timestamp() uint64          { return 0 }
-func (m *mockBlockContext) Difficulty() *uint256.Int   { return uint256.NewInt(0) }
-func (m *mockBlockContext) BaseFee() *uint256.Int      { return uint256.NewInt(0) }
-func (m *mockBlockContext) Coinbase() common.Address   { return common.Address{} }
-func (m *mockBlockContext) Random() common.Hash        { return common.Hash{} }
+func (m *mockBlockContext) SetGasLimit(gasLimit uint64) {
+	m.gasLimit = gasLimit
+}
+
+func (m *mockBlockContext) SetBlockNumber(blockNumber uint64) {
+	m.blockNumber = blockNumber
+}
+
+func (m *mockBlockContext) SetTimestamp(timeStamp uint64) {
+	m.time = timeStamp
+}
+
+func (m *mockBlockContext) SetDifficulty(difficulty *uint256.Int) {
+	m.difficulty = difficulty
+}
+
+func (m *mockBlockContext) SetBaseFee(baseFee *uint256.Int) {
+	m.baseFee = baseFee
+}
+
+func (m *mockBlockContext) SetCoinbase(coinBase common.Address) {
+	m.coinbase = coinBase
+}
+
+func (m *mockBlockContext) SetRandom(random common.Hash) {
+	m.random = random
+}
+
+func (m *mockBlockContext) SetBlockHash(blockNumber uint64, hash common.Hash) {
+	m.blockHashes[blockNumber] = hash
+}
+
+func (m *mockBlockContext) GetHash(blockNumber uint64) common.Hash { return m.blockHashes[blockNumber] }
+func (m *mockBlockContext) GasLimit() uint64                       { return m.gasLimit }
+func (m *mockBlockContext) BlockNumber() uint64                    { return m.blockNumber }
+func (m *mockBlockContext) Timestamp() uint64                      { return m.time }
+func (m *mockBlockContext) Difficulty() *uint256.Int               { return m.difficulty }
+func (m *mockBlockContext) BaseFee() *uint256.Int                  { return m.baseFee }
+func (m *mockBlockContext) Coinbase() common.Address               { return m.coinbase }
+func (m *mockBlockContext) Random() common.Hash                    { return m.random }
 
 var _ BlockContext = (*mockBlockContext)(nil)
 
-type mockCaller struct{}
+type mockCaller struct {
+	callFn         func(common.Address, []byte, uint64, *uint256.Int) ([]byte, uint64, error)
+	callStaticFn   func(common.Address, []byte, uint64) ([]byte, uint64, error)
+	callDelegateFn func(common.Address, []byte, uint64) ([]byte, uint64, error)
+	createFn       func([]byte, uint64, *uint256.Int) ([]byte, common.Address, uint64, error)
+	create2Fn      func([]byte, uint64, *uint256.Int, *uint256.Int) ([]byte, common.Address, uint64, error)
+}
 
 func NewMockCaller() *mockCaller {
 	return &mockCaller{}
 }
 
-func (c *mockCaller) CallStatic(addr common.Address, input []byte, gas uint64) ([]byte, uint64, error) {
-	return nil, 0, nil
+func (c *mockCaller) SetCallFn(fn func(common.Address, []byte, uint64, *uint256.Int) ([]byte, uint64, error)) {
+	c.callFn = fn
+}
+
+func (c *mockCaller) SetCallStaticFn(fn func(common.Address, []byte, uint64) ([]byte, uint64, error)) {
+	c.callStaticFn = fn
+}
+
+func (c *mockCaller) SetCallDelegateFn(fn func(common.Address, []byte, uint64) ([]byte, uint64, error)) {
+	c.callDelegateFn = fn
+}
+
+func (c *mockCaller) SetCreateFn(fn func([]byte, uint64, *uint256.Int) ([]byte, common.Address, uint64, error)) {
+	c.createFn = fn
+}
+
+func (c *mockCaller) SetCreate2Fn(fn func([]byte, uint64, *uint256.Int, *uint256.Int) ([]byte, common.Address, uint64, error)) {
+	c.create2Fn = fn
 }
 
 func (c *mockCaller) Call(addr common.Address, input []byte, gas uint64, value *uint256.Int) ([]byte, uint64, error) {
-	return nil, 0, nil
+	if c.callFn == nil {
+		return nil, 0, nil
+	}
+	return c.callFn(addr, input, gas, value)
+}
+
+func (c *mockCaller) CallStatic(addr common.Address, input []byte, gas uint64) ([]byte, uint64, error) {
+	if c.callStaticFn == nil {
+		return nil, 0, nil
+	}
+	return c.callStaticFn(addr, input, gas)
 }
 
 func (c *mockCaller) CallDelegate(addr common.Address, input []byte, gas uint64) ([]byte, uint64, error) {
-	return nil, 0, nil
+	if c.callDelegateFn == nil {
+		return nil, 0, nil
+	}
+	return c.callDelegateFn(addr, input, gas)
 }
 
 func (c *mockCaller) Create(input []byte, gas uint64, value *uint256.Int) ([]byte, common.Address, uint64, error) {
-	return nil, common.Address{}, 0, nil
+	if c.createFn == nil {
+		return nil, common.Address{}, 0, nil
+	}
+	return c.createFn(input, gas, value)
 }
 
 func (c *mockCaller) Create2(input []byte, gas uint64, endowment *uint256.Int, salt *uint256.Int) ([]byte, common.Address, uint64, error) {
-	return nil, common.Address{}, 0, nil
+	if c.create2Fn == nil {
+		return nil, common.Address{}, 0, nil
+	}
+	return c.create2Fn(input, gas, endowment, salt)
 }
 
 var _ Caller = (*mockCaller)(nil)

@@ -16,18 +16,28 @@
 package api
 
 import (
+	"bytes"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/concrete/utils"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/holiman/uint256"
 )
 
+func debugfFormat(msg string, ctx ...interface{}) string {
+	var buf bytes.Buffer
+	logger := log.NewLogger(log.NewTerminalHandlerWithLevel(&buf, log.LevelDebug, true))
+	logger.Debug(msg, ctx...)
+	return buf.String()
+}
+
 type Environment interface {
 	Execute(op OpCode, args [][]byte) [][]byte
 
 	// Meta
 	EnableGasMetering(meter bool)
-	Debug(msg string) // TODO: improve
+	Debug(msg string)
+	Debugf(msg string, ctx ...interface{})
 	TimeNow() uint64
 
 	// Utils
@@ -103,14 +113,6 @@ type EnvConfig struct {
 	IsTrusted bool
 }
 
-type logger struct{}
-
-func (logger) Debug(msg string) {
-	log.Debug(msg)
-}
-
-var _ Logger = logger{}
-
 type Contract struct {
 	Address  common.Address
 	Origin   common.Address
@@ -145,7 +147,6 @@ type Env struct {
 	config   EnvConfig
 	meterGas bool
 
-	logger  Logger
 	statedb StateDB
 	block   BlockContext
 	caller  Caller
@@ -169,7 +170,6 @@ func NewEnvironment(
 		_execute: execute,
 		config:   config,
 		meterGas: meterGas,
-		logger:   logger{},
 		statedb:  statedb,
 		block:    block,
 		caller:   caller,
@@ -261,6 +261,11 @@ func (env *Env) EnableGasMetering(meter bool) {
 func (env *Env) Debug(msg string) {
 	input := [][]byte{[]byte(msg)}
 	env.execute(Debug_OpCode, input)
+}
+
+func (env *Env) Debugf(msg string, ctx ...interface{}) {
+	fmsg := debugfFormat(msg, ctx...)
+	env.Debug(fmsg)
 }
 
 func (env *Env) TimeNow() uint64 {
