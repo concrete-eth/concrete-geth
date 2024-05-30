@@ -801,10 +801,9 @@ func opCreate(env *Env, args [][]byte) ([][]byte, error) {
 	)
 	gas -= gas / 64
 	env.useGas(gas) // This will always return true since we are using a fraction of the gas left
-	// TODO: return value
-	_, address, gasLeft, err := env.caller.Create(input, gas, value)
+	ret, address, gasLeft, err := env.caller.Create(input, gas, value)
 	env.contract.Gas += gasLeft
-	return [][]byte{address.Bytes(), utils.EncodeError(err)}, nil
+	return [][]byte{ret, address.Bytes(), utils.EncodeError(err)}, nil
 }
 
 func gasCreate2(env *Env, args [][]byte) (uint64, error) {
@@ -830,7 +829,7 @@ func opCreate2(env *Env, args [][]byte) ([][]byte, error) {
 	)
 	gas -= gas / 64
 	env.useGas(gas) // This will always return true since we are using a fraction of the gas left
-	_, address, gasLeft, err := env.caller.Create2(input, gas, value, salt)
+	ret, address, gasLeft, err := env.caller.Create2(input, gas, value, salt)
 	env.contract.Gas += gasLeft
-	return [][]byte{address.Bytes(), utils.EncodeError(err)}, nil
+	return [][]byte{ret, address.Bytes(), utils.EncodeError(err)}, nil
 }
