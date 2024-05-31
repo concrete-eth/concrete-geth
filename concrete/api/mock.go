@@ -65,8 +65,14 @@ func (m *mockStateDB) AddLog(*types.Log)                                        
 func (m *mockStateDB) GetCommittedState(addr common.Address, key common.Hash) common.Hash {
 	return common.Hash{}
 }
+
 func (m *mockStateDB) SetState(addr common.Address, key common.Hash, value common.Hash) {}
 func (m *mockStateDB) GetState(addr common.Address, key common.Hash) common.Hash {
+	return common.Hash{}
+}
+
+func (m *mockStateDB) SetTransientState(addr common.Address, key common.Hash, value common.Hash) {}
+func (m *mockStateDB) GetTransientState(addr common.Address, key common.Hash) common.Hash {
 	return common.Hash{}
 }
 

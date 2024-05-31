@@ -78,6 +78,7 @@ type Environment interface {
 	GetCallValue() *uint256.Int
 	// Storage
 	StorageLoad(key common.Hash) common.Hash
+	TransientLoad(key common.Hash) common.Hash
 	// Code
 	GetCode(address common.Address) []byte
 	GetCodeSize() int
@@ -85,6 +86,7 @@ type Environment interface {
 	// Local - WRITE
 	// Storage
 	StorageStore(key common.Hash, value common.Hash)
+	TransientStore(key common.Hash, value common.Hash)
 	// Log
 	Log(topics []common.Hash, data []byte)
 
@@ -383,6 +385,12 @@ func (env *Env) StorageLoad(key common.Hash) common.Hash {
 	return common.BytesToHash(output[0])
 }
 
+func (env *Env) TransientLoad(key common.Hash) common.Hash {
+	input := [][]byte{key.Bytes()}
+	output := env.execute(TransientLoad_OpCode, input)
+	return common.BytesToHash(output[0])
+}
+
 func (env *Env) GetCode(address common.Address) []byte {
 	input := [][]byte{address.Bytes()}
 	output := env.execute(GetCode_OpCode, input)
@@ -397,6 +405,11 @@ func (env *Env) GetCodeSize() int {
 func (env *Env) StorageStore(key common.Hash, value common.Hash) {
 	input := [][]byte{key.Bytes(), value.Bytes()}
 	env.execute(StorageStore_OpCode, input)
+}
+
+func (env *Env) TransientStore(key common.Hash, value common.Hash) {
+	input := [][]byte{key.Bytes(), value.Bytes()}
+	env.execute(TransientStore_OpCode, input)
 }
 
 func (env *Env) Log(topics []common.Hash, data []byte) {

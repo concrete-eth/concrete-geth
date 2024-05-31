@@ -158,6 +158,11 @@ func newEnvironmentMethods() JumpTable {
 			dynamicGas: gasStorageLoad,
 			static:     true,
 		},
+		TransientLoad_OpCode: {
+			execute:     opTransientLoad,
+			constantGas: params.WarmStorageReadCostEIP2929,
+			static:      true,
+		},
 		GetCode_OpCode: {
 			// disabled
 			// TODO: Why is this disabled?
@@ -175,6 +180,11 @@ func newEnvironmentMethods() JumpTable {
 			execute:    opStorageStore,
 			dynamicGas: gasStorageStore,
 			static:     false,
+		},
+		TransientStore_OpCode: {
+			execute:     opTransientStore,
+			constantGas: params.WarmStorageReadCostEIP2929,
+			static:      false,
 		},
 		Log_OpCode: {
 			execute:    opLog,
@@ -526,6 +536,18 @@ func opStorageLoad(env *Env, args [][]byte) ([][]byte, error) {
 	return [][]byte{value.Bytes()}, nil
 }
 
+func opTransientLoad(env *Env, args [][]byte) ([][]byte, error) {
+	if len(args) != 1 {
+		return nil, ErrInvalidInput
+	}
+	if len(args[0]) != 32 {
+		return nil, ErrInvalidInput
+	}
+	key := common.BytesToHash(args[0])
+	value := env.statedb.GetTransientState(env.contract.Address, key)
+	return [][]byte{value.Bytes()}, nil
+}
+
 func opGetCode(env *Env, args [][]byte) ([][]byte, error) {
 	if len(args) != 0 {
 		return nil, ErrInvalidInput
@@ -591,6 +613,19 @@ func opStorageStore(env *Env, args [][]byte) ([][]byte, error) {
 	key := common.BytesToHash(args[0])
 	value := common.BytesToHash(args[1])
 	env.statedb.SetState(env.contract.Address, key, value)
+	return nil, nil
+}
+
+func opTransientStore(env *Env, args [][]byte) ([][]byte, error) {
+	if len(args) != 2 {
+		return nil, ErrInvalidInput
+	}
+	if len(args[0]) != 32 || len(args[1]) != 32 {
+		return nil, ErrInvalidInput
+	}
+	key := common.BytesToHash(args[0])
+	value := common.BytesToHash(args[1])
+	env.statedb.SetTransientState(env.contract.Address, key, value)
 	return nil, nil
 }
 
