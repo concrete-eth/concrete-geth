@@ -56,10 +56,12 @@ const (
 	GetCaller_OpCode          OpCode = 0x3f
 	GetCallValue_OpCode       OpCode = 0x40
 	StorageLoad_OpCode        OpCode = 0x41
+	TLoad_OpCode              OpCode = 0xb3
 	GetCode_OpCode            OpCode = 0x42
 	GetCodeSize_OpCode        OpCode = 0x43
 	// Internal writes
 	StorageStore_OpCode OpCode = 0x51
+	TStore_OpCode       OpCode = 0xb4
 	Log_OpCode          OpCode = 0x52
 	// External reads
 	GetExternalBalance_OpCode  OpCode = 0x60

@@ -158,6 +158,11 @@ func newEnvironmentMethods() JumpTable {
 			dynamicGas: gasStorageLoad,
 			static:     true,
 		},
+		TLoad_OpCode: {
+			execute:     opTload,
+			constantGas: params.WarmStorageReadCostEIP2929,
+			static:      true,
+		},
 		GetCode_OpCode: {
 			// disabled
 			// TODO: Why is this disabled?
@@ -170,6 +175,11 @@ func newEnvironmentMethods() JumpTable {
 			execute:     opGetCodeSize,
 			constantGas: 0,
 			static:      true,
+		},
+		TStore_OpCode: {
+			execute:     opTstore,
+			constantGas: params.WarmStorageReadCostEIP2929,
+			static:      false,
 		},
 		StorageStore_OpCode: {
 			execute:    opStorageStore,
@@ -526,6 +536,12 @@ func opStorageLoad(env *Env, args [][]byte) ([][]byte, error) {
 	return [][]byte{value.Bytes()}, nil
 }
 
+func opTload(env *Env, args [][]byte) ([][]byte, error) {
+	key := common.BytesToHash(args[0])
+	value := env.statedb.GetTransientState(env.contract.Address, key)
+	return [][]byte{value.Bytes()}, nil
+}
+
 func opGetCode(env *Env, args [][]byte) ([][]byte, error) {
 	if len(args) != 0 {
 		return nil, ErrInvalidInput
@@ -591,6 +607,13 @@ func opStorageStore(env *Env, args [][]byte) ([][]byte, error) {
 	key := common.BytesToHash(args[0])
 	value := common.BytesToHash(args[1])
 	env.statedb.SetState(env.contract.Address, key, value)
+	return nil, nil
+}
+
+func opTstore(env *Env, args [][]byte) ([][]byte, error) {
+	key := common.BytesToHash(args[0])
+	value := common.BytesToHash(args[1])
+	env.statedb.SetTransientState(env.contract.Address, key, value)
 	return nil, nil
 }
 

@@ -383,6 +383,12 @@ func (env *Env) StorageLoad(key common.Hash) common.Hash {
 	return common.BytesToHash(output[0])
 }
 
+func (env *Env) TransientLoad(key common.Hash) common.Hash {
+	input := [][]byte{key.Bytes()}
+	output := env.execute(TLoad_OpCode, input)
+	return common.BytesToHash(output[0])
+}
+
 func (env *Env) GetCode(address common.Address) []byte {
 	input := [][]byte{address.Bytes()}
 	output := env.execute(GetCode_OpCode, input)
@@ -397,6 +403,11 @@ func (env *Env) GetCodeSize() int {
 func (env *Env) StorageStore(key common.Hash, value common.Hash) {
 	input := [][]byte{key.Bytes(), value.Bytes()}
 	env.execute(StorageStore_OpCode, input)
+}
+
+func (env *Env) TransientStore(key common.Hash, value common.Hash) {
+	input := [][]byte{key.Bytes(), value.Bytes()}
+	env.execute(TStore_OpCode, input)
 }
 
 func (env *Env) Log(topics []common.Hash, data []byte) {
