@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func newBlockContext() BlockContext {
+func newTestBlockContext() BlockContext {
 	var (
 		block0Hash = crypto.Keccak256Hash([]byte("block0"))
 		block1Hash = crypto.Keccak256Hash([]byte("block1"))
@@ -35,12 +35,12 @@ func newBlockContext() BlockContext {
 	blockCtx := BlockContext{
 		CanTransfer: func(StateDB, common.Address, *uint256.Int) bool { return true },
 		Transfer:    func(StateDB, common.Address, common.Address, *uint256.Int) {},
-		BlockNumber: big.NewInt(0),
+		BlockNumber: big.NewInt(1),
 		GetHash:     getHash,
 		Time:        50,
 		GasLimit:    1000,
-		Difficulty:  big.NewInt(23456146),
-		BaseFee:     big.NewInt(739657255),
+		Difficulty:  big.NewInt(1234),
+		BaseFee:     big.NewInt(5678),
 		Coinbase:    common.HexToAddress("0x0854167430392BBc2D15Dd1Cc17e761897AF31C9"),
 		Random:      &randomHash,
 	}
@@ -50,43 +50,36 @@ func newBlockContext() BlockContext {
 
 func TestConcreteBlockContext(t *testing.T) {
 	r := require.New(t)
-	blockCtx := newBlockContext()
+	blockCtx := newTestBlockContext()
 	ccBlockCtx := concreteBlockContext{ctx: &blockCtx}
 
 	var (
-		block0Hash = crypto.Keccak256Hash([]byte("block0"))
-		block1Hash = crypto.Keccak256Hash([]byte("block1"))
+		block0Hash = blockCtx.GetHash(0)
+		block1Hash = blockCtx.GetHash(1)
 	)
 
 	t.Run("GetHash", func(t *testing.T) {
 		r.Equal(block0Hash, ccBlockCtx.GetHash(0))
 		r.Equal(block1Hash, ccBlockCtx.GetHash(1))
 	})
-
 	t.Run("Timestamp", func(t *testing.T) {
 		r.Equal(blockCtx.Time, ccBlockCtx.Timestamp())
 	})
-
 	t.Run("BlockNumber", func(t *testing.T) {
 		r.Equal(blockCtx.BlockNumber.Uint64(), ccBlockCtx.BlockNumber())
 	})
-
 	t.Run("GasLimit", func(t *testing.T) {
 		r.Equal(blockCtx.GasLimit, ccBlockCtx.GasLimit())
 	})
-
 	t.Run("Difficulty", func(t *testing.T) {
 		r.Equal(uint256.MustFromBig(blockCtx.Difficulty), ccBlockCtx.Difficulty())
 	})
-
 	t.Run("BaseFee", func(t *testing.T) {
 		r.Equal(uint256.MustFromBig(blockCtx.BaseFee), ccBlockCtx.BaseFee())
 	})
-
 	t.Run("Coinbase", func(t *testing.T) {
 		r.Equal(blockCtx.Coinbase, ccBlockCtx.Coinbase())
 	})
-
 	t.Run("Random", func(t *testing.T) {
 		r.Equal(*blockCtx.Random, ccBlockCtx.Random())
 	})
@@ -101,9 +94,9 @@ func TestEVMCallStatic(t *testing.T) {
 		externalAddr = common.BytesToAddress([]byte("external"))
 	)
 
-	vm := NewEVM(BlockContext{}, TxContext{}, statedb, params.TestChainConfig, Config{})
+	evm := NewEVM(BlockContext{}, TxContext{}, statedb, params.TestChainConfig, Config{})
 	contract := NewContract(AccountRef(callerAddr), AccountRef(selfAddr), new(uint256.Int), 10_000_000)
-	ccVm := concreteEVM{evm: vm, contract: contract}
+	ccEvm := concreteEVM{evm: evm, contract: contract}
 
 	gas := uint64(10_000)
 	slot := common.BytesToHash([]byte("key"))
@@ -113,12 +106,11 @@ func TestEVMCallStatic(t *testing.T) {
 	statedb.SetCode(externalAddr, hexutil.MustDecode("0x6000355460005260206000F3"))
 	statedb.SetState(externalAddr, slot, value)
 
-	ret, remainingGas, err := ccVm.CallStatic(externalAddr, slot.Bytes(), gas)
+	ret, remainingGas, err := ccEvm.CallStatic(externalAddr, slot.Bytes(), gas)
 
 	r.NoError(err)
 	r.Equal(value.Bytes(), ret)
 	r.Less(remainingGas, gas)
-
 }
 
 func TestEVMCall(t *testing.T) {
@@ -130,19 +122,24 @@ func TestEVMCall(t *testing.T) {
 		externalAddr = common.BytesToAddress([]byte("external"))
 	)
 
-	vm := NewEVM(newBlockContext(), TxContext{}, statedb, params.TestChainConfig, Config{})
+	evm := NewEVM(newTestBlockContext(), TxContext{}, statedb, params.TestChainConfig, Config{})
 	contract := NewContract(AccountRef(callerAddr), AccountRef(selfAddr), new(uint256.Int), 10_000_000)
-	ccVm := concreteEVM{evm: vm, contract: contract}
+	ccEvm := concreteEVM{evm: evm, contract: contract}
 
 	gas := uint64(10_000_000)
-	value := common.BytesToHash([]byte("value"))
-	// Bytecode that performs a storage opcode and return the value passed
-	statedb.SetCode(externalAddr, hexutil.MustDecode("0x6000356000355560006000355460005260206000F3"))
+	slot := common.BytesToHash([]byte("key"))
+	ogValue := common.BytesToHash([]byte("original"))
+	newValue := common.BytesToHash([]byte("new"))
+	input := append(slot.Bytes(), newValue.Bytes()...)
+	// Replace the value at the passed slot with the passed value and return the original value
+	statedb.SetCode(externalAddr, hexutil.MustDecode("0x600035546020356000355560005260206000F3"))
+	statedb.SetState(externalAddr, slot, ogValue)
 	statedb.AddAddressToAccessList(externalAddr)
 
-	ret, remainingGas, err := ccVm.Call(externalAddr, value.Bytes(), gas, new(uint256.Int))
+	ret, remainingGas, err := ccEvm.Call(externalAddr, input, gas, new(uint256.Int))
 	r.NoError(err)
-	r.Equal(ret, value.Bytes())
+	r.Equal(ogValue.Bytes(), ret)
+	r.Equal(newValue, statedb.GetState(externalAddr, slot))
 	r.Less(remainingGas, gas)
 }
 
@@ -155,9 +152,9 @@ func TestEVMCallDelegate(t *testing.T) {
 		externalAddr = common.BytesToAddress([]byte("external"))
 	)
 
-	vm := NewEVM(BlockContext{}, TxContext{}, statedb, params.TestChainConfig, Config{})
+	evm := NewEVM(BlockContext{}, TxContext{}, statedb, params.TestChainConfig, Config{})
 	contract := NewContract(AccountRef(callerAddr), AccountRef(selfAddr), new(uint256.Int), 10_000_000)
-	ccVm := concreteEVM{evm: vm, contract: contract}
+	ccEvm := concreteEVM{evm: evm, contract: contract}
 
 	gas := uint64(10_000)
 	slot := common.BytesToHash([]byte("key"))
@@ -167,12 +164,11 @@ func TestEVMCallDelegate(t *testing.T) {
 	statedb.SetCode(externalAddr, hexutil.MustDecode("0x6000355460005260206000F3"))
 	statedb.SetState(selfAddr, slot, value)
 
-	ret, remainingGas, err := ccVm.CallDelegate(externalAddr, slot.Bytes(), gas)
+	ret, remainingGas, err := ccEvm.CallDelegate(externalAddr, slot.Bytes(), gas)
 
 	r.NoError(err)
 	r.Equal(value.Bytes(), ret)
 	r.Less(remainingGas, gas)
-
 }
 
 func TestEVMCreate(t *testing.T) {
@@ -183,29 +179,36 @@ func TestEVMCreate(t *testing.T) {
 		selfAddr   = common.BytesToAddress([]byte("self"))
 	)
 
-	vm := NewEVM(newBlockContext(), TxContext{}, statedb, params.TestChainConfig, Config{})
+	evm := NewEVM(newTestBlockContext(), TxContext{}, statedb, params.TestChainConfig, Config{})
 	contract := NewContract(AccountRef(callerAddr), AccountRef(selfAddr), new(uint256.Int), 10_000_000)
-	ccVm := concreteEVM{
-		evm:      vm,
+	ccEvm := concreteEVM{
+		evm:      evm,
 		contract: contract,
 	}
 
 	gas := uint64(10_000)
-	code := hexutil.MustDecode("0x600260010160005260206000F3")
+	creationCodePrefix := hexutil.MustDecode("0x600A600C600039600A6000F3") // Return the runtime code
+	runtimeCode := hexutil.MustDecode("0x607B60005260206000F3")            // Return 123
+	creationCode := append(creationCodePrefix, runtimeCode...)
 
 	t.Run("Create", func(t *testing.T) {
-		ret, addr, remainingGas, err := ccVm.Create(code, gas, new(uint256.Int))
+		ret, addr, remainingGas, err := ccEvm.Create(creationCode, gas, new(uint256.Int))
 
 		r.NoError(err, "Call should not return an error")
-		r.Equal(statedb.GetCode(addr), ret, "State not correct")
+		r.Equal(runtimeCode, ret, "Runtime code not matching")
+		r.Equal(runtimeCode, statedb.GetCode(addr), "Runtime code not matching against the statedb code")
+		r.Equal(crypto.CreateAddress(selfAddr, 0), addr, "Created address not matching returned address")
 		r.Less(remainingGas, gas, "Gas used should be less than the provided gas")
 	})
 
 	t.Run("Create2", func(t *testing.T) {
-		ret, addr, remainingGas, err := ccVm.Create2(code, gas, new(uint256.Int), uint256.NewInt(3521))
+		salt := new(uint256.Int).SetBytes([]byte("salt"))
+		ret, addr, remainingGas, err := ccEvm.Create2(creationCode, gas, new(uint256.Int), salt)
 
 		r.NoError(err, "Call should not return an error")
-		r.Equal(statedb.GetCode(addr), ret, "State not correct")
+		r.Equal(runtimeCode, ret, "Runtime code not matching")
+		r.Equal(runtimeCode, statedb.GetCode(addr), "Runtime code not matching against the statedb code")
+		r.Equal(crypto.CreateAddress2(selfAddr, salt.Bytes32(), crypto.Keccak256(creationCode)), addr, "Created address not matching returned address")
 		r.Less(remainingGas, gas, "Gas used should be less than the provided gas")
 	})
 }
