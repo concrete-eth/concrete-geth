@@ -24,6 +24,8 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/holiman/uint256"
+	"github.com/ethereum/go-ethereum/core/interfaces"
+	//cc_api "github.com/ethereum/go-ethereum/concrete/api"
 )
 
 type StateDB interface {
