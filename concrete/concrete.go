@@ -51,7 +51,7 @@ func RunPrecompile(p Precompile, env *api.Env, input []byte, gas uint64, value *
 				err = api.ErrExecutionReverted
 				remainingGas = env.Gas()
 			} else if nonRevertErr := env.NonRevertError(); nonRevertErr != nil {
-				// Explicit error
+				// Explicit panic
 				ret = nil
 				err = nonRevertErr
 				remainingGas = 0

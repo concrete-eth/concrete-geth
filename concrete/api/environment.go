@@ -433,6 +433,8 @@ func (env *Env) GetExternalBalance(address common.Address) *uint256.Int {
 	return new(uint256.Int).SetBytes(output[0])
 }
 
+// TODO: Should call errors be interpreted?
+
 func (env *Env) CallStatic(address common.Address, data []byte, gas uint64) ([]byte, error) {
 	input := [][]byte{utils.Uint64ToBytes(gas), address.Bytes(), data}
 	output := env.execute(CallStatic_OpCode, input)
