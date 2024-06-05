@@ -155,8 +155,9 @@ type Env struct {
 
 	contract *Contract
 
-	revertErr   error
-	callGasTemp uint64
+	revertErr    error
+	nonRevertErr error
+	callGasTemp  uint64
 }
 
 func NewEnvironment(
@@ -215,6 +216,7 @@ func execute(op OpCode, env *Env, args [][]byte) ([][]byte, error) {
 func (env *Env) execute(op OpCode, args [][]byte) [][]byte {
 	ret, err := env._execute(op, env, args)
 	if err != nil {
+		env.nonRevertErr = err
 		panic(err)
 	}
 	return ret
@@ -234,6 +236,10 @@ func (env *Env) Contract() *Contract {
 
 func (env *Env) RevertError() error {
 	return env.revertErr
+}
+
+func (env *Env) NonRevertError() error {
+	return env.nonRevertErr
 }
 
 func (env *Env) Gas() uint64 {
@@ -426,6 +432,8 @@ func (env *Env) GetExternalBalance(address common.Address) *uint256.Int {
 	output := env.execute(GetExternalBalance_OpCode, input)
 	return new(uint256.Int).SetBytes(output[0])
 }
+
+// TODO: Should call errors be interpreted?
 
 func (env *Env) CallStatic(address common.Address, data []byte, gas uint64) ([]byte, error) {
 	input := [][]byte{utils.Uint64ToBytes(gas), address.Bytes(), data}
