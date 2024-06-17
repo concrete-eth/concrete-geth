@@ -15,7 +15,7 @@
 
 //go:build !tinygo
 
-// This file will ignored when building with tinygo to prevent compatibility
+// This file will be ignored when building with tinygo to prevent compatibility
 // issues.
 
 package api
@@ -146,7 +146,7 @@ func TestDebugf(t *testing.T) {
 		os.Stderr = stderr
 	}()
 
-	// Copy catured stderr to a buffer
+	// Copy captured stderr to a buffer
 	done := make(chan *bytes.Buffer)
 	go func() {
 		defer read.Close()
@@ -161,4 +161,37 @@ func TestDebugf(t *testing.T) {
 	buf := <-done
 
 	r.Equal("Message                                  \x1b[36marg1\x1b[0m=1 \x1b[36marg2\x1b[0m=val2 \x1b[36marg3\x1b[0m={A:3}\n", buf.String()[35:])
+}
+
+func TestBlockContextMethods(t *testing.T) {
+	var (
+		r        = require.New(t)
+		config   = EnvConfig{IsStatic: false, IsTrusted: false}
+		meterGas = true
+		gas      = uint64(1e6)
+	)
+
+	env, _, block, _ := NewMockEnvironment(config, meterGas)
+	env.contract.Gas = gas
+
+	blockHash := block.GetHash(0)
+	r.Equal(blockHash, env.GetBlockHash(0))
+
+	blockGasLimit := block.GasLimit()
+	r.Equal(blockGasLimit, env.GetBlockGasLimit())
+
+	blockTimestamp := block.Timestamp()
+	r.Equal(blockTimestamp, env.GetBlockTimestamp())
+
+	blockDifficulty := block.Difficulty()
+	r.Equal(blockDifficulty, env.GetBlockDifficulty())
+
+	blockBaseFee := block.BaseFee()
+	r.Equal(blockBaseFee, env.GetBlockBaseFee())
+
+	blockCoinbase := block.Coinbase()
+	r.Equal(blockCoinbase, env.GetBlockCoinbase())
+
+	prevRandom := block.Random()
+	r.Equal(prevRandom, env.GetPrevRandom())
 }
