@@ -26,6 +26,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
@@ -47,27 +48,6 @@ func TestGas(t *testing.T) {
 	gas -= getGasLeftOpCost
 	r.Equal(gas, env.GetGasLeft())
 	r.Equal(gas, env.Gas())
-}
-
-func TestBlockOps_Minimal(t *testing.T) {
-	var (
-		r        = require.New(t)
-		config   = EnvConfig{IsStatic: false, IsTrusted: false}
-		meterGas = true
-		gas      = uint64(1e6)
-	)
-
-	env, _, _, _ := NewMockEnvironment(config, meterGas)
-	env.contract.Gas = gas
-
-	r.Equal(env.block.GetHash(0), env.GetBlockHash(0))
-	r.Equal(env.block.GasLimit(), env.GetBlockGasLimit())
-	r.Equal(env.block.BlockNumber(), env.GetBlockNumber())
-	r.Equal(env.block.Timestamp(), env.GetBlockTimestamp())
-	r.Equal(env.block.Difficulty(), env.GetBlockDifficulty())
-	r.Equal(env.block.BaseFee(), env.GetBlockBaseFee())
-	r.Equal(env.block.Coinbase(), env.GetBlockCoinbase())
-	r.Equal(env.block.Random(), env.GetPrevRandom())
 }
 
 func TestCallOps_Minimal(t *testing.T) {
@@ -161,4 +141,67 @@ func TestDebugf(t *testing.T) {
 	buf := <-done
 
 	r.Equal("Message                                  \x1b[36marg1\x1b[0m=1 \x1b[36marg2\x1b[0m=val2 \x1b[36marg3\x1b[0m={A:3}\n", buf.String()[35:])
+}
+
+func TestBlockContextMethods(t *testing.T) {
+	var (
+		r        = require.New(t)
+		config   = EnvConfig{IsStatic: true, IsTrusted: false}
+		meterGas = true
+		gas      = uint64(1e6)
+	)
+
+	env, _, _block, _ := NewMockEnvironment(config, meterGas)
+	block := _block.(*mockBlockContext)
+
+	t.Run("BlockHash", func(t *testing.T) {
+		env.contract.Gas = gas
+
+		var (
+			currentBlockNumber = uint64(400)
+			lastBlockNumber    = currentBlockNumber - 1
+			recentBlockNumber  = currentBlockNumber - 2
+			limitBlockNumber   = lastBlockNumber - 255
+			limitBlockNumberS1 = limitBlockNumber - 1
+			futureBlockNumber  = currentBlockNumber + 1
+		)
+
+		block.SetBlockNumber(currentBlockNumber)
+		block.SetBlockHash(currentBlockNumber, common.Hash{0x01})
+		block.SetBlockHash(lastBlockNumber, common.Hash{0x02})
+		block.SetBlockHash(recentBlockNumber, common.Hash{0x03})
+		block.SetBlockHash(limitBlockNumber, common.Hash{0x04})
+		block.SetBlockHash(limitBlockNumberS1, common.Hash{0x05})
+		block.SetBlockHash(futureBlockNumber, common.Hash{0x06})
+
+		r.Equal(common.Hash{}, env.GetBlockHash(currentBlockNumber))
+		r.Equal(block.GetHash(lastBlockNumber), env.GetBlockHash(lastBlockNumber))
+		r.Equal(block.GetHash(recentBlockNumber), env.GetBlockHash(recentBlockNumber))
+		r.Equal(block.GetHash(limitBlockNumber), env.GetBlockHash(limitBlockNumber))
+		r.Equal(common.Hash{}, env.GetBlockHash(limitBlockNumberS1))
+		r.Equal(common.Hash{}, env.GetBlockHash(futureBlockNumber))
+
+		r.Equal(env.Gas(), gas-6*GasExtStep)
+	})
+
+	blockHash := block.GetHash(0)
+	r.Equal(blockHash, env.GetBlockHash(0))
+
+	blockGasLimit := block.GasLimit()
+	r.Equal(blockGasLimit, env.GetBlockGasLimit())
+
+	blockTimestamp := block.Timestamp()
+	r.Equal(blockTimestamp, env.GetBlockTimestamp())
+
+	blockDifficulty := block.Difficulty()
+	r.Equal(blockDifficulty, env.GetBlockDifficulty())
+
+	blockBaseFee := block.BaseFee()
+	r.Equal(blockBaseFee, env.GetBlockBaseFee())
+
+	blockCoinbase := block.Coinbase()
+	r.Equal(blockCoinbase, env.GetBlockCoinbase())
+
+	prevRandom := block.Random()
+	r.Equal(prevRandom, env.GetPrevRandom())
 }

@@ -450,10 +450,12 @@ func opGetBlockHash(env *Env, args [][]byte) ([][]byte, error) {
 	} else {
 		lower = upper - 256
 	}
-	if number < lower || number > upper {
-		return nil, nil
+	var hash common.Hash
+	if number >= lower && number < upper {
+		hash = env.block.GetHash(number)
+	} else {
+		hash = common.Hash{}
 	}
-	hash := env.block.GetHash(number)
 	return [][]byte{hash.Bytes()}, nil
 }
 
