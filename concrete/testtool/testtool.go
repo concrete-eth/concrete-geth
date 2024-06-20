@@ -23,7 +23,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
+	"testing"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
@@ -103,24 +103,25 @@ func runTestMethod(concreteRegistry concrete.PrecompileRegistry, bytecode []byte
 	return testReceipt.GasUsed, nil
 }
 
-func runTestContract(concreteRegistry concrete.PrecompileRegistry, bytecode []byte, ABI abi.ABI) (int, int) {
-	passed := 0
-	failed := 0
+func runTestContract(t *testing.T, concreteRegistry concrete.PrecompileRegistry, bytecode []byte, ABI abi.ABI) {
+	resetGethLogger := setGethVerbosity(log.LevelWarn)
+	defer resetGethLogger()
+
 	for _, method := range ABI.Methods {
 		if !strings.HasPrefix(method.Name, "test") {
 			continue
 		}
-		shouldFail := strings.HasPrefix(method.Name, "testFail")
-		gas, err := runTestMethod(concreteRegistry, bytecode, method, shouldFail)
-		if err == nil {
-			passed++
-			fmt.Printf("[PASS] %s() (gas: %d)\n", method.Name, gas)
-		} else {
-			failed++
-			fmt.Printf("[FAIL] %s() (gas: %d): %s\n", method.Name, gas, err)
-		}
+		t.Run(method.Name, func(t *testing.T) {
+			shouldFail := strings.HasPrefix(method.Name, "testFail")
+			gas, err := runTestMethod(concreteRegistry, bytecode, method, shouldFail)
+			if err == nil {
+				t.Logf("[PASS] %s() (gas: %d)\n", method.Name, gas)
+			} else {
+				t.Logf("[FAIL] %s() (gas: %d): %s\n", method.Name, gas, err)
+				t.Fail()
+			}
+		})
 	}
-	return passed, failed
 }
 
 func extractTestData(contractJsonBytes []byte) ([]byte, abi.ABI, string, string, error) {
@@ -205,34 +206,17 @@ func getTestPaths(testDir, outDir string) ([]string, error) {
 	return paths, nil
 }
 
-func runTestPaths(concreteRegistry concrete.PrecompileRegistry, contractJsonPaths []string) (int, int) {
-	var totalPassed, totalFailed int
-	startTime := time.Now()
-
+func runTestPaths(t *testing.T, concreteRegistry concrete.PrecompileRegistry, contractJsonPaths []string) {
 	for _, path := range contractJsonPaths {
 		bytecode, ABI, testPath, contractName, err := extractTestDataFromPath(path)
 		if err != nil {
-			fmt.Printf("Error extracting test data from %s: %s\n", path, err)
+			t.Logf("Error extracting test data from %s: %s\n", path, err)
+			t.Fail()
 			continue
 		}
-		fmt.Printf("\nRunning tests for %s:%s\n", testPath, contractName)
-		passed, failed := runTestContract(concreteRegistry, bytecode, ABI)
-		totalPassed += passed
-		totalFailed += failed
+		t.Logf("\nRunning tests for %s:%s\n", testPath, contractName)
+		runTestContract(t, concreteRegistry, bytecode, ABI)
 	}
-
-	timeMs := float64(time.Since(startTime).Microseconds()) / 1000
-
-	var result string
-	if totalFailed == 0 {
-		result = "ok"
-	} else {
-		result = "FAILED"
-	}
-
-	fmt.Printf("\nTest result: %s. %d passed; %d failed; finished in %.2fms\n", result, totalPassed, totalFailed, timeMs)
-
-	return totalPassed, totalFailed
 }
 
 func setGethVerbosity(lvl slog.Level) func() {
@@ -249,13 +233,13 @@ type TestConfig struct {
 	OutDir   string
 }
 
-func RunTestContract(concreteRegistry concrete.PrecompileRegistry, bytecode []byte, ABI abi.ABI) (int, int) {
+func RunTestContract(t *testing.T, concreteRegistry concrete.PrecompileRegistry, bytecode []byte, ABI abi.ABI) {
 	resetGethLogger := setGethVerbosity(log.LevelWarn)
 	defer resetGethLogger()
-	return runTestContract(concreteRegistry, bytecode, ABI)
+	runTestContract(t, concreteRegistry, bytecode, ABI)
 }
 
-func Test(concreteRegistry concrete.PrecompileRegistry, config TestConfig) (int, int) {
+func Test(t *testing.T, concreteRegistry concrete.PrecompileRegistry, config TestConfig) {
 	resetGethLogger := setGethVerbosity(log.LevelWarn)
 	defer resetGethLogger()
 
@@ -265,8 +249,7 @@ func Test(concreteRegistry concrete.PrecompileRegistry, config TestConfig) (int,
 	if config.Contract != "" {
 		parts := strings.SplitN(config.Contract, ":", 2)
 		if len(parts) != 2 {
-			fmt.Printf("Invalid contract: %s. Must follow format Path:Contract\n", config.Contract)
-			os.Exit(1)
+			t.Fatalf("Invalid contract: %s. Must follow format Path:Contract\n", config.Contract)
 		}
 		_, fileName := filepath.Split(parts[0])
 		contractName := parts[1]
@@ -276,11 +259,10 @@ func Test(concreteRegistry concrete.PrecompileRegistry, config TestConfig) (int,
 		var err error
 		testPaths, err = getTestPaths(config.TestDir, config.OutDir)
 		if err != nil {
-			fmt.Printf("Error getting test paths: %s\n", err)
-			os.Exit(1)
+			t.Fatalf("Error getting test paths: %s\n", err)
 		}
 	}
 
 	// Run tests
-	return runTestPaths(concreteRegistry, testPaths)
+	runTestPaths(t, concreteRegistry, testPaths)
 }
