@@ -43,7 +43,7 @@ var (
 	PrintLogs = true
 )
 
-func runTestMethod(concreteRegistry concrete.PrecompileRegistry, bytecode []byte, method abi.Method, shouldFail bool) (uint64, error) {
+func runTestMethod(t *testing.T, concreteRegistry concrete.PrecompileRegistry, bytecode []byte, method abi.Method, shouldFail bool) (uint64, error) {
 	var (
 		key, _          = crypto.HexToECDSA("d17bd946feb884d463d58fb702b94dd0457ca349338da1d732a57856cf777ccd") // 0xCcca11AbAC28D9b6FceD3a9CA73C434f6b33B215
 		senderAddress   = crypto.PubkeyToAddress(key.PublicKey)
@@ -113,12 +113,11 @@ func runTestContract(t *testing.T, concreteRegistry concrete.PrecompileRegistry,
 		}
 		t.Run(method.Name, func(t *testing.T) {
 			shouldFail := strings.HasPrefix(method.Name, "testFail")
-			gas, err := runTestMethod(concreteRegistry, bytecode, method, shouldFail)
+			gas, err := runTestMethod(t, concreteRegistry, bytecode, method, shouldFail)
 			if err == nil {
 				t.Logf("[PASS] %s() (gas: %d)\n", method.Name, gas)
 			} else {
-				t.Logf("[FAIL] %s() (gas: %d): %s\n", method.Name, gas, err)
-				t.Fail()
+				t.Fatalf("[FAIL] %s() (gas: %d): %s\n", method.Name, gas, err)
 			}
 		})
 	}
@@ -210,8 +209,7 @@ func runTestPaths(t *testing.T, concreteRegistry concrete.PrecompileRegistry, co
 	for _, path := range contractJsonPaths {
 		bytecode, ABI, testPath, contractName, err := extractTestDataFromPath(path)
 		if err != nil {
-			t.Logf("Error extracting test data from %s: %s\n", path, err)
-			t.Fail()
+			t.Fatalf("Error extracting test data from %s: %s\n", path, err)
 			continue
 		}
 		t.Logf("\nRunning tests for %s:%s\n", testPath, contractName)
