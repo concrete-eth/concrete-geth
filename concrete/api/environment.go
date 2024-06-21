@@ -436,7 +436,7 @@ func (env *Env) GetExternalBalance(address common.Address) *uint256.Int {
 // TODO: Should call errors be interpreted?
 
 func (env *Env) CallStatic(address common.Address, data []byte, gas uint64) ([]byte, error) {
-	input := [][]byte{utils.Uint64ToBytes(gas), address.Bytes(), data}
+	input := [][]byte{address.Bytes(), data, utils.Uint64ToBytes(gas)}
 	output := env.execute(CallStatic_OpCode, input)
 	return output[0], utils.DecodeError(output[1])
 }
@@ -460,13 +460,13 @@ func (env *Env) GetExternalCodeHash(address common.Address) common.Hash {
 }
 
 func (env *Env) Call(address common.Address, data []byte, gas uint64, value *uint256.Int) ([]byte, error) {
-	input := [][]byte{utils.Uint64ToBytes(gas), address.Bytes(), value.Bytes(), data}
+	input := [][]byte{address.Bytes(), data, utils.Uint64ToBytes(gas), value.Bytes()}
 	output := env.execute(Call_OpCode, input)
 	return output[0], utils.DecodeError(output[1])
 }
 
 func (env *Env) CallDelegate(address common.Address, data []byte, gas uint64) ([]byte, error) {
-	input := [][]byte{utils.Uint64ToBytes(gas), address.Bytes(), data}
+	input := [][]byte{address.Bytes(), data, utils.Uint64ToBytes(gas)}
 	output := env.execute(CallDelegate_OpCode, input)
 	return output[0], utils.DecodeError(output[1])
 }
