@@ -460,7 +460,8 @@ func (env *Env) GetExternalCodeHash(address common.Address) common.Hash {
 }
 
 func (env *Env) Call(address common.Address, data []byte, gas uint64, value *uint256.Int) ([]byte, error) {
-	input := [][]byte{address.Bytes(), data, utils.Uint64ToBytes(gas), value.Bytes()}
+	v := value.Bytes32()
+	input := [][]byte{address.Bytes(), data, utils.Uint64ToBytes(gas), v[:]}
 	output := env.execute(Call_OpCode, input)
 	return output[0], utils.DecodeError(output[1])
 }
@@ -472,13 +473,16 @@ func (env *Env) CallDelegate(address common.Address, data []byte, gas uint64) ([
 }
 
 func (env *Env) Create(data []byte, value *uint256.Int) ([]byte, common.Address, error) {
-	input := [][]byte{data, value.Bytes()}
+	v := value.Bytes32()
+	input := [][]byte{data, v[:]}
 	output := env.execute(Create_OpCode, input)
 	return output[0], common.BytesToAddress(output[1]), utils.DecodeError(output[2])
 }
 
 func (env *Env) Create2(data []byte, endowment *uint256.Int, salt *uint256.Int) ([]byte, common.Address, error) {
-	input := [][]byte{data, endowment.Bytes(), salt.Bytes()}
+	e := endowment.Bytes32()
+	s := salt.Bytes32()
+	input := [][]byte{data, e[:], s[:]}
 	output := env.execute(Create2_OpCode, input)
 	return output[0], common.BytesToAddress(output[1]), utils.DecodeError(output[2])
 }
