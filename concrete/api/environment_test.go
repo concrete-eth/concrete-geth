@@ -205,3 +205,90 @@ func TestBlockContextMethods(t *testing.T) {
 	prevRandom := block.Random()
 	r.Equal(prevRandom, env.GetPrevRandom())
 }
+
+func TestCallers(t *testing.T) {
+	var (
+		r        = require.New(t)
+		config   = EnvConfig{IsStatic: false, IsTrusted: false}
+		meterGas = true
+		gas      = uint64(1e6)
+	)
+
+	env, _, _, _caller := NewMockEnvironment(config, meterGas)
+	caller := _caller.(*mockCaller)
+	env.contract.Gas = gas
+	t.Run("CallStatic", func(t *testing.T) {
+		input := []byte("input")
+
+		caller.SetCallStaticFn(func(address common.Address, input []byte, gas uint64) ([]byte, uint64, error) {
+			return []byte("responseCallStatic"), gas - 1, nil
+		})
+		expectedRet, _, expectedErr := caller.CallStatic(common.Address{}, input, gas)
+
+		ret, err := env.CallStatic(common.Address{}, input, gas)
+		r.NoError(expectedErr, err)
+		r.Equal(expectedRet, ret)
+		r.Less(env.Gas(), gas)
+
+	})
+
+	t.Run("Call", func(t *testing.T) {
+		input := []byte("input")
+
+		caller.SetCallFn(func(address common.Address, input []byte, gas uint64, value *uint256.Int) ([]byte, uint64, error) {
+			return []byte("responseCall"), gas - 1, nil
+		})
+		expectedRet, _, expectedErr := caller.Call(common.Address{}, input, gas, new(uint256.Int))
+
+		ret, err := env.Call(common.Address{}, input, gas, new(uint256.Int))
+		r.NoError(expectedErr, err)
+		r.Equal(expectedRet, ret)
+		r.Less(env.Gas(), gas)
+	})
+
+	t.Run("CallDelegate", func(t *testing.T) {
+		input := []byte("input")
+
+		caller.SetCallDelegateFn(func(address common.Address, input []byte, gas uint64) ([]byte, uint64, error) {
+			return []byte("responseCallDelegate"), gas - 1, nil
+		})
+		expectedRet, _, expectedErr := caller.CallDelegate(common.Address{}, input, gas)
+
+		ret, err := env.CallDelegate(common.Address{}, input, gas)
+		r.NoError(expectedErr, err)
+		r.Equal(expectedRet, ret)
+		r.Less(env.Gas(), gas)
+	})
+
+	t.Run("Create", func(t *testing.T) {
+		creationCode := []byte("creationCode")
+
+		caller.SetCreateFn(func(input []byte, gas uint64, value *uint256.Int) ([]byte, common.Address, uint64, error) {
+			return []byte("runtimeCode"), common.Address{}, gas - 1, nil
+		})
+		expectedRet, expectedAddr, _, expectedErr := caller.Create(creationCode, gas, new(uint256.Int))
+
+		ret, addr, err := env.Create(creationCode, new(uint256.Int))
+		r.NoError(expectedErr, err)
+		r.Equal(expectedRet, ret)
+		r.Equal(expectedAddr, addr)
+		r.Less(env.Gas(), gas)
+	})
+
+	t.Run("Create2", func(t *testing.T) {
+		creationCode := []byte("creationCode")
+		salt := new(uint256.Int).SetBytes([]byte("salt"))
+
+		caller.SetCreate2Fn(func(input []byte, gas uint64, value *uint256.Int, salt *uint256.Int) ([]byte, common.Address, uint64, error) {
+			return []byte("runtimeCode"), common.Address{}, gas - 1, nil
+		})
+		expectedRet, expectedAddr, _, expectedErr := caller.Create2(creationCode, gas, new(uint256.Int), salt)
+
+		ret, addr, err := env.Create2(creationCode, new(uint256.Int), salt)
+		r.NoError(expectedErr, err)
+		r.Equal(expectedRet, ret)
+		r.Equal(expectedAddr, addr)
+		r.Less(env.Gas(), gas)
+	})
+
+}
