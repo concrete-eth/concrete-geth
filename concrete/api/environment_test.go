@@ -389,7 +389,7 @@ func TestCallMethods(t *testing.T) {
 		gas := uint64(1e6)
 		env.contract.Gas = gas
 		createInput := []byte("input")
-		availableGas := gas - params.CreateGas - (toWordSize(len(createInput)) * (params.InitCodeWordGas + params.Keccak256WordGas))
+		availableGas := gas - params.Create2Gas - (toWordSize(len(createInput)) * (params.InitCodeWordGas + params.Keccak256WordGas))
 		usedGas := availableGas - availableGas/64
 
 		var (
@@ -419,7 +419,7 @@ func TestCallMethods(t *testing.T) {
 		gas := uint64(32010)
 		env.contract.Gas = gas
 		createInput := []byte("input")
-		availableGas := gas - params.CreateGas - (toWordSize(len(createInput)) * (params.InitCodeWordGas + params.Keccak256WordGas))
+		availableGas := gas - params.Create2Gas - (toWordSize(len(createInput)) * (params.InitCodeWordGas + params.Keccak256WordGas))
 		expectedGas := availableGas - availableGas/64
 
 		caller.SetCreate2Fn(func(input []byte, gas uint64, value *uint256.Int, salt *uint256.Int) ([]byte, common.Address, uint64, error) {
