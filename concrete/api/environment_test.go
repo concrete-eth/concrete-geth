@@ -429,5 +429,4 @@ func TestCallMethods(t *testing.T) {
 
 		env.Create2(createInput, new(uint256.Int), new(uint256.Int))
 	})
-
 }
