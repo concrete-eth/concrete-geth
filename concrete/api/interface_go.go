@@ -48,6 +48,8 @@ type StateDB interface {
 	GetCommittedState(addr common.Address, key common.Hash) common.Hash
 	SetState(addr common.Address, key common.Hash, value common.Hash)
 	GetState(addr common.Address, key common.Hash) common.Hash
+	SetTransientState(addr common.Address, key common.Hash, value common.Hash)
+	GetTransientState(addr common.Address, key common.Hash) common.Hash
 	// Storage -- Concrete
 	// SetEphemeralState(addr common.Address, key common.Hash, value common.Hash)
 	// GetEphemeralState(addr common.Address, key common.Hash) common.Hash

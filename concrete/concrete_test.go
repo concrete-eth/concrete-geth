@@ -16,10 +16,12 @@
 package concrete
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/concrete/api"
+	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
 
@@ -99,17 +101,13 @@ var (
 
 func verifyPrecompileSet(t *testing.T, registry *GenericPrecompileRegistry, num uint64, p pcSet) {
 	r := require.New(t)
-	// Assert that all the provided addresses have been returned and all the returned
-	// addresses were provided
-	addresses := registry.ActivePrecompiles(num)
-	r.Len(addresses, len(p.precompiles))
-	for _, address := range addresses {
-		_, ok := p.precompiles[address]
-		r.True(ok)
-	}
+	// Assert that PrecompiledAddresses returns the correct slice of addresses
+	pcsAddr := registry.PrecompiledAddresses(num)
+	expPcsAddr := make([]common.Address, 0, len(p.precompiles))
 	for address := range p.precompiles {
-		r.Contains(addresses, address)
+		expPcsAddr = append(expPcsAddr, address)
 	}
+	r.ElementsMatch(expPcsAddr, pcsAddr)
 	// Assert that all active addresses map to the correct precompile
 	for address, setPc := range p.precompiles {
 		registryPc, ok := registry.Precompile(address, num)
@@ -127,9 +125,8 @@ func verifyPrecompileSet(t *testing.T, registry *GenericPrecompileRegistry, num 
 
 func verifyPrecompileSingle(t *testing.T, registry *GenericPrecompileRegistry, num uint64, p pcSingle) {
 	r := require.New(t)
-	// Assert that all the provided addresses have been returned and all the returned
-	// addresses were provided
-	addresses := registry.ActivePrecompiles(num)
+	// Assert that PrecompiledAddresses returns the correct slice of addresses
+	addresses := registry.PrecompiledAddresses(num)
 	r.Len(addresses, 1)
 	r.Equal(p.address, addresses[0])
 	// Assert that all active addresses map to the correct precompile
@@ -208,5 +205,109 @@ func TestPrecompileRegistry(t *testing.T) {
 				verifyPrecompileSingle(t, registry, blockNumber, d)
 			}
 		})
+	})
+}
+
+type testPrecompile struct {
+	isStaticFn func([]byte) bool
+	runFn      func(api.Environment, []byte) ([]byte, error)
+}
+
+var _ Precompile = &testPrecompile{}
+
+func (pc *testPrecompile) IsStatic(input []byte) bool {
+	return pc.isStaticFn(input)
+}
+
+func (pc *testPrecompile) Run(API api.Environment, input []byte) ([]byte, error) {
+	return pc.runFn(API, input)
+}
+
+func TestRunPrecompile(t *testing.T) {
+	t.Run("NoError", func(t *testing.T) {
+		pc := &testPrecompile{}
+		env, _, _, _ := api.NewMockEnvironment(api.EnvConfig{IsStatic: true}, true)
+		gas := uint64(1234)
+		isStaticCounter := 0
+		runCounter := 0
+		pc.isStaticFn = func(input []byte) bool {
+			isStaticCounter++
+			return true
+		}
+		pc.runFn = func(API api.Environment, input []byte) ([]byte, error) {
+			runCounter++
+			return []byte{}, nil
+		}
+		ret, remainingGas, err := RunPrecompile(pc, env, nil, gas, uint256.NewInt(0))
+		require.NoError(t, err)
+		require.Equal(t, []byte{}, ret)
+		require.Equal(t, gas, remainingGas)
+		require.Equal(t, 1, isStaticCounter)
+		require.Equal(t, 1, runCounter)
+	})
+	t.Run("ExplicitRevert", func(t *testing.T) {
+		pc := &testPrecompile{}
+		env, _, _, _ := api.NewMockEnvironment(api.EnvConfig{IsStatic: true}, true)
+		gas := uint64(1234)
+		revertErr := errors.New("explicit revert")
+		pc.isStaticFn = func(input []byte) bool {
+			return true
+		}
+		pc.runFn = func(API api.Environment, input []byte) ([]byte, error) {
+			API.Revert(revertErr)
+			return nil, nil
+		}
+		ret, remainingGas, err := RunPrecompile(pc, env, nil, gas, uint256.NewInt(0))
+		require.Equal(t, api.ErrExecutionReverted, err)
+		require.Equal(t, []byte(revertErr.Error()), ret)
+		require.Equal(t, gas-api.GasQuickStep, remainingGas)
+	})
+	t.Run("ImplicitRevert", func(t *testing.T) {
+		pc := &testPrecompile{}
+		env, _, _, _ := api.NewMockEnvironment(api.EnvConfig{IsStatic: true}, true)
+		gas := uint64(1234)
+		revertErr := errors.New("implicit revert")
+		pc.isStaticFn = func(input []byte) bool {
+			return true
+		}
+		pc.runFn = func(API api.Environment, input []byte) ([]byte, error) {
+			return nil, revertErr
+		}
+		ret, remainingGas, err := RunPrecompile(pc, env, nil, gas, uint256.NewInt(0))
+		require.Equal(t, api.ErrExecutionReverted, err)
+		require.Equal(t, []byte(revertErr.Error()), ret)
+		require.Equal(t, gas, remainingGas)
+	})
+	t.Run("OutOfGas", func(t *testing.T) {
+		pc := &testPrecompile{}
+		env, _, _, _ := api.NewMockEnvironment(api.EnvConfig{IsStatic: true}, true)
+		gas := uint64(1234)
+		pc.isStaticFn = func(input []byte) bool {
+			return true
+		}
+		pc.runFn = func(API api.Environment, input []byte) ([]byte, error) {
+			API.UseGas(gas + 1)
+			return nil, nil
+		}
+		ret, remainingGas, err := RunPrecompile(pc, env, nil, gas, uint256.NewInt(0))
+		require.Equal(t, api.ErrOutOfGas, err)
+		require.Nil(t, ret)
+		require.Equal(t, uint64(0), remainingGas)
+	})
+	t.Run("RuntimePanic", func(t *testing.T) {
+		pc := &testPrecompile{}
+		env, _, _, _ := api.NewMockEnvironment(api.EnvConfig{IsStatic: true}, true)
+		gas := uint64(1234)
+		panicErr := errors.New("panic")
+		pc.isStaticFn = func(input []byte) bool {
+			return true
+		}
+		pc.runFn = func(API api.Environment, input []byte) ([]byte, error) {
+			panic(panicErr)
+		}
+		ret, remainingGas, err := RunPrecompile(pc, env, nil, gas, uint256.NewInt(0))
+		require.ErrorIs(t, err, panicErr)
+		require.Nil(t, ret)
+		require.Equal(t, uint64(0), remainingGas)
 	})
 }
