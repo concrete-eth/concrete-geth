@@ -78,6 +78,7 @@ type Environment interface {
 	GetCallValue() *uint256.Int
 	// Storage
 	StorageLoad(key common.Hash) common.Hash
+	TransientLoad(key common.Hash) common.Hash
 	// Code
 	GetCode(address common.Address) []byte
 	GetCodeSize() int
@@ -85,6 +86,7 @@ type Environment interface {
 	// Local - WRITE
 	// Storage
 	StorageStore(key common.Hash, value common.Hash)
+	TransientStore(key common.Hash, value common.Hash)
 	// Log
 	Log(topics []common.Hash, data []byte)
 
@@ -103,8 +105,8 @@ type Environment interface {
 	Call(address common.Address, data []byte, gas uint64, value *uint256.Int) ([]byte, error)
 	CallDelegate(address common.Address, data []byte, gas uint64) ([]byte, error)
 	// Create
-	Create(data []byte, value *uint256.Int) (common.Address, error)
-	Create2(data []byte, endowment *uint256.Int, salt *uint256.Int) (common.Address, error)
+	Create(data []byte, value *uint256.Int) ([]byte, common.Address, error)
+	Create2(data []byte, endowment *uint256.Int, salt *uint256.Int) ([]byte, common.Address, error)
 }
 
 type EnvConfig struct {
@@ -153,8 +155,9 @@ type Env struct {
 
 	contract *Contract
 
-	revertErr   error
-	callGasTemp uint64
+	revertErr    error
+	nonRevertErr error
+	callGasTemp  uint64
 }
 
 func NewEnvironment(
@@ -213,6 +216,7 @@ func execute(op OpCode, env *Env, args [][]byte) ([][]byte, error) {
 func (env *Env) execute(op OpCode, args [][]byte) [][]byte {
 	ret, err := env._execute(op, env, args)
 	if err != nil {
+		env.nonRevertErr = err
 		panic(err)
 	}
 	return ret
@@ -232,6 +236,10 @@ func (env *Env) Contract() *Contract {
 
 func (env *Env) RevertError() error {
 	return env.revertErr
+}
+
+func (env *Env) NonRevertError() error {
+	return env.nonRevertErr
 }
 
 func (env *Env) Gas() uint64 {
@@ -383,6 +391,12 @@ func (env *Env) StorageLoad(key common.Hash) common.Hash {
 	return common.BytesToHash(output[0])
 }
 
+func (env *Env) TransientLoad(key common.Hash) common.Hash {
+	input := [][]byte{key.Bytes()}
+	output := env.execute(TransientLoad_OpCode, input)
+	return common.BytesToHash(output[0])
+}
+
 func (env *Env) GetCode(address common.Address) []byte {
 	input := [][]byte{address.Bytes()}
 	output := env.execute(GetCode_OpCode, input)
@@ -397,6 +411,11 @@ func (env *Env) GetCodeSize() int {
 func (env *Env) StorageStore(key common.Hash, value common.Hash) {
 	input := [][]byte{key.Bytes(), value.Bytes()}
 	env.execute(StorageStore_OpCode, input)
+}
+
+func (env *Env) TransientStore(key common.Hash, value common.Hash) {
+	input := [][]byte{key.Bytes(), value.Bytes()}
+	env.execute(TransientStore_OpCode, input)
 }
 
 func (env *Env) Log(topics []common.Hash, data []byte) {
@@ -414,8 +433,10 @@ func (env *Env) GetExternalBalance(address common.Address) *uint256.Int {
 	return new(uint256.Int).SetBytes(output[0])
 }
 
+// TODO: Should call errors be interpreted?
+
 func (env *Env) CallStatic(address common.Address, data []byte, gas uint64) ([]byte, error) {
-	input := [][]byte{utils.Uint64ToBytes(gas), address.Bytes(), data}
+	input := [][]byte{address.Bytes(), data, utils.Uint64ToBytes(gas)}
 	output := env.execute(CallStatic_OpCode, input)
 	return output[0], utils.DecodeError(output[1])
 }
@@ -439,27 +460,31 @@ func (env *Env) GetExternalCodeHash(address common.Address) common.Hash {
 }
 
 func (env *Env) Call(address common.Address, data []byte, gas uint64, value *uint256.Int) ([]byte, error) {
-	input := [][]byte{utils.Uint64ToBytes(gas), address.Bytes(), value.Bytes(), data}
+	v := value.Bytes32()
+	input := [][]byte{address.Bytes(), data, utils.Uint64ToBytes(gas), v[:]}
 	output := env.execute(Call_OpCode, input)
 	return output[0], utils.DecodeError(output[1])
 }
 
 func (env *Env) CallDelegate(address common.Address, data []byte, gas uint64) ([]byte, error) {
-	input := [][]byte{utils.Uint64ToBytes(gas), address.Bytes(), data}
+	input := [][]byte{address.Bytes(), data, utils.Uint64ToBytes(gas)}
 	output := env.execute(CallDelegate_OpCode, input)
 	return output[0], utils.DecodeError(output[1])
 }
 
-func (env *Env) Create(data []byte, value *uint256.Int) (common.Address, error) {
-	input := [][]byte{data, value.Bytes()}
+func (env *Env) Create(data []byte, value *uint256.Int) ([]byte, common.Address, error) {
+	v := value.Bytes32()
+	input := [][]byte{data, v[:]}
 	output := env.execute(Create_OpCode, input)
-	return common.BytesToAddress(output[0]), utils.DecodeError(output[1])
+	return output[0], common.BytesToAddress(output[1]), utils.DecodeError(output[2])
 }
 
-func (env *Env) Create2(data []byte, endowment *uint256.Int, salt *uint256.Int) (common.Address, error) {
-	input := [][]byte{data, endowment.Bytes(), salt.Bytes()}
+func (env *Env) Create2(data []byte, endowment *uint256.Int, salt *uint256.Int) ([]byte, common.Address, error) {
+	e := endowment.Bytes32()
+	s := salt.Bytes32()
+	input := [][]byte{data, e[:], s[:]}
 	output := env.execute(Create2_OpCode, input)
-	return common.BytesToAddress(output[0]), utils.DecodeError(output[1])
+	return output[0], common.BytesToAddress(output[1]), utils.DecodeError(output[2])
 }
 
 var _ Environment = (*Env)(nil)
