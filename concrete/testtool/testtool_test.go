@@ -48,11 +48,5 @@ func TestRunTestContract(t *testing.T) {
 		OutDir:   filepath.Join("testdata", "out"),
 	}
 	concreteRegistry := concrete.NewRegistry()
-	passed, failed := Test(concreteRegistry, config)
-	if failed > 0 {
-		t.Errorf("failed tests: %v", failed)
-	}
-	if passed == 0 {
-		t.Error("no tests passed")
-	}
+	Test(t, concreteRegistry, config)
 }
