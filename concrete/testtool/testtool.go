@@ -16,8 +16,8 @@
 package testtool
 
 import (
-	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"math/big"
 	"os"
 	"path/filepath"
@@ -65,7 +65,7 @@ func runTestMethod(t *testing.T, concreteRegistry concrete.PrecompileRegistry, b
 			tx := types.NewTransaction(block.TxNonce(senderAddress), contractAddress, common.Big0, gasLimit, block.BaseFee(), id)
 			signed, err := types.SignTx(tx, signer, key)
 			if err != nil {
-				panic(err)
+				t.Fatal(err)
 			}
 			block.AddTx(signed)
 		}
@@ -78,28 +78,26 @@ func runTestMethod(t *testing.T, concreteRegistry concrete.PrecompileRegistry, b
 	testReceipt := receipts[0][1]
 
 	if setupReceipt.Status != types.ReceiptStatusSuccessful {
-		t.Fatal("setup failed")
+		t.Fail()
 	}
 	if (testReceipt.Status == types.ReceiptStatusSuccessful) == shouldFail {
-		t.Fatal("test failed")
+		t.Fail()
 	}
 
 	t.Logf("Gas used: %d", testReceipt.GasUsed)
 
 	if PrintLogs && len(testReceipt.Logs) > 0 {
-		t.Log("")
 		for ii, log := range testReceipt.Logs {
-			t.Logf("Logs[%d]", ii)
-			t.Log("Address :", log.Address)
+			logStr := fmt.Sprintf("\nLogs[%d]\nAddress : %s\n", ii, log.Address)
 			if len(log.Topics) > 0 {
-				t.Log("Topics  :", log.Topics[0])
+				logStr += fmt.Sprintf("Topics  : %s\n", log.Topics[0].String())
 				for _, topic := range log.Topics[1:] {
-					t.Log("         ", topic)
+					logStr += fmt.Sprintf("         : %s\n", topic.String())
 				}
 			}
-			t.Log("Data    : 0x" + hex.EncodeToString(log.Data))
+			logStr += fmt.Sprintf("Data    : 0x%x\n", log.Data)
+			t.Log(logStr)
 		}
-		t.Log("")
 	}
 }
 
