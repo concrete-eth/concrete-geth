@@ -78,7 +78,7 @@ func runTestMethod(t *testing.T, concreteRegistry concrete.PrecompileRegistry, b
 	testReceipt := receipts[0][1]
 
 	if setupReceipt.Status != types.ReceiptStatusSuccessful {
-		t.Fail()
+		t.Fatal("setup failed")
 	}
 	if (testReceipt.Status == types.ReceiptStatusSuccessful) == shouldFail {
 		t.Fail()
