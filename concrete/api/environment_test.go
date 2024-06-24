@@ -17,7 +17,6 @@
 
 // This file will be ignored when building with tinygo to prevent compatibility
 // issues.
-
 package api
 
 import (
@@ -26,6 +25,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
@@ -166,32 +166,111 @@ func TestDebugf(t *testing.T) {
 func TestBlockContextMethods(t *testing.T) {
 	var (
 		r        = require.New(t)
-		config   = EnvConfig{IsStatic: false, IsTrusted: false}
+		config   = EnvConfig{IsStatic: true, IsTrusted: false}
 		meterGas = true
 		gas      = uint64(1e6)
 	)
 
-	env, _, block, _ := NewMockEnvironment(config, meterGas)
-	env.contract.Gas = gas
+	env, _, _block, _ := NewMockEnvironment(config, meterGas)
+	block := _block.(*mockBlockContext)
 
-	blockHash := block.GetHash(0)
-	r.Equal(blockHash, env.GetBlockHash(0))
+	t.Run("BlockHash", func(t *testing.T) {
+		env.contract.Gas = gas
 
-	blockGasLimit := block.GasLimit()
-	r.Equal(blockGasLimit, env.GetBlockGasLimit())
+		var (
+			currentBlockNumber = uint64(400)
+			lastBlockNumber    = currentBlockNumber - 1
+			recentBlockNumber  = currentBlockNumber - 2
+			limitBlockNumber   = lastBlockNumber - 255
+			limitBlockNumberS1 = limitBlockNumber - 1
+			futureBlockNumber  = currentBlockNumber + 1
+		)
 
-	blockTimestamp := block.Timestamp()
-	r.Equal(blockTimestamp, env.GetBlockTimestamp())
+		block.SetBlockNumber(currentBlockNumber)
+		block.SetBlockHash(currentBlockNumber, common.Hash{0x01})
+		block.SetBlockHash(lastBlockNumber, common.Hash{0x02})
+		block.SetBlockHash(recentBlockNumber, common.Hash{0x03})
+		block.SetBlockHash(limitBlockNumber, common.Hash{0x04})
+		block.SetBlockHash(limitBlockNumberS1, common.Hash{0x05})
+		block.SetBlockHash(futureBlockNumber, common.Hash{0x06})
 
-	blockDifficulty := block.Difficulty()
-	r.Equal(blockDifficulty, env.GetBlockDifficulty())
+		r.Equal(common.Hash{}, env.GetBlockHash(currentBlockNumber))
+		r.Equal(block.GetHash(lastBlockNumber), env.GetBlockHash(lastBlockNumber))
+		r.Equal(block.GetHash(recentBlockNumber), env.GetBlockHash(recentBlockNumber))
+		r.Equal(block.GetHash(limitBlockNumber), env.GetBlockHash(limitBlockNumber))
+		r.Equal(common.Hash{}, env.GetBlockHash(limitBlockNumberS1))
+		r.Equal(common.Hash{}, env.GetBlockHash(futureBlockNumber))
 
-	blockBaseFee := block.BaseFee()
-	r.Equal(blockBaseFee, env.GetBlockBaseFee())
+		r.Equal(env.Gas(), gas-6*GasExtStep)
+	})
 
-	blockCoinbase := block.Coinbase()
-	r.Equal(blockCoinbase, env.GetBlockCoinbase())
+	t.Run("BlockNumber", func(t *testing.T) {
+		env.contract.Gas = gas
 
-	prevRandom := block.Random()
-	r.Equal(prevRandom, env.GetPrevRandom())
+		blockNumber := uint64(123456)
+		block.SetBlockNumber(blockNumber)
+
+		r.Equal(blockNumber, env.GetBlockNumber())
+		r.Equal(env.Gas(), gas-GasQuickStep)
+	})
+
+	t.Run("GasLimit", func(t *testing.T) {
+		env.contract.Gas = gas
+
+		blockGasLimit := uint64(8000000)
+		block.SetGasLimit(blockGasLimit)
+
+		r.Equal(blockGasLimit, env.GetBlockGasLimit())
+		r.Equal(env.Gas(), gas-GasQuickStep)
+	})
+
+	t.Run("Timestamp", func(t *testing.T) {
+		env.contract.Gas = gas
+
+		blockTimestamp := uint64(1625097600)
+		block.SetTimestamp(blockTimestamp)
+
+		r.Equal(blockTimestamp, env.GetBlockTimestamp())
+		r.Equal(env.Gas(), gas-GasQuickStep)
+	})
+
+	t.Run("Difficulty", func(t *testing.T) {
+		env.contract.Gas = gas
+
+		blockDifficulty := uint256.NewInt(5000000000)
+		block.SetDifficulty(blockDifficulty)
+
+		r.Equal(blockDifficulty, env.GetBlockDifficulty())
+		r.Equal(env.Gas(), gas-GasQuickStep)
+	})
+
+	t.Run("BaseFee", func(t *testing.T) {
+		env.contract.Gas = gas
+
+		blockBaseFee := uint256.NewInt(1000000000)
+		block.SetBaseFee(blockBaseFee)
+
+		r.Equal(blockBaseFee, env.GetBlockBaseFee())
+		r.Equal(env.Gas(), gas-GasQuickStep)
+	})
+
+	t.Run("Coinbase", func(t *testing.T) {
+		env.contract.Gas = gas
+
+		blockCoinbase := common.Address{0x01}
+		block.SetCoinbase(blockCoinbase)
+
+		r.Equal(blockCoinbase, env.GetBlockCoinbase())
+		r.Equal(env.Gas(), gas-GasQuickStep)
+	})
+
+	t.Run("PrevRandom", func(t *testing.T) {
+		env.contract.Gas = gas
+
+		blockRandom := common.Hash{0x01}
+		block.SetRandom(blockRandom)
+
+		r.Equal(blockRandom, env.GetPrevRandom())
+		r.Equal(env.Gas(), gas-GasQuickStep)
+	})
 }
