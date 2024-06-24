@@ -43,11 +43,11 @@ var (
 )
 
 func runTestMethod(t *testing.T, concreteRegistry concrete.PrecompileRegistry, bytecode []byte, method abi.Method, shouldFail bool) {
-	t.Run("runTestMethod", func(t *testing.T) {
-		key, _ := crypto.HexToECDSA("d17bd946feb884d463d58fb702b94dd0457ca349338da1d732a57856cf777ccd") // 0xCcca11AbAC28D9b6FceD3a9CA73C434f6b33B215
-		senderAddress := crypto.PubkeyToAddress(key.PublicKey)
-		contractAddress := common.HexToAddress("cc73570000000000000000000000000000000000")
-		gspec := &core.Genesis{
+	var (
+		key, _          = crypto.HexToECDSA("d17bd946feb884d463d58fb702b94dd0457ca349338da1d732a57856cf777ccd") // 0xCcca11AbAC28D9b6FceD3a9CA73C434f6b33B215
+		senderAddress   = crypto.PubkeyToAddress(key.PublicKey)
+		contractAddress = common.HexToAddress("cc73570000000000000000000000000000000000")
+		gspec           = &core.Genesis{
 			GasLimit: 2e9,
 			Config:   params.TestChainConfig,
 			Alloc: types.GenesisAlloc{
@@ -55,59 +55,55 @@ func runTestMethod(t *testing.T, concreteRegistry concrete.PrecompileRegistry, b
 				contractAddress: {Balance: common.Big0, Code: bytecode},
 			},
 		}
-		signer := types.LatestSigner(gspec.Config)
-		gasLimit := uint64(1e7)
-		setupId := crypto.Keccak256([]byte("setUp()"))[:4]
+		signer   = types.LatestSigner(gspec.Config)
+		gasLimit = uint64(1e7)
+		setupId  = crypto.Keccak256([]byte("setUp()"))[:4]
+	)
 
-		_, _, receipts := core.GenerateChainWithGenesisWithConcrete(gspec, ethash.NewFaker(), 1, concreteRegistry, func(ii int, block *core.BlockGen) {
-			for _, id := range [][]byte{setupId, method.ID} {
-				tx := types.NewTransaction(block.TxNonce(senderAddress), contractAddress, common.Big0, gasLimit, block.BaseFee(), id)
-				signed, err := types.SignTx(tx, signer, key)
-				if err != nil {
-					t.Fatal(err)
-				}
-				block.AddTx(signed)
+	_, _, receipts := core.GenerateChainWithGenesisWithConcrete(gspec, ethash.NewFaker(), 1, concreteRegistry, func(ii int, block *core.BlockGen) {
+		for _, id := range [][]byte{setupId, method.ID} {
+			tx := types.NewTransaction(block.TxNonce(senderAddress), contractAddress, common.Big0, gasLimit, block.BaseFee(), id)
+			signed, err := types.SignTx(tx, signer, key)
+			if err != nil {
+				panic(err)
 			}
-		})
-
-		t.Run("validateReceipts", func(t *testing.T) {
-			if len(receipts[0]) != 2 {
-				t.Fatalf("expected 2 receipts, got %d", len(receipts[0]))
-			}
-			setupReceipt := receipts[0][0]
-			testReceipt := receipts[0][1]
-
-			if setupReceipt.Status != types.ReceiptStatusSuccessful {
-				t.Fatalf("setup failed")
-			}
-			if (testReceipt.Status == types.ReceiptStatusSuccessful) == shouldFail {
-				t.Fatalf("test failed")
-			}
-
-			if PrintLogs && len(testReceipt.Logs) > 0 {
-				t.Log("")
-				for ii, log := range testReceipt.Logs {
-					t.Logf("Logs[%d]", ii)
-					t.Log("Address :", log.Address)
-					if len(log.Topics) > 0 {
-						t.Log("Topics  :", log.Topics[0])
-						for _, topic := range log.Topics[1:] {
-							t.Log("         ", topic)
-						}
-					}
-					t.Log("Data    : 0x" + hex.EncodeToString(log.Data))
-				}
-				t.Log("")
-			}
-			t.Logf("Gas used: %d", testReceipt.GasUsed)
-		})
+			block.AddTx(signed)
+		}
 	})
+
+	if len(receipts[0]) != 2 {
+		t.Fatalf("expected 2 receipts, got %d", len(receipts[0]))
+	}
+	setupReceipt := receipts[0][0]
+	testReceipt := receipts[0][1]
+
+	if setupReceipt.Status != types.ReceiptStatusSuccessful {
+		t.Fatal("setup failed")
+	}
+	if (testReceipt.Status == types.ReceiptStatusSuccessful) == shouldFail {
+		t.Fatal("test failed")
+	}
+
+	t.Logf("Gas used: %d", testReceipt.GasUsed)
+
+	if PrintLogs && len(testReceipt.Logs) > 0 {
+		t.Log("")
+		for ii, log := range testReceipt.Logs {
+			t.Logf("Logs[%d]", ii)
+			t.Log("Address :", log.Address)
+			if len(log.Topics) > 0 {
+				t.Log("Topics  :", log.Topics[0])
+				for _, topic := range log.Topics[1:] {
+					t.Log("         ", topic)
+				}
+			}
+			t.Log("Data    : 0x" + hex.EncodeToString(log.Data))
+		}
+		t.Log("")
+	}
 }
 
 func runTestContract(t *testing.T, concreteRegistry concrete.PrecompileRegistry, bytecode []byte, ABI abi.ABI) {
-	resetGethLogger := setGethVerbosity(log.LevelWarn)
-	defer resetGethLogger()
-
 	for _, method := range ABI.Methods {
 		if !strings.HasPrefix(method.Name, "test") {
 			continue
