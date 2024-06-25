@@ -15,7 +15,7 @@
 
 //go:build !tinygo
 
-// This file will ignored when building with tinygo to prevent compatibility
+// This file will be ignored when building with tinygo to prevent compatibility
 // issues.
 
 package api
@@ -49,6 +49,27 @@ func TestGas(t *testing.T) {
 	gas -= getGasLeftOpCost
 	r.Equal(gas, env.GetGasLeft())
 	r.Equal(gas, env.Gas())
+}
+
+func TestBlockOps_Minimal(t *testing.T) {
+	var (
+		r        = require.New(t)
+		config   = EnvConfig{IsStatic: false, IsTrusted: false}
+		meterGas = true
+		gas      = uint64(1e6)
+	)
+
+	env, _, _, _ := NewMockEnvironment(config, meterGas)
+	env.contract.Gas = gas
+
+	r.Equal(env.block.GetHash(0), env.GetBlockHash(0))
+	r.Equal(env.block.GasLimit(), env.GetBlockGasLimit())
+	r.Equal(env.block.BlockNumber(), env.GetBlockNumber())
+	r.Equal(env.block.Timestamp(), env.GetBlockTimestamp())
+	r.Equal(env.block.Difficulty(), env.GetBlockDifficulty())
+	r.Equal(env.block.BaseFee(), env.GetBlockBaseFee())
+	r.Equal(env.block.Coinbase(), env.GetBlockCoinbase())
+	r.Equal(env.block.Random(), env.GetPrevRandom())
 }
 
 func TestCallOps_Minimal(t *testing.T) {
@@ -127,7 +148,7 @@ func TestDebugf(t *testing.T) {
 		os.Stderr = stderr
 	}()
 
-	// Copy catured stderr to a buffer
+	// Copy captured stderr to a buffer
 	done := make(chan *bytes.Buffer)
 	go func() {
 		defer read.Close()
@@ -185,26 +206,75 @@ func TestBlockContextMethods(t *testing.T) {
 		r.Equal(env.Gas(), gas-6*GasExtStep)
 	})
 
-	blockHash := block.GetHash(0)
-	r.Equal(blockHash, env.GetBlockHash(0))
+	t.Run("BlockNumber", func(t *testing.T) {
+		env.contract.Gas = gas
 
-	blockGasLimit := block.GasLimit()
-	r.Equal(blockGasLimit, env.GetBlockGasLimit())
+		blockNumber := uint64(123456)
+		block.SetBlockNumber(blockNumber)
 
-	blockTimestamp := block.Timestamp()
-	r.Equal(blockTimestamp, env.GetBlockTimestamp())
+		r.Equal(blockNumber, env.GetBlockNumber())
+		r.Equal(env.Gas(), gas-GasQuickStep)
+	})
 
-	blockDifficulty := block.Difficulty()
-	r.Equal(blockDifficulty, env.GetBlockDifficulty())
+	t.Run("GasLimit", func(t *testing.T) {
+		env.contract.Gas = gas
 
-	blockBaseFee := block.BaseFee()
-	r.Equal(blockBaseFee, env.GetBlockBaseFee())
+		blockGasLimit := uint64(8000000)
+		block.SetGasLimit(blockGasLimit)
 
-	blockCoinbase := block.Coinbase()
-	r.Equal(blockCoinbase, env.GetBlockCoinbase())
+		r.Equal(blockGasLimit, env.GetBlockGasLimit())
+		r.Equal(env.Gas(), gas-GasQuickStep)
+	})
 
-	prevRandom := block.Random()
-	r.Equal(prevRandom, env.GetPrevRandom())
+	t.Run("Timestamp", func(t *testing.T) {
+		env.contract.Gas = gas
+
+		blockTimestamp := uint64(1625097600)
+		block.SetTimestamp(blockTimestamp)
+
+		r.Equal(blockTimestamp, env.GetBlockTimestamp())
+		r.Equal(env.Gas(), gas-GasQuickStep)
+	})
+
+	t.Run("Difficulty", func(t *testing.T) {
+		env.contract.Gas = gas
+
+		blockDifficulty := uint256.NewInt(5000000000)
+		block.SetDifficulty(blockDifficulty)
+
+		r.Equal(blockDifficulty, env.GetBlockDifficulty())
+		r.Equal(env.Gas(), gas-GasQuickStep)
+	})
+
+	t.Run("BaseFee", func(t *testing.T) {
+		env.contract.Gas = gas
+
+		blockBaseFee := uint256.NewInt(1000000000)
+		block.SetBaseFee(blockBaseFee)
+
+		r.Equal(blockBaseFee, env.GetBlockBaseFee())
+		r.Equal(env.Gas(), gas-GasQuickStep)
+	})
+
+	t.Run("Coinbase", func(t *testing.T) {
+		env.contract.Gas = gas
+
+		blockCoinbase := common.Address{0x01}
+		block.SetCoinbase(blockCoinbase)
+
+		r.Equal(blockCoinbase, env.GetBlockCoinbase())
+		r.Equal(env.Gas(), gas-GasQuickStep)
+	})
+
+	t.Run("PrevRandom", func(t *testing.T) {
+		env.contract.Gas = gas
+
+		blockRandom := common.Hash{0x01}
+		block.SetRandom(blockRandom)
+
+		r.Equal(blockRandom, env.GetPrevRandom())
+		r.Equal(env.Gas(), gas-GasQuickStep)
+	})
 }
 
 func TestCallMethods(t *testing.T) {
