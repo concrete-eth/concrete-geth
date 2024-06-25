@@ -17,6 +17,7 @@
 
 // This file will be ignored when building with tinygo to prevent compatibility
 // issues.
+
 package api
 
 import (
@@ -275,6 +276,7 @@ func TestBlockContextMethods(t *testing.T) {
 		r.Equal(env.Gas(), gas-GasQuickStep)
 	})
 }
+
 func TestCallMethods(t *testing.T) {
 	var (
 		r        = require.New(t)
