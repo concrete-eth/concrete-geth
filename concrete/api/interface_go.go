@@ -22,6 +22,7 @@ package api
 
 import (
 	"github.com/ethereum/go-ethereum/common"
+	cc_api "github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/holiman/uint256"
 )
@@ -54,3 +55,5 @@ type StateDB interface {
 	// SetEphemeralState(addr common.Address, key common.Hash, value common.Hash)
 	// GetEphemeralState(addr common.Address, key common.Hash) common.Hash
 }
+
+var _ StateDB = (*cc_api.StateDB)(nil)
