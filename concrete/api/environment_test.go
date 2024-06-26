@@ -15,7 +15,7 @@
 
 //go:build !tinygo
 
-// This file will ignored when building with tinygo to prevent compatibility
+// This file will be ignored when building with tinygo to prevent compatibility
 // issues.
 
 package api
@@ -27,6 +27,7 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
@@ -48,6 +49,27 @@ func TestGas(t *testing.T) {
 	gas -= getGasLeftOpCost
 	r.Equal(gas, env.GetGasLeft())
 	r.Equal(gas, env.Gas())
+}
+
+func TestBlockOps_Minimal(t *testing.T) {
+	var (
+		r        = require.New(t)
+		config   = EnvConfig{IsStatic: false, IsTrusted: false}
+		meterGas = true
+		gas      = uint64(1e6)
+	)
+
+	env, _, _, _ := NewMockEnvironment(config, meterGas)
+	env.contract.Gas = gas
+
+	r.Equal(env.block.GetHash(0), env.GetBlockHash(0))
+	r.Equal(env.block.GasLimit(), env.GetBlockGasLimit())
+	r.Equal(env.block.BlockNumber(), env.GetBlockNumber())
+	r.Equal(env.block.Timestamp(), env.GetBlockTimestamp())
+	r.Equal(env.block.Difficulty(), env.GetBlockDifficulty())
+	r.Equal(env.block.BaseFee(), env.GetBlockBaseFee())
+	r.Equal(env.block.Coinbase(), env.GetBlockCoinbase())
+	r.Equal(env.block.Random(), env.GetPrevRandom())
 }
 
 func TestCallOps_Minimal(t *testing.T) {
@@ -126,7 +148,7 @@ func TestDebugf(t *testing.T) {
 		os.Stderr = stderr
 	}()
 
-	// Copy catured stderr to a buffer
+	// Copy captured stderr to a buffer
 	done := make(chan *bytes.Buffer)
 	go func() {
 		defer read.Close()
@@ -184,24 +206,297 @@ func TestBlockContextMethods(t *testing.T) {
 		r.Equal(env.Gas(), gas-6*GasExtStep)
 	})
 
-	blockHash := block.GetHash(0)
-	r.Equal(blockHash, env.GetBlockHash(0))
+	t.Run("BlockNumber", func(t *testing.T) {
+		env.contract.Gas = gas
 
-	blockGasLimit := block.GasLimit()
-	r.Equal(blockGasLimit, env.GetBlockGasLimit())
+		blockNumber := uint64(123456)
+		block.SetBlockNumber(blockNumber)
 
-	blockTimestamp := block.Timestamp()
-	r.Equal(blockTimestamp, env.GetBlockTimestamp())
+		r.Equal(blockNumber, env.GetBlockNumber())
+		r.Equal(env.Gas(), gas-GasQuickStep)
+	})
 
-	blockDifficulty := block.Difficulty()
-	r.Equal(blockDifficulty, env.GetBlockDifficulty())
+	t.Run("GasLimit", func(t *testing.T) {
+		env.contract.Gas = gas
 
-	blockBaseFee := block.BaseFee()
-	r.Equal(blockBaseFee, env.GetBlockBaseFee())
+		blockGasLimit := uint64(8000000)
+		block.SetGasLimit(blockGasLimit)
 
-	blockCoinbase := block.Coinbase()
-	r.Equal(blockCoinbase, env.GetBlockCoinbase())
+		r.Equal(blockGasLimit, env.GetBlockGasLimit())
+		r.Equal(env.Gas(), gas-GasQuickStep)
+	})
 
-	prevRandom := block.Random()
-	r.Equal(prevRandom, env.GetPrevRandom())
+	t.Run("Timestamp", func(t *testing.T) {
+		env.contract.Gas = gas
+
+		blockTimestamp := uint64(1625097600)
+		block.SetTimestamp(blockTimestamp)
+
+		r.Equal(blockTimestamp, env.GetBlockTimestamp())
+		r.Equal(env.Gas(), gas-GasQuickStep)
+	})
+
+	t.Run("Difficulty", func(t *testing.T) {
+		env.contract.Gas = gas
+
+		blockDifficulty := uint256.NewInt(5000000000)
+		block.SetDifficulty(blockDifficulty)
+
+		r.Equal(blockDifficulty, env.GetBlockDifficulty())
+		r.Equal(env.Gas(), gas-GasQuickStep)
+	})
+
+	t.Run("BaseFee", func(t *testing.T) {
+		env.contract.Gas = gas
+
+		blockBaseFee := uint256.NewInt(1000000000)
+		block.SetBaseFee(blockBaseFee)
+
+		r.Equal(blockBaseFee, env.GetBlockBaseFee())
+		r.Equal(env.Gas(), gas-GasQuickStep)
+	})
+
+	t.Run("Coinbase", func(t *testing.T) {
+		env.contract.Gas = gas
+
+		blockCoinbase := common.Address{0x01}
+		block.SetCoinbase(blockCoinbase)
+
+		r.Equal(blockCoinbase, env.GetBlockCoinbase())
+		r.Equal(env.Gas(), gas-GasQuickStep)
+	})
+
+	t.Run("PrevRandom", func(t *testing.T) {
+		env.contract.Gas = gas
+
+		blockRandom := common.Hash{0x01}
+		block.SetRandom(blockRandom)
+
+		r.Equal(blockRandom, env.GetPrevRandom())
+		r.Equal(env.Gas(), gas-GasQuickStep)
+	})
+}
+
+func TestCallMethods(t *testing.T) {
+	var (
+		r        = require.New(t)
+		config   = EnvConfig{IsStatic: false, IsTrusted: false}
+		meterGas = true
+	)
+
+	env, _, _, _caller := NewMockEnvironment(config, meterGas)
+	caller := _caller.(*mockCaller)
+
+	t.Run("CallStatic", func(t *testing.T) {
+		gas := uint64(1e6)
+		env.contract.Gas = gas
+
+		var (
+			callAddr   = common.Address{0x01}
+			callInput  = []byte("input")
+			useGas     = uint64(123)
+			callGas    = uint64(456)
+			callOutput = []byte("outputCallStatic")
+		)
+
+		caller.SetCallStaticFn(func(addr common.Address, input []byte, gas uint64) ([]byte, uint64, error) {
+			r.Equal(callAddr, addr)
+			r.Equal(callInput, input)
+			r.Equal(callGas, gas)
+			return callOutput, gas - useGas, nil
+		})
+
+		ret, err := env.CallStatic(callAddr, callInput, callGas)
+		r.NoError(err)
+		r.Equal(callOutput, ret)
+
+		r.Equal(env.Gas(), gas-params.ColdAccountAccessCostEIP2929-useGas)
+	})
+
+	t.Run("CallStaticInsufficientGas", func(t *testing.T) {
+		gas := uint64(3000)
+		env.contract.Gas = gas
+		availableGas := gas - params.ColdAccountAccessCostEIP2929
+		expectedGas := availableGas - availableGas/64
+		callGas := uint64(1000)
+
+		caller.SetCallStaticFn(func(addr common.Address, input []byte, gas uint64) ([]byte, uint64, error) {
+			r.Equal(expectedGas, gas)
+			return nil, gas, nil
+		})
+
+		env.CallStatic(common.Address{}, nil, callGas)
+	})
+
+	t.Run("Call", func(t *testing.T) {
+		gas := uint64(1e6)
+		env.contract.Gas = gas
+
+		var (
+			callAddr   = common.Address{0x01}
+			callInput  = []byte("input")
+			useGas     = uint64(123)
+			callGas    = uint64(456)
+			callValue  = uint256.NewInt(1)
+			callOutput = []byte("outputCall")
+		)
+
+		caller.SetCallFn(func(addr common.Address, input []byte, gas uint64, value *uint256.Int) ([]byte, uint64, error) {
+			r.Equal(callAddr, addr)
+			r.Equal(callInput, input)
+			r.Equal(callGas, gas)
+			r.Equal(callValue, value)
+			return callOutput, gas - useGas, nil
+		})
+
+		ret, err := env.Call(callAddr, callInput, callGas, callValue)
+		r.NoError(err)
+		r.Equal(callOutput, ret)
+
+		r.Equal(env.Gas(), gas-params.ColdAccountAccessCostEIP2929-useGas)
+	})
+
+	t.Run("CallInsufficientGas", func(t *testing.T) {
+		gas := uint64(3000)
+		env.contract.Gas = gas
+		availableGas := gas - params.ColdAccountAccessCostEIP2929
+		expectedGas := availableGas - availableGas/64
+		callGas := uint64(1000)
+
+		caller.SetCallFn(func(addr common.Address, input []byte, gas uint64, value *uint256.Int) ([]byte, uint64, error) {
+			r.Equal(expectedGas, gas)
+			return nil, gas, nil
+		})
+
+		env.Call(common.Address{}, nil, callGas, new(uint256.Int))
+	})
+
+	t.Run("CallDelegate", func(t *testing.T) {
+		gas := uint64(1e6)
+		env.contract.Gas = gas
+
+		var (
+			callAddr   = common.Address{0x01}
+			callInput  = []byte("input")
+			useGas     = uint64(123)
+			callGas    = uint64(456)
+			callOutput = []byte("outputCallDelegate")
+		)
+
+		caller.SetCallDelegateFn(func(addr common.Address, input []byte, gas uint64) ([]byte, uint64, error) {
+			r.Equal(callAddr, addr)
+			r.Equal(callInput, input)
+			r.Equal(callGas, gas)
+			return callOutput, gas - useGas, nil
+		})
+
+		ret, err := env.CallDelegate(callAddr, callInput, callGas)
+		r.NoError(err)
+		r.Equal(callOutput, ret)
+
+		r.Equal(env.Gas(), gas-params.ColdAccountAccessCostEIP2929-useGas)
+	})
+
+	t.Run("CallDelegateInsufficientGas", func(t *testing.T) {
+		gas := uint64(3000)
+		env.contract.Gas = gas
+		availableGas := gas - params.ColdAccountAccessCostEIP2929
+		expectedGas := availableGas - availableGas/64
+		callGas := uint64(1000)
+
+		caller.SetCallDelegateFn(func(addr common.Address, input []byte, gas uint64) ([]byte, uint64, error) {
+			r.Equal(expectedGas, gas)
+			return nil, gas, nil
+		})
+
+		env.CallDelegate(common.Address{}, nil, callGas)
+	})
+
+	t.Run("Create", func(t *testing.T) {
+		gas := uint64(1e6)
+		env.contract.Gas = gas
+		createInput := []byte("input")
+		availableGas := gas - params.CreateGas - (toWordSize(len(createInput)) * params.InitCodeWordGas)
+		usedGas := availableGas - availableGas/64
+
+		var (
+			createValue  = uint256.NewInt(1)
+			createOutput = []byte("createOutput")
+			createAddr   = common.Address{0x01}
+		)
+
+		caller.SetCreateFn(func(input []byte, gas uint64, value *uint256.Int) ([]byte, common.Address, uint64, error) {
+			r.Equal(createInput, input)
+			r.Equal(usedGas, gas)
+			r.Equal(createValue, value)
+			return createOutput, createAddr, gas, nil
+		})
+
+		ret, addr, err := env.Create(createInput, createValue)
+		r.NoError(err)
+		r.Equal(createOutput, ret)
+		r.Equal(createAddr, addr)
+
+		r.Equal(env.Gas(), availableGas)
+	})
+
+	t.Run("CreateInsufficientGas", func(t *testing.T) {
+		gas := uint64(32005)
+		env.contract.Gas = gas
+		createInput := []byte("input")
+		availableGas := gas - params.CreateGas - (toWordSize(len(createInput)) * params.InitCodeWordGas)
+		expectedGas := availableGas - availableGas/64
+
+		caller.SetCreateFn(func(input []byte, gas uint64, value *uint256.Int) ([]byte, common.Address, uint64, error) {
+			r.Equal(expectedGas, gas)
+			return nil, common.Address{}, gas, nil
+		})
+
+		env.Create(createInput, new(uint256.Int))
+	})
+
+	t.Run("Create2", func(t *testing.T) {
+		gas := uint64(1e6)
+		env.contract.Gas = gas
+		createInput := []byte("input")
+		availableGas := gas - params.Create2Gas - (toWordSize(len(createInput)) * (params.InitCodeWordGas + params.Keccak256WordGas))
+		usedGas := availableGas - availableGas/64
+
+		var (
+			createValue  = uint256.NewInt(1)
+			createSalt   = new(uint256.Int).SetBytes([]byte("salt"))
+			createOutput = []byte("create2Output")
+			createAddr   = common.Address{0x01}
+		)
+
+		caller.SetCreate2Fn(func(input []byte, gas uint64, value *uint256.Int, salt *uint256.Int) ([]byte, common.Address, uint64, error) {
+			r.Equal(createInput, input)
+			r.Equal(usedGas, gas)
+			r.Equal(createValue, value)
+			r.Equal(createSalt, salt)
+			return createOutput, createAddr, gas, nil
+		})
+
+		ret, addr, err := env.Create2(createInput, createValue, createSalt)
+		r.NoError(err)
+		r.Equal(createOutput, ret)
+		r.Equal(createAddr, addr)
+
+		r.Equal(env.Gas(), availableGas)
+	})
+
+	t.Run("Create2InsufficientGas", func(t *testing.T) {
+		gas := uint64(32010)
+		env.contract.Gas = gas
+		createInput := []byte("input")
+		availableGas := gas - params.Create2Gas - (toWordSize(len(createInput)) * (params.InitCodeWordGas + params.Keccak256WordGas))
+		expectedGas := availableGas - availableGas/64
+
+		caller.SetCreate2Fn(func(input []byte, gas uint64, value *uint256.Int, salt *uint256.Int) ([]byte, common.Address, uint64, error) {
+			r.Equal(expectedGas, gas)
+			return nil, common.Address{}, gas, nil
+		})
+
+		env.Create2(createInput, new(uint256.Int), new(uint256.Int))
+	})
 }
