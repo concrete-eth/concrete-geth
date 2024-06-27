@@ -80,7 +80,7 @@ func RunPrecompile(p Precompile, env *api.Env, input []byte, gas uint64, value *
 	return ret, env.Gas(), err
 }
 
-type PrecompileMap = map[common.Address]Precompile
+type PrecompileMap = map[common.Address]interface{}
 
 type PrecompileRegistry interface {
 	Precompile(address common.Address, blockNumber uint64) (interface{}, bool)
