@@ -83,7 +83,7 @@ func RunPrecompile(p Precompile, env *api.Env, input []byte, gas uint64, value *
 type PrecompileMap = map[common.Address]Precompile
 
 type PrecompileRegistry interface {
-	Precompile(address common.Address, blockNumber uint64) (Precompile, bool)
+	Precompile(address common.Address, blockNumber uint64) (interface{}, bool)
 	Precompiles(blockNumber uint64) PrecompileMap
 	PrecompiledAddresses(blockNumber uint64) []common.Address
 }
@@ -146,7 +146,7 @@ func (c *GenericPrecompileRegistry) AddPrecompile(startingBlock uint64, address 
 	}
 }
 
-func (c *GenericPrecompileRegistry) Precompile(address common.Address, blockNumber uint64) (Precompile, bool) {
+func (c *GenericPrecompileRegistry) Precompile(address common.Address, blockNumber uint64) (interface{}, bool) {
 	idx := c.index(blockNumber)
 	if idx < 0 {
 		return nil, false
