@@ -19,6 +19,7 @@ package core
 import (
 	"sync/atomic"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -74,12 +75,12 @@ func (p *statePrefetcher) Prefetch(block *types.Block, statedb *state.StateDB, c
 		}
 		// If we're pre-byzantium, pre-load trie nodes for the intermediate root
 		if !byzantium {
-			statedb.IntermediateRootWithConcrete(evm.ConcretePrecompiles(), true)
+			statedb.IntermediateRootWithConcrete(map[common.Address]interface{}{}, true)
 		}
 	}
 	// If were post-byzantium, pre-load trie nodes for the final root hash
 	if byzantium {
-		statedb.IntermediateRootWithConcrete(evm.ConcretePrecompiles(), true)
+		statedb.IntermediateRootWithConcrete(map[common.Address]interface{}{}, true)
 	}
 }
 

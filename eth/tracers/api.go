@@ -288,7 +288,7 @@ func (api *API) traceChain(start, end *types.Block, config *TraceConfig, closed 
 					}
 					// Only delete empty objects if EIP158/161 (a.k.a Spurious Dragon) is in effect
 					task.statedb.FinaliseWithConcrete(
-						api.backend.Concrete().Precompiles(task.block.NumberU64()),
+						api.backend.Concrete().State_Precompiles(task.block.NumberU64()),
 						api.backend.ChainConfig().IsEIP158(task.block.Number()),
 					)
 					task.results[i] = &txTraceResult{TxHash: tx.Hash(), Result: res}
@@ -584,7 +584,7 @@ func (api *API) IntermediateRoots(ctx context.Context, hash common.Hash, config 
 		}
 		// calling IntermediateRoot will internally call Finalize on the state
 		// so any modifications are written to the trie
-		roots = append(roots, statedb.IntermediateRootWithConcrete(vmenv.ConcretePrecompiles(), deleteEmptyObjects))
+		roots = append(roots, statedb.IntermediateRootWithConcrete(map[common.Address]interface{}{}, deleteEmptyObjects))
 	}
 	return roots, nil
 }
@@ -634,7 +634,7 @@ func (api *API) traceBlock(ctx context.Context, block *types.Block, config *Trac
 	var (
 		txs         = block.Transactions()
 		blockHash   = block.Hash()
-		concretePcs = api.backend.Concrete().Precompiles(block.NumberU64())
+		concretePcs = api.backend.Concrete().State_Precompiles(block.NumberU64())
 		is158       = api.backend.ChainConfig().IsEIP158(block.Number())
 		blockCtx    = core.NewEVMBlockContext(block.Header(), api.chainContext(ctx), nil, api.backend.ChainConfig(), statedb)
 		signer      = types.MakeSigner(api.backend.ChainConfig(), block.Number(), block.Time())
@@ -728,7 +728,7 @@ txloop:
 		// Finalize the state so any modifications are written to the trie
 		// Only delete empty objects if EIP158/161 (a.k.a Spurious Dragon) is in effect
 		statedb.FinaliseWithConcrete(
-			vmenv.ConcretePrecompiles(),
+			map[common.Address]interface{}{},
 			vmenv.ChainConfig().IsEIP158(block.Number()),
 		)
 	}
@@ -846,7 +846,7 @@ func (api *API) standardTraceBlockToFile(ctx context.Context, block *types.Block
 		// Finalize the state so any modifications are written to the trie
 		// Only delete empty objects if EIP158/161 (a.k.a Spurious Dragon) is in effect
 		statedb.FinaliseWithConcrete(
-			vmenv.ConcretePrecompiles(),
+			map[common.Address]interface{}{},
 			vmenv.ChainConfig().IsEIP158(block.Number()),
 		)
 

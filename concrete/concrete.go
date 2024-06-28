@@ -81,26 +81,30 @@ func RunPrecompile(p Precompile, env *api.Env, input []byte, gas uint64, value *
 }
 
 type PrecompileMap = map[common.Address]Precompile
+type state_PrecompileMap = map[common.Address]interface{}
 
 type PrecompileRegistry interface {
 	Precompile(address common.Address, blockNumber uint64) (Precompile, bool)
 	Precompiles(blockNumber uint64) PrecompileMap
+	State_Precompiles(blockNumber uint64) state_PrecompileMap
 	PrecompiledAddresses(blockNumber uint64) []common.Address
 }
 
 type GenericPrecompileRegistry struct {
-	startingBlocks []uint64
-	precompiles    []PrecompileMap
-	addresses      [][]common.Address
+	startingBlocks    []uint64
+	precompiles       []PrecompileMap
+	state_precompiles []state_PrecompileMap
+	addresses         [][]common.Address
 }
 
 var _ PrecompileRegistry = (*GenericPrecompileRegistry)(nil)
 
 func NewRegistry() *GenericPrecompileRegistry {
 	return &GenericPrecompileRegistry{
-		startingBlocks: make([]uint64, 0),
-		precompiles:    make([]PrecompileMap, 0),
-		addresses:      make([][]common.Address, 0),
+		startingBlocks:    make([]uint64, 0),
+		precompiles:       make([]PrecompileMap, 0),
+		state_precompiles: make([]state_PrecompileMap, 0),
+		addresses:         make([][]common.Address, 0),
 	}
 }
 
@@ -164,6 +168,14 @@ func (c *GenericPrecompileRegistry) Precompiles(blockNumber uint64) PrecompileMa
 		return PrecompileMap{}
 	}
 	return c.precompiles[idx]
+}
+
+func (c *GenericPrecompileRegistry) State_Precompiles(blockNumber uint64) state_PrecompileMap {
+	idx := c.index(blockNumber)
+	if idx < 0 {
+		return state_PrecompileMap{}
+	}
+	return c.state_precompiles[idx]
 }
 
 func (c *GenericPrecompileRegistry) PrecompiledAddresses(blockNumber uint64) []common.Address {

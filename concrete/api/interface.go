@@ -17,6 +17,7 @@ package api
 
 import (
 	"github.com/ethereum/go-ethereum/common"
+	cc_api "github.com/ethereum/go-ethereum/core/state"
 	"github.com/holiman/uint256"
 )
 
@@ -42,3 +43,7 @@ type Caller interface {
 	Create(input []byte, gas uint64, value *uint256.Int) ([]byte, common.Address, uint64, error)
 	Create2(input []byte, gas uint64, endowment *uint256.Int, salt *uint256.Int) ([]byte, common.Address, uint64, error)
 }
+
+var _ StateDB = (*cc_api.StateDB)(nil)
+
+//var _ cc_api.StateDB = (*StateDB)(nil)
