@@ -23,8 +23,6 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
-	//"github.com/ethereum/go-ethereum/concrete"
-	//cc_api "github.com/ethereum/go-ethereum/concrete/api"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state/snapshot"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -1433,5 +1431,3 @@ func copy2DSet[k comparable](set map[k]map[common.Hash][]byte) map[k]map[common.
 	}
 	return copied
 }
-
-//var _ cc_api.StateDB = (*StateDB)(nil)

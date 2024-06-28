@@ -45,5 +45,3 @@ type Caller interface {
 }
 
 var _ StateDB = (*cc_api.StateDB)(nil)
-
-//var _ cc_api.StateDB = (*StateDB)(nil)
