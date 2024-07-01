@@ -360,7 +360,7 @@ func GenerateChainWithConcrete(config *params.ChainConfig, parent *types.Block, 
 
 		// Write state changes to db
 		root, err := statedb.CommitWithConcrete(
-			concreteRegistry.Precompiles(b.header.Number.Uint64()),
+			concreteRegistry.State_Precompiles(b.header.Number.Uint64()),
 			b.header.Number.Uint64(),
 			config.IsEIP158(b.header.Number),
 		)

@@ -152,7 +152,7 @@ func (eth *Ethereum) hashState(ctx context.Context, block *types.Block, reexec u
 		}
 		// Finalize the state so any modifications are written to the trie
 		root, err := statedb.CommitWithConcrete(
-			eth.blockchain.Concrete().Precompiles(current.NumberU64()),
+			eth.blockchain.Concrete().State_Precompiles(current.NumberU64()),
 			current.NumberU64(),
 			eth.blockchain.Config().IsEIP158(current.Number()),
 		)
@@ -259,7 +259,7 @@ func (eth *Ethereum) stateAtTransaction(ctx context.Context, block *types.Block,
 		}
 		// Ensure any modifications are committed to the state
 		// Only delete empty objects if EIP158/161 (a.k.a Spurious Dragon) is in effect
-		statedb.FinaliseWithConcrete(vmenv.ConcretePrecompiles(), vmenv.ChainConfig().IsEIP158(block.Number()))
+		statedb.FinaliseWithConcrete(map[common.Address]interface{}{}, vmenv.ChainConfig().IsEIP158(block.Number()))
 	}
 	return nil, vm.BlockContext{}, nil, nil, fmt.Errorf("transaction index %d out of range for block %#x", txIndex, block.Hash())
 }
