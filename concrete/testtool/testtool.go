@@ -114,6 +114,7 @@ func runTestContract(t *testing.T, concreteRegistry concrete.PrecompileRegistry,
 }
 
 func extractTestData(contractJsonBytes []byte) ([]byte, abi.ABI, string, string, error) {
+	var ABI abi.ABI
 	var jsonData struct {
 		ABI              abi.ABI `json:"abi"`
 		DeployedBytecode struct {
@@ -125,9 +126,12 @@ func extractTestData(contractJsonBytes []byte) ([]byte, abi.ABI, string, string,
 			} `json:"settings"`
 		} `json:"metadata"`
 	}
-	err := json.Unmarshal(contractJsonBytes, &jsonData)
-	if err != nil {
-		return nil, abi.ABI{}, "", "", err
+	if err := json.Unmarshal(contractJsonBytes, &jsonData); err == nil {
+		ABI = jsonData.ABI
+	} else {
+		if err := json.Unmarshal(contractJsonBytes, &ABI); err != nil {
+			return nil, abi.ABI{}, "", "", err
+		}
 	}
 	bytecode := common.FromHex(jsonData.DeployedBytecode.Object)
 	var testPath, contractName string
