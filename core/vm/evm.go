@@ -617,6 +617,15 @@ func (evm *EVM) ChainConfig() *params.ChainConfig { return evm.chainConfig }
 
 func (evm *EVM) ConcretePrecompiles() concrete.PrecompileMap { return evm.concretePrecompiles }
 
+// TODO: if this is called multiple times it should be done once during construction
+func (evm *EVM) ConcretePrecompiledAddressesSet() map[common.Address]struct{} {
+	addresses := make(map[common.Address]struct{}, len(evm.concretePrecompiles))
+	for addr := range evm.concretePrecompiles {
+		addresses[addr] = struct{}{}
+	}
+	return addresses
+}
+
 type concreteBlockContext struct {
 	ctx *BlockContext
 }

@@ -86,6 +86,7 @@ type PrecompileRegistry interface {
 	Precompile(address common.Address, blockNumber uint64) (Precompile, bool)
 	Precompiles(blockNumber uint64) PrecompileMap
 	PrecompiledAddresses(blockNumber uint64) []common.Address
+	PrecompiledAddressesSet(blockNumber uint64) map[common.Address]struct{}
 }
 
 type GenericPrecompileRegistry struct {
@@ -172,6 +173,18 @@ func (c *GenericPrecompileRegistry) PrecompiledAddresses(blockNumber uint64) []c
 		return []common.Address{}
 	}
 	return c.addresses[idx]
+}
+
+func (c *GenericPrecompileRegistry) PrecompiledAddressesSet(blockNumber uint64) map[common.Address]struct{} {
+	set := make(map[common.Address]struct{})
+	idx := c.index(blockNumber)
+	if idx < 0 {
+		return set
+	}
+	for _, address := range c.addresses[idx] {
+		set[address] = struct{}{}
+	}
+	return set
 }
 
 func insert[T any](slice []T, index int, value T) []T {
