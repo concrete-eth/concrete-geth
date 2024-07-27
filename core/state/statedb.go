@@ -23,8 +23,6 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/concrete"
-	cc_api "github.com/ethereum/go-ethereum/concrete/api"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state/snapshot"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -824,7 +822,7 @@ func (s *StateDB) Finalise(deleteEmptyObjects bool) {
 	s.FinaliseWithConcrete(nil, deleteEmptyObjects)
 }
 
-func (s *StateDB) FinaliseWithConcrete(concretePrecompiles concrete.PrecompileMap, deleteEmptyObjects bool) {
+func (s *StateDB) FinaliseWithConcrete(concretePrecompiles map[common.Address]struct{}, deleteEmptyObjects bool) {
 	// s.FinaliseConcretePrecompiles(concretePrecompiles)
 
 	addressesToPrefetch := make([][]byte, 0, len(s.journal.dirties))
@@ -882,7 +880,7 @@ func (s *StateDB) IntermediateRoot(deleteEmptyObjects bool) common.Hash {
 	return s.IntermediateRootWithConcrete(nil, deleteEmptyObjects)
 }
 
-func (s *StateDB) IntermediateRootWithConcrete(concretePrecompiles concrete.PrecompileMap, deleteEmptyObjects bool) common.Hash {
+func (s *StateDB) IntermediateRootWithConcrete(concretePrecompiles map[common.Address]struct{}, deleteEmptyObjects bool) common.Hash {
 	// Finalise all the dirty storage states and write them into the tries
 	s.FinaliseWithConcrete(concretePrecompiles, deleteEmptyObjects)
 
@@ -1176,7 +1174,7 @@ func (s *StateDB) Commit(block uint64, deleteEmptyObjects bool) (common.Hash, er
 	return s.CommitWithConcrete(nil, block, deleteEmptyObjects)
 }
 
-func (s *StateDB) CommitWithConcrete(concretePrecompiles concrete.PrecompileMap, block uint64, deleteEmptyObjects bool) (common.Hash, error) {
+func (s *StateDB) CommitWithConcrete(concretePrecompiles map[common.Address]struct{}, block uint64, deleteEmptyObjects bool) (common.Hash, error) {
 	// s.CommitConcretePrecompiles(concretePrecompiles)
 
 	if s.dbErr != nil {
@@ -1327,7 +1325,7 @@ func (s *StateDB) CommitWithConcrete(concretePrecompiles concrete.PrecompileMap,
 // - Reset access list (Berlin)
 // - Add coinbase to access list (EIP-3651)
 // - Reset transient storage (EIP-1153)
-func (s *StateDB) Prepare(rules params.Rules, sender, coinbase common.Address, dst *common.Address, precompiles []common.Address, concretePrecompiles concrete.PrecompileMap, list types.AccessList) {
+func (s *StateDB) Prepare(rules params.Rules, sender, coinbase common.Address, dst *common.Address, precompiles []common.Address, concretePrecompiles map[common.Address]struct{}, list types.AccessList) {
 	if rules.IsBerlin {
 		// Clear out any leftover from previous executions
 		al := newAccessList()
@@ -1434,4 +1432,4 @@ func copy2DSet[k comparable](set map[k]map[common.Hash][]byte) map[k]map[common.
 	return copied
 }
 
-var _ cc_api.StateDB = (*StateDB)(nil)
+// var _ cc_api.StateDB = (*StateDB)(nil)

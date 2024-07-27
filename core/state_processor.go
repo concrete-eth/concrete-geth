@@ -126,9 +126,9 @@ func applyTransaction(msg *Message, config *params.ChainConfig, gp *GasPool, sta
 	// Update the state with pending changes.
 	var root []byte
 	if config.IsByzantium(blockNumber) {
-		statedb.FinaliseWithConcrete(evm.ConcretePrecompiles(), true)
+		statedb.FinaliseWithConcrete(evm.ConcretePrecompiledAddressesSet(), true)
 	} else {
-		root = statedb.IntermediateRootWithConcrete(evm.ConcretePrecompiles(), config.IsEIP158(blockNumber)).Bytes()
+		root = statedb.IntermediateRootWithConcrete(evm.ConcretePrecompiledAddressesSet(), config.IsEIP158(blockNumber)).Bytes()
 	}
 	*usedGas += result.UsedGas
 
