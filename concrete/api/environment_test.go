@@ -32,6 +32,114 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestEnvironmentStateMethods(t *testing.T) {
+	r := require.New(t)
+	config := EnvConfig{IsStatic: false, IsTrusted: false}
+	meterGas := true
+
+	// Create a new mock environment
+	env, statedb, _, _ := NewMockEnvironment(config, meterGas)
+	env.contract.Gas = uint64(1e6)
+
+	t.Run("StorageLoad and StorageStore", func(t *testing.T) {
+		key := common.HexToHash("0x01")
+		value := common.HexToHash("0x02")
+
+		env.StorageStore(key, value)
+		loadedValue := env.StorageLoad(key)
+		r.Equal(value, loadedValue)
+
+		// Check that the mock state db received the correct call
+		storedValue := statedb.GetState(env.Contract().Address, key)
+		r.Equal(value, storedValue)
+	})
+
+	t.Run("Log", func(t *testing.T) {
+		topics := []common.Hash{common.HexToHash("0x01"), common.HexToHash("0x02")}
+		data := []byte("log data")
+
+		env.Log(topics, data)
+
+	})
+
+	t.Run("GetBalance", func(t *testing.T) {
+		address := common.HexToAddress("0x12345")
+		expectedBalance := uint256.NewInt(1000)
+
+		// Mocking GetBalance to return expectedBalance
+		statedb.(*mockStateDB).balances[address] = expectedBalance
+
+		balance := env.GetBalance(address)
+		r.Equal(expectedBalance, balance)
+	})
+
+	t.Run("GetCode", func(t *testing.T) {
+		address := common.HexToAddress("0x12345")
+		expectedCode := []byte{0x60, 0x60, 0x60, 0x60}
+
+		// Mocking GetCode to return expectedCode
+		statedb.(*mockStateDB).code[address] = expectedCode
+
+		code := env.GetCode(address)
+		r.Equal(expectedCode, code)
+	})
+
+	t.Run("GetCodeSize", func(t *testing.T) {
+		address := common.HexToAddress("0x12345")
+		expectedCode := []byte{0x60, 0x60, 0x60, 0x60}
+
+		// Mocking GetCode to return expectedCode
+		statedb.(*mockStateDB).code[address] = expectedCode
+
+		codeSize := env.GetCodeSize()
+		r.Equal(len(expectedCode), codeSize)
+	})
+
+	t.Run("GetExternalBalance", func(t *testing.T) {
+		address := common.HexToAddress("0x12345")
+		expectedBalance := uint256.NewInt(5000)
+
+		// Mocking GetExternalBalance to return expectedBalance
+		statedb.(*mockStateDB).externalBalances[address] = expectedBalance
+
+		balance := env.GetExternalBalance(address)
+		r.Equal(expectedBalance, balance)
+	})
+
+	t.Run("GetExternalCode", func(t *testing.T) {
+		address := common.HexToAddress("0x12345")
+		expectedCode := []byte{0x61, 0x61, 0x61, 0x61}
+
+		// Mocking GetExternalCode to return expectedCode
+		statedb.(*mockStateDB).externalCodes[address] = expectedCode
+
+		code := env.GetExternalCode(address)
+		r.Equal(expectedCode, code)
+	})
+
+	t.Run("GetExternalCodeSize", func(t *testing.T) {
+		address := common.HexToAddress("0x12345")
+		expectedCode := []byte{0x61, 0x61, 0x61, 0x61}
+
+		// Mocking GetExternalCode to return expectedCode
+		statedb.(*mockStateDB).externalCodes[address] = expectedCode
+
+		codeSize := env.GetExternalCodeSize(address)
+		r.Equal(len(expectedCode), codeSize)
+	})
+
+	t.Run("GetExternalCodeHash", func(t *testing.T) {
+		address := common.HexToAddress("0x12345")
+		expectedCodeHash := common.HexToHash("0x05")
+
+		// Mocking GetExternalCodeHash to return expectedCodeHash
+		statedb.(*mockStateDB).externalCodeHashes[address] = expectedCodeHash
+
+		codeHash := env.GetExternalCodeHash(address)
+		r.Equal(expectedCodeHash, codeHash)
+	})
+}
+
 func TestGas(t *testing.T) {
 	var (
 		r        = require.New(t)

@@ -17,7 +17,6 @@
 
 // This file will ignored when building with tinygo to prevent compatibility
 // issues.
-
 package api
 
 import (
@@ -37,9 +36,25 @@ func NewMockEnvironment(config EnvConfig, meterGas bool) (*Env, StateDB, BlockCo
 	return env, statedb, blockContext, caller
 }
 
-type mockStateDB struct{}
+type mockStateDB struct {
+	code             map[common.Address][]byte
+	balances         map[common.Address]*uint256.Int
+	externalBalances map[common.Address]*uint256.Int
+	externalCodes    map[common.Address][]byte
+	externalCodeHashes map[common.Address]common.Hash
+	state            map[common.Address]map[common.Hash]common.Hash // Added for storage
+}
 
-func NewMockStateDB() *mockStateDB { return &mockStateDB{} }
+func NewMockStateDB() *mockStateDB {
+	return &mockStateDB{
+		code:             make(map[common.Address][]byte),
+		balances:         make(map[common.Address]*uint256.Int),
+		externalBalances: make(map[common.Address]*uint256.Int),
+		externalCodes:    make(map[common.Address][]byte),
+		externalCodeHashes: make(map[common.Address]common.Hash),
+		state:            make(map[common.Address]map[common.Hash]common.Hash),
+	}
+}
 
 func (m *mockStateDB) AddressInAccessList(addr common.Address) bool { return false }
 func (m *mockStateDB) SlotInAccessList(addr common.Address, slot common.Hash) (bool, bool) {
@@ -47,19 +62,25 @@ func (m *mockStateDB) SlotInAccessList(addr common.Address, slot common.Hash) (b
 }
 func (m *mockStateDB) AddAddressToAccessList(addr common.Address)                {}
 func (m *mockStateDB) AddSlotToAccessList(addr common.Address, slot common.Hash) {}
-func (m *mockStateDB) GetCode(addr common.Address) []byte                        { return []byte{} }
-func (m *mockStateDB) GetCodeSize(addr common.Address) int                       { return 0 }
+func (m *mockStateDB) GetCode(addr common.Address) []byte                        { return m.code[addr] }
+func (m *mockStateDB) GetCodeSize(addr common.Address) int                       { return len(m.code[addr]) }
 func (m *mockStateDB) GetCodeHash(addr common.Address) common.Hash               { return common.Hash{} }
-func (m *mockStateDB) GetBalance(addr common.Address) *uint256.Int               { return uint256.NewInt(0) }
+func (m *mockStateDB) GetBalance(addr common.Address) *uint256.Int               { return m.balances[addr] }
 func (m *mockStateDB) AddLog(*types.Log)                                         {}
 
 func (m *mockStateDB) GetCommittedState(addr common.Address, key common.Hash) common.Hash {
-	return common.Hash{}
+	return m.state[addr][key]
 }
 
-func (m *mockStateDB) SetState(addr common.Address, key common.Hash, value common.Hash) {}
+func (m *mockStateDB) SetState(addr common.Address, key common.Hash, value common.Hash) {
+	if m.state[addr] == nil {
+		m.state[addr] = make(map[common.Hash]common.Hash)
+	}
+	m.state[addr][key] = value
+}
+
 func (m *mockStateDB) GetState(addr common.Address, key common.Hash) common.Hash {
-	return common.Hash{}
+	return m.state[addr][key]
 }
 
 func (m *mockStateDB) SetTransientState(addr common.Address, key common.Hash, value common.Hash) {}
@@ -70,6 +91,22 @@ func (m *mockStateDB) GetTransientState(addr common.Address, key common.Hash) co
 func (m *mockStateDB) AddRefund(uint64)  {}
 func (m *mockStateDB) SubRefund(uint64)  {}
 func (m *mockStateDB) GetRefund() uint64 { return 0 }
+
+func (m *mockStateDB) GetExternalBalance(addr common.Address) *uint256.Int {
+	return m.externalBalances[addr]
+}
+
+func (m *mockStateDB) GetExternalCode(addr common.Address) []byte {
+	return m.externalCodes[addr]
+}
+
+func (m *mockStateDB) GetExternalCodeSize(addr common.Address) int {
+	return len(m.externalCodes[addr])
+}
+
+func (m *mockStateDB) GetExternalCodeHash(addr common.Address) common.Hash {
+	return m.externalCodeHashes[addr]
+}
 
 var _ StateDB = (*mockStateDB)(nil)
 
