@@ -37,7 +37,6 @@ func TestEnvironmentStateMethods(t *testing.T) {
 	config := EnvConfig{IsStatic: false, IsTrusted: false}
 	meterGas := true
 
-	// Create a new mock environment
 	env, statedb, _, _ := NewMockEnvironment(config, meterGas)
 	env.contract.Gas = uint64(1e6)
 
@@ -66,7 +65,6 @@ func TestEnvironmentStateMethods(t *testing.T) {
 		address := common.HexToAddress("0x12345")
 		expectedBalance := uint256.NewInt(1000)
 
-		// Mocking GetBalance to return expectedBalance
 		statedb.(*mockStateDB).balances[address] = expectedBalance
 
 		balance := env.GetBalance(address)
@@ -121,7 +119,6 @@ func TestEnvironmentStateMethods(t *testing.T) {
 		address := common.HexToAddress("0x12345")
 		expectedCode := []byte{0x61, 0x61, 0x61, 0x61}
 
-		// Mocking GetExternalCode to return expectedCode
 		statedb.(*mockStateDB).externalCodes[address] = expectedCode
 
 		codeSize := env.GetExternalCodeSize(address)
