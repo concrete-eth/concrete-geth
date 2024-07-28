@@ -32,7 +32,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestEnvironmentStateMethods(t *testing.T) {
+func TestStateMethods(t *testing.T) {
 	r := require.New(t)
 	config := EnvConfig{IsStatic: false, IsTrusted: false}
 	meterGas := true
