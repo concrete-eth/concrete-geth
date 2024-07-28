@@ -20,6 +20,7 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/concrete"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/misc/eip4844"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -36,6 +37,9 @@ type ChainContext interface {
 
 	// GetHeader returns the header corresponding to the hash/number argument pair.
 	GetHeader(common.Hash, uint64) *types.Header
+
+	// Concrete returns the concrete precompile registry.
+	Concrete() concrete.PrecompileRegistry
 }
 
 // NewEVMBlockContext creates a new context for use in the EVM.
@@ -63,18 +67,19 @@ func NewEVMBlockContext(header *types.Header, chain ChainContext, author *common
 		random = &header.MixDigest
 	}
 	return vm.BlockContext{
-		CanTransfer: CanTransfer,
-		Transfer:    Transfer,
-		GetHash:     GetHashFn(header, chain),
-		Coinbase:    beneficiary,
-		BlockNumber: new(big.Int).Set(header.Number),
-		Time:        header.Time,
-		Difficulty:  new(big.Int).Set(header.Difficulty),
-		BaseFee:     baseFee,
-		BlobBaseFee: blobBaseFee,
-		GasLimit:    header.GasLimit,
-		Random:      random,
-		L1CostFunc:  types.NewL1CostFunc(config, statedb),
+		CanTransfer:         CanTransfer,
+		Transfer:            Transfer,
+		GetHash:             GetHashFn(header, chain),
+		Coinbase:            beneficiary,
+		BlockNumber:         new(big.Int).Set(header.Number),
+		Time:                header.Time,
+		Difficulty:          new(big.Int).Set(header.Difficulty),
+		BaseFee:             baseFee,
+		BlobBaseFee:         blobBaseFee,
+		GasLimit:            header.GasLimit,
+		Random:              random,
+		L1CostFunc:          types.NewL1CostFunc(config, statedb),
+		ConcretePrecompiles: chain.Concrete().Precompiles(header.Number.Uint64()),
 	}
 }
 

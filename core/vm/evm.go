@@ -68,7 +68,7 @@ func (evm *EVM) precompile(addr common.Address) (PrecompiledContract, bool) {
 }
 
 func (evm *EVM) concretePrecompile(addr common.Address) (concrete.Precompile, bool) {
-	pc, ok := evm.concretePrecompiles[addr]
+	pc, ok := evm.Context.ConcretePrecompiles[addr]
 	return pc, ok
 }
 
@@ -127,6 +127,9 @@ type BlockContext struct {
 	BaseFee     *big.Int       // Provides information for BASEFEE (0 if vm runs with NoBaseFee flag and 0 gas price)
 	BlobBaseFee *big.Int       // Provides information for BLOBBASEFEE (0 if vm runs with NoBaseFee flag and 0 blob gas price)
 	Random      *common.Hash   // Provides information for PREVRANDAO
+
+	// Concrete precompiles
+	ConcretePrecompiles concrete.PrecompileMap
 }
 
 // TxContext provides the EVM with information about a transaction.
@@ -173,17 +176,11 @@ type EVM struct {
 	// available gas is calculated in gasCall* according to the 63/64 rule and later
 	// applied in opCall*.
 	callGasTemp uint64
-
-	concretePrecompiles concrete.PrecompileMap
 }
 
 // NewEVM returns a new EVM. The returned EVM is not thread safe and should
 // only ever be used *once*.
 func NewEVM(blockCtx BlockContext, txCtx TxContext, statedb StateDB, chainConfig *params.ChainConfig, config Config) *EVM {
-	return NewEVMWithConcrete(blockCtx, txCtx, statedb, chainConfig, config, concrete.PrecompileMap{})
-}
-
-func NewEVMWithConcrete(blockCtx BlockContext, txCtx TxContext, statedb StateDB, chainConfig *params.ChainConfig, config Config, concretePrecompiles concrete.PrecompileMap) *EVM {
 	// If basefee tracking is disabled (eth_call, eth_estimateGas, etc), and no
 	// gas prices were specified, lower the basefee to 0 to avoid breaking EVM
 	// invariants (basefee < feecap)
@@ -196,13 +193,12 @@ func NewEVMWithConcrete(blockCtx BlockContext, txCtx TxContext, statedb StateDB,
 		}
 	}
 	evm := &EVM{
-		Context:             blockCtx,
-		TxContext:           txCtx,
-		StateDB:             statedb,
-		Config:              config,
-		chainConfig:         chainConfig,
-		chainRules:          chainConfig.Rules(blockCtx.BlockNumber, blockCtx.Random != nil, blockCtx.Time),
-		concretePrecompiles: concretePrecompiles,
+		Context:     blockCtx,
+		TxContext:   txCtx,
+		StateDB:     statedb,
+		Config:      config,
+		chainConfig: chainConfig,
+		chainRules:  chainConfig.Rules(blockCtx.BlockNumber, blockCtx.Random != nil, blockCtx.Time),
 	}
 	evm.interpreter = NewEVMInterpreter(evm)
 	return evm
@@ -615,12 +611,11 @@ func (evm *EVM) Create2(caller ContractRef, code []byte, gas uint64, endowment *
 // ChainConfig returns the environment's chain configuration
 func (evm *EVM) ChainConfig() *params.ChainConfig { return evm.chainConfig }
 
-func (evm *EVM) ConcretePrecompiles() concrete.PrecompileMap { return evm.concretePrecompiles }
-
 // TODO: if this is called multiple times it should be done once during construction
 func (evm *EVM) ConcretePrecompiledAddressesSet() map[common.Address]struct{} {
-	addresses := make(map[common.Address]struct{}, len(evm.concretePrecompiles))
-	for addr := range evm.concretePrecompiles {
+	pcs := evm.Context.ConcretePrecompiles
+	addresses := make(map[common.Address]struct{}, len(pcs))
+	for addr := range pcs {
 		addresses[addr] = struct{}{}
 	}
 	return addresses
