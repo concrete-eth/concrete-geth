@@ -226,7 +226,7 @@ func (pc *testPrecompile) Run(API api.Environment, input []byte) ([]byte, error)
 func TestRunPrecompile(t *testing.T) {
 	t.Run("NoError", func(t *testing.T) {
 		pc := &testPrecompile{}
-		env, _, _, _ := api.NewMockEnvironment(api.EnvConfig{IsStatic: true}, true)
+		env, _, _, _ := api.NewMockEnvironment(api.WithStatic(true), api.WithMeterGas(true))
 		gas := uint64(1234)
 		isStaticCounter := 0
 		runCounter := 0
@@ -247,7 +247,7 @@ func TestRunPrecompile(t *testing.T) {
 	})
 	t.Run("ExplicitRevert", func(t *testing.T) {
 		pc := &testPrecompile{}
-		env, _, _, _ := api.NewMockEnvironment(api.EnvConfig{IsStatic: true}, true)
+		env, _, _, _ := api.NewMockEnvironment(api.WithStatic(true), api.WithMeterGas(true))
 		gas := uint64(1234)
 		revertErr := errors.New("explicit revert")
 		pc.isStaticFn = func(input []byte) bool {
@@ -264,7 +264,7 @@ func TestRunPrecompile(t *testing.T) {
 	})
 	t.Run("ImplicitRevert", func(t *testing.T) {
 		pc := &testPrecompile{}
-		env, _, _, _ := api.NewMockEnvironment(api.EnvConfig{IsStatic: true}, true)
+		env, _, _, _ := api.NewMockEnvironment(api.WithStatic(true), api.WithMeterGas(true))
 		gas := uint64(1234)
 		revertErr := errors.New("implicit revert")
 		pc.isStaticFn = func(input []byte) bool {
@@ -280,7 +280,7 @@ func TestRunPrecompile(t *testing.T) {
 	})
 	t.Run("OutOfGas", func(t *testing.T) {
 		pc := &testPrecompile{}
-		env, _, _, _ := api.NewMockEnvironment(api.EnvConfig{IsStatic: true}, true)
+		env, _, _, _ := api.NewMockEnvironment(api.WithStatic(true), api.WithMeterGas(true))
 		gas := uint64(1234)
 		pc.isStaticFn = func(input []byte) bool {
 			return true
@@ -296,7 +296,7 @@ func TestRunPrecompile(t *testing.T) {
 	})
 	t.Run("RuntimePanic", func(t *testing.T) {
 		pc := &testPrecompile{}
-		env, _, _, _ := api.NewMockEnvironment(api.EnvConfig{IsStatic: true}, true)
+		env, _, _, _ := api.NewMockEnvironment(api.WithStatic(true), api.WithMeterGas(true))
 		gas := uint64(1234)
 		panicErr := errors.New("panic")
 		pc.isStaticFn = func(input []byte) bool {

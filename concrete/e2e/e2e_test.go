@@ -28,7 +28,6 @@ import (
 	"github.com/ethereum/go-ethereum/concrete/api"
 	fixture_datamod "github.com/ethereum/go-ethereum/concrete/e2e/datamod"
 	"github.com/ethereum/go-ethereum/concrete/lib"
-	"github.com/ethereum/go-ethereum/concrete/mock"
 	"github.com/ethereum/go-ethereum/concrete/wasm"
 	"github.com/ethereum/go-ethereum/consensus/ethash"
 	"github.com/ethereum/go-ethereum/core"
@@ -126,9 +125,9 @@ func TestAddPrecompileFixture(t *testing.T) {
 				t.Skip()
 			}
 			var (
-				pc       = impl.newPc()
-				contract = api.NewContract(common.Address{}, common.Address{}, impl.address, new(uint256.Int))
-				env      = mock.NewMockEnvironment(config, meterGas, contract)
+				pc           = impl.newPc()
+				contract     = api.NewContract(common.Address{}, common.Address{}, impl.address, new(uint256.Int))
+				env, _, _, _ = api.NewMockEnvironment(api.WithConfig(config), api.WithMeterGas(meterGas), api.WithContract(contract))
 			)
 			input := pack(x, y)
 			isStatic := pc.IsStatic(input)
@@ -207,9 +206,9 @@ func TestKkvPrecompileFixture(t *testing.T) {
 				t.Skip()
 			}
 			var (
-				contract = api.NewContract(common.Address{}, common.Address{}, impl.address, new(uint256.Int))
-				env      = mock.NewMockEnvironment(config, meterGas, contract)
-				pc       = impl.newPc()
+				contract     = api.NewContract(common.Address{}, common.Address{}, impl.address, new(uint256.Int))
+				env, _, _, _ = api.NewMockEnvironment(api.WithConfig(config), api.WithMeterGas(meterGas), api.WithContract(contract))
+				pc           = impl.newPc()
 			)
 
 			var (
