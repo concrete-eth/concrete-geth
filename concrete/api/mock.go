@@ -15,44 +15,44 @@
 
 //go:build !tinygo
 
-// This file will ignored when building with tinygo to prevent compatibility
+// This file will be ignored when building with tinygo to prevent compatibility
 // issues.
+
 package api
 
 import (
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/rawdb"
+	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/holiman/uint256"
 )
 
-func NewMockEnvironment(config EnvConfig, meterGas bool) (*Env, StateDB, BlockContext, Caller) {
-	var (
-		statedb      = NewMockStateDB()
-		blockContext = NewMockBlockContext()
-		caller       = NewMockCaller()
-		contract     = &Contract{GasPrice: uint256.NewInt(0), Value: uint256.NewInt(0), Input: []byte{}}
-		env          = NewEnvironment(config, meterGas, statedb, blockContext, caller, contract)
-	)
-	return env, statedb, blockContext, caller
-}
-
 type mockStateDB struct {
-	code             map[common.Address][]byte
-	balances         map[common.Address]*uint256.Int
-	externalBalances map[common.Address]*uint256.Int
-	externalCodes    map[common.Address][]byte
+	stateDB           *state.StateDB
+	code              map[common.Address][]byte
+	balances          map[common.Address]*uint256.Int
+	externalBalances  map[common.Address]*uint256.Int
+	externalCodes     map[common.Address][]byte
 	externalCodeHashes map[common.Address]common.Hash
-	state            map[common.Address]map[common.Hash]common.Hash // Added for storage
+	logs              []*types.Log
+	state             map[common.Address]map[common.Hash]common.Hash
 }
 
 func NewMockStateDB() *mockStateDB {
+	statedb, err := state.New(common.Hash{}, state.NewDatabase(rawdb.NewMemoryDatabase()), nil)
+	if err != nil {
+		panic(err)
+	}
 	return &mockStateDB{
-		code:             make(map[common.Address][]byte),
-		balances:         make(map[common.Address]*uint256.Int),
-		externalBalances: make(map[common.Address]*uint256.Int),
-		externalCodes:    make(map[common.Address][]byte),
+		stateDB:           statedb,
+		code:              make(map[common.Address][]byte),
+		balances:          make(map[common.Address]*uint256.Int),
+		externalBalances:  make(map[common.Address]*uint256.Int),
+		externalCodes:     make(map[common.Address][]byte),
 		externalCodeHashes: make(map[common.Address]common.Hash),
-		state:            make(map[common.Address]map[common.Hash]common.Hash),
+		logs:              []*types.Log{},
+		state:             make(map[common.Address]map[common.Hash]common.Hash),
 	}
 }
 
@@ -64,9 +64,9 @@ func (m *mockStateDB) AddAddressToAccessList(addr common.Address)               
 func (m *mockStateDB) AddSlotToAccessList(addr common.Address, slot common.Hash) {}
 func (m *mockStateDB) GetCode(addr common.Address) []byte                        { return m.code[addr] }
 func (m *mockStateDB) GetCodeSize(addr common.Address) int                       { return len(m.code[addr]) }
-func (m *mockStateDB) GetCodeHash(addr common.Address) common.Hash               { return common.Hash{} }
+func (m *mockStateDB) GetCodeHash(addr common.Address) common.Hash               { return common.BytesToHash(m.code[addr]) }
 func (m *mockStateDB) GetBalance(addr common.Address) *uint256.Int               { return m.balances[addr] }
-func (m *mockStateDB) AddLog(*types.Log)                                         {}
+func (m *mockStateDB) AddLog(log *types.Log)                                     { m.logs = append(m.logs, log) }
 
 func (m *mockStateDB) GetCommittedState(addr common.Address, key common.Hash) common.Hash {
 	return m.state[addr][key]
@@ -109,6 +109,150 @@ func (m *mockStateDB) GetExternalCodeHash(addr common.Address) common.Hash {
 }
 
 var _ StateDB = (*mockStateDB)(nil)
+
+type mockEnvConfig struct {
+	envConfig EnvConfig
+	meterGas  bool
+	contract  *Contract
+	db        StateDB
+	blockCtx  BlockContext
+	caller    Caller
+}
+
+type MockEnvOption func(*mockEnvConfig)
+
+func WithConfig(config EnvConfig) MockEnvOption {
+	return func(c *mockEnvConfig) {
+		c.envConfig = config
+	}
+}
+
+func WithStatic(static bool) MockEnvOption {
+	return func(c *mockEnvConfig) {
+		c.envConfig.IsStatic = static
+	}
+}
+
+func WithTrusted(trusted bool) MockEnvOption {
+	return func(c *mockEnvConfig) {
+		c.envConfig.IsTrusted = trusted
+	}
+}
+
+func WithMeterGas(meterGas bool) MockEnvOption {
+	return func(c *mockEnvConfig) {
+		c.meterGas = meterGas
+	}
+}
+
+func WithContract(contract *Contract) MockEnvOption {
+	return func(c *mockEnvConfig) {
+		c.contract = contract
+	}
+}
+
+func WithStateDB(statedb StateDB) MockEnvOption {
+	return func(c *mockEnvConfig) {
+		c.db = statedb
+	}
+}
+
+func WithBlockCtx(blockCtx BlockContext) MockEnvOption {
+	return func(c *mockEnvConfig) {
+		c.blockCtx = blockCtx
+	}
+}
+
+func WithCaller(caller Caller) MockEnvOption {
+	return func(c *mockEnvConfig) {
+		c.caller = caller
+	}
+}
+
+func NewMockEnvironment(opts ...MockEnvOption) (*Env, StateDB, BlockContext, Caller) {
+	mockConfig := &mockEnvConfig{
+		envConfig: EnvConfig{},
+		meterGas:  false,
+	}
+
+	for _, opt := range opts {
+		opt(mockConfig)
+	}
+
+	if mockConfig.contract == nil {
+		mockConfig.contract = &Contract{GasPrice: uint256.NewInt(0), Value: uint256.NewInt(0), Input: []byte{}}
+	}
+	if mockConfig.db == nil {
+		mockConfig.db = NewMockStateDB()
+	}
+	if mockConfig.blockCtx == nil {
+		mockConfig.blockCtx = NewMockBlockContext()
+	}
+	if mockConfig.caller == nil {
+		mockConfig.caller = NewMockCaller()
+	}
+
+	env := NewEnvironment(mockConfig.envConfig, mockConfig.meterGas, mockConfig.db, mockConfig.blockCtx, mockConfig.caller, mockConfig.contract)
+
+	env._execute = func(op OpCode, env *Env, args [][]byte) ([][]byte, error) {
+		switch op {
+		case GetBalance_OpCode:
+			address := common.BytesToAddress(args[0])
+			balance := env.statedb.GetBalance(address)
+			return [][]byte{balance.Bytes()}, nil
+		case GetCode_OpCode:
+			address := common.BytesToAddress(args[0])
+			code := env.statedb.GetCode(address)
+			return [][]byte{code}, nil
+		case GetCodeSize_OpCode:
+			address := common.BytesToAddress(args[0])
+			code := env.statedb.GetCode(address)
+			size := uint64(len(code))
+			return [][]byte{uint256.NewInt(size).Bytes()}, nil
+		case GetExternalBalance_OpCode:
+			address := common.BytesToAddress(args[0])
+			balance := env.statedb.GetExternalBalance(address)
+			return [][]byte{balance.Bytes()}, nil
+		case GetExternalCode_OpCode:
+			address := common.BytesToAddress(args[0])
+			code := env.statedb.GetExternalCode(address)
+			return [][]byte{code}, nil
+		case GetExternalCodeSize_OpCode:
+			address := common.BytesToAddress(args[0])
+			code := env.statedb.GetExternalCode(address)
+			size := uint64(len(code))
+			return [][]byte{uint256.NewInt(size).Bytes()}, nil
+		case GetExternalCodeHash_OpCode:
+			address := common.BytesToAddress(args[0])
+			hash := env.statedb.GetExternalCodeHash(address)
+			return [][]byte{hash.Bytes()}, nil
+		case StorageLoad_OpCode:
+			key := common.BytesToHash(args[0])
+			value := env.statedb.GetState(env.contract.Address, key)
+			return [][]byte{value.Bytes()}, nil
+		case StorageStore_OpCode:
+			key := common.BytesToHash(args[0])
+			value := common.BytesToHash(args[1])
+			env.statedb.SetState(env.contract.Address, key, value)
+			return nil, nil
+		case Log_OpCode:
+			topics := make([]common.Hash, len(args)-1)
+			for i := 0; i < len(args)-1; i++ {
+				topics[i] = common.BytesToHash(args[i])
+			}
+			data := args[len(args)-1]
+			env.statedb.AddLog(&types.Log{
+				Address: env.contract.Address,
+				Topics:  topics,
+				Data:    data,
+			})
+			return nil, nil
+		}
+		return nil, nil
+	}
+
+	return env, mockConfig.db, mockConfig.blockCtx, mockConfig.caller
+}
 
 type mockBlockContext struct {
 	coinbase    common.Address
