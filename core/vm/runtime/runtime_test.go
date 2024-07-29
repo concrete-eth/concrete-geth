@@ -25,6 +25,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/concrete"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/asm"
@@ -246,6 +247,10 @@ func (d *dummyChain) GetHeader(h common.Hash, n uint64) *types.Header {
 	//parentHash := common.Hash{byte(n - 1)}
 	//fmt.Printf("GetHeader(%x, %d) => header with parent %x\n", h, n, parentHash)
 	return fakeHeader(n, parentHash)
+}
+
+func (d *dummyChain) Concrete() concrete.PrecompileRegistry {
+	return nil
 }
 
 // TestBlockhash tests the blockhash operation. It's a bit special, since it internally

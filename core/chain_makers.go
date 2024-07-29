@@ -52,8 +52,6 @@ type BlockGen struct {
 	withdrawals []*types.Withdrawal
 
 	engine consensus.Engine
-
-	concrete concrete.PrecompileRegistry
 }
 
 // SetCoinbase sets the coinbase of the generated block.
@@ -114,13 +112,12 @@ func (b *BlockGen) SetParentBeaconRoot(root common.Hash) {
 // customized rules.
 // - bc:       enables the ability to query historical block hashes for BLOCKHASH
 // - vmConfig: extends the flexibility for customizing evm rules, e.g. enable extra EIPs
-func (b *BlockGen) addTx(bc *BlockChain, vmConfig vm.Config, tx *types.Transaction) {
+func (b *BlockGen) addTx(bc ChainContext, vmConfig vm.Config, tx *types.Transaction) {
 	if b.gasPool == nil {
 		b.SetCoinbase(common.Address{})
 	}
 	b.statedb.SetTxContext(tx.Hash(), len(b.txs))
-	concretePcs := b.concrete.Precompiles(b.header.Number.Uint64())
-	receipt, err := ApplyTransaction(b.cm.config, bc, &b.header.Coinbase, b.gasPool, b.statedb, b.header, tx, &b.header.GasUsed, vmConfig, concretePcs)
+	receipt, err := ApplyTransaction(b.cm.config, bc, &b.header.Coinbase, b.gasPool, b.statedb, b.header, tx, &b.header.GasUsed, vmConfig)
 	if err != nil {
 		panic(err)
 	}
@@ -140,7 +137,7 @@ func (b *BlockGen) addTx(bc *BlockChain, vmConfig vm.Config, tx *types.Transacti
 // instruction will panic during execution if it attempts to access a block number outside
 // of the range created by GenerateChain.
 func (b *BlockGen) AddTx(tx *types.Transaction) {
-	b.addTx(nil, vm.Config{}, tx)
+	b.addTx(b.cm, vm.Config{}, tx)
 }
 
 // AddTxWithChain adds a transaction to the generated block. If no coinbase has
@@ -158,7 +155,7 @@ func (b *BlockGen) AddTxWithChain(bc *BlockChain, tx *types.Transaction) {
 // been set, the block's coinbase is set to the zero address.
 // The evm interpreter can be customized with the provided vm config.
 func (b *BlockGen) AddTxWithVMConfig(tx *types.Transaction, config vm.Config) {
-	b.addTx(nil, config, tx)
+	b.addTx(b.cm, config, tx)
 }
 
 // GetBalance returns the balance of the given address at the generated block.
@@ -318,10 +315,10 @@ func GenerateChainWithConcrete(config *params.ChainConfig, parent *types.Block, 
 	if engine == nil {
 		panic("nil consensus engine")
 	}
-	cm := newChainMaker(parent, config, engine)
+	cm := newChainMaker(parent, config, engine, concreteRegistry)
 
 	genblock := func(i int, parent *types.Block, triedb *triedb.Database, statedb *state.StateDB) (*types.Block, types.Receipts) {
-		b := &BlockGen{i: i, cm: cm, parent: parent, statedb: statedb, engine: engine, concrete: concreteRegistry}
+		b := &BlockGen{i: i, cm: cm, parent: parent, statedb: statedb, engine: engine}
 		b.header = cm.makeHeader(parent, statedb, b.engine)
 
 		// Set the difficulty for clique block. The chain maker doesn't have access
@@ -513,14 +510,16 @@ type chainMaker struct {
 	chain       []*types.Block
 	chainByHash map[common.Hash]*types.Block
 	receipts    []types.Receipts
+	concrete    concrete.PrecompileRegistry
 }
 
-func newChainMaker(bottom *types.Block, config *params.ChainConfig, engine consensus.Engine) *chainMaker {
+func newChainMaker(bottom *types.Block, config *params.ChainConfig, engine consensus.Engine, concreteRegistry concrete.PrecompileRegistry) *chainMaker {
 	return &chainMaker{
 		bottom:      bottom,
 		config:      config,
 		engine:      engine,
 		chainByHash: make(map[common.Hash]*types.Block),
+		concrete:    concreteRegistry,
 	}
 }
 
@@ -587,4 +586,11 @@ func (cm *chainMaker) GetBlock(hash common.Hash, number uint64) *types.Block {
 
 func (cm *chainMaker) GetTd(hash common.Hash, number uint64) *big.Int {
 	return nil // not supported
+}
+
+func (cm *chainMaker) Concrete() concrete.PrecompileRegistry {
+	if cm.concrete == nil {
+		return &concrete.GenericPrecompileRegistry{}
+	}
+	return cm.concrete
 }
