@@ -27,6 +27,7 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
@@ -40,7 +41,7 @@ func TestGas(t *testing.T) {
 		gas      = uint64(1e6)
 	)
 
-	env, _, _, _ := NewMockEnvironment(config, meterGas)
+	env, _, _, _ := NewMockEnvironment(WithConfig(config), WithMeterGas(meterGas))
 	env.contract.Gas = gas
 
 	// GetGasLeft() costs gas, so the cost of that operation must be subtracted
@@ -59,7 +60,7 @@ func TestBlockOps_Minimal(t *testing.T) {
 		gas      = uint64(1e6)
 	)
 
-	env, _, _, _ := NewMockEnvironment(config, meterGas)
+	env, _, _, _ := NewMockEnvironment(WithConfig(config), WithMeterGas(meterGas))
 	env.contract.Gas = gas
 
 	r.Equal(env.block.GetHash(0), env.GetBlockHash(0))
@@ -80,7 +81,7 @@ func TestCallOps_Minimal(t *testing.T) {
 		gas      = uint64(1e6)
 	)
 
-	env, _, _, _ := NewMockEnvironment(config, meterGas)
+	env, _, _, _ := NewMockEnvironment(WithConfig(config), WithMeterGas(meterGas))
 	env.contract.Input = []byte{0x01, 0x02, 0x03}
 	env.contract.Gas = gas
 	env.contract.Value = uint256.NewInt(1)
@@ -100,7 +101,7 @@ func TestTrustAndWriteProtection(t *testing.T) {
 		meterGas = false
 	)
 
-	env, _, _, _ := NewMockEnvironment(config, meterGas)
+	env, _, _, _ := NewMockEnvironment(WithConfig(config), WithMeterGas(meterGas))
 	env.contract.Input = []byte{0x01, 0x02, 0x03}
 	env.contract.Value = uint256.NewInt(1)
 
@@ -137,7 +138,7 @@ func TestDebugf(t *testing.T) {
 		meterGas = false
 	)
 
-	env, _, _, _ := NewMockEnvironment(config, meterGas)
+	env, _, _, _ := NewMockEnvironment(WithConfig(config), WithMeterGas(meterGas))
 
 	read, write, _ := os.Pipe()
 
@@ -173,7 +174,7 @@ func TestBlockContextMethods(t *testing.T) {
 		gas      = uint64(1e6)
 	)
 
-	env, _, _block, _ := NewMockEnvironment(config, meterGas)
+	env, _, _block, _ := NewMockEnvironment(WithConfig(config), WithMeterGas(meterGas))
 	block := _block.(*mockBlockContext)
 
 	t.Run("BlockHash", func(t *testing.T) {
@@ -284,20 +285,19 @@ func TestCallMethods(t *testing.T) {
 		meterGas = true
 	)
 
-	env, _, _, _caller := NewMockEnvironment(config, meterGas)
-	caller := _caller.(*mockCaller)
-
 	t.Run("CallStatic", func(t *testing.T) {
-		gas := uint64(1e6)
-		env.contract.Gas = gas
-
 		var (
-			callAddr   = common.Address{0x01}
-			callInput  = []byte("input")
-			useGas     = uint64(123)
-			callGas    = uint64(456)
-			callOutput = []byte("outputCallStatic")
+			env, _, _, _caller = NewMockEnvironment(WithConfig(config), WithMeterGas(meterGas))
+			caller             = _caller.(*mockCaller)
+			gas                = uint64(1e6)
+			callAddr           = common.Address{0x01}
+			callInput          = []byte("input")
+			useGas             = uint64(123)
+			callGas            = uint64(456)
+			callOutput         = []byte("outputCallStatic")
 		)
+
+		env.contract.Gas = gas
 
 		caller.SetCallStaticFn(func(addr common.Address, input []byte, gas uint64) ([]byte, uint64, error) {
 			r.Equal(callAddr, addr)
@@ -314,11 +314,16 @@ func TestCallMethods(t *testing.T) {
 	})
 
 	t.Run("CallStaticInsufficientGas", func(t *testing.T) {
-		gas := uint64(3000)
+		var (
+			env, _, _, _caller = NewMockEnvironment(WithConfig(config), WithMeterGas(meterGas))
+			caller             = _caller.(*mockCaller)
+			gas                = uint64(3000)
+			availableGas       = gas - params.ColdAccountAccessCostEIP2929
+			expectedGas        = availableGas - availableGas/64
+			callGas            = uint64(1000)
+		)
+
 		env.contract.Gas = gas
-		availableGas := gas - params.ColdAccountAccessCostEIP2929
-		expectedGas := availableGas - availableGas/64
-		callGas := uint64(1000)
 
 		caller.SetCallStaticFn(func(addr common.Address, input []byte, gas uint64) ([]byte, uint64, error) {
 			r.Equal(expectedGas, gas)
@@ -329,17 +334,19 @@ func TestCallMethods(t *testing.T) {
 	})
 
 	t.Run("Call", func(t *testing.T) {
-		gas := uint64(1e6)
-		env.contract.Gas = gas
-
 		var (
-			callAddr   = common.Address{0x01}
-			callInput  = []byte("input")
-			useGas     = uint64(123)
-			callGas    = uint64(456)
-			callValue  = uint256.NewInt(1)
-			callOutput = []byte("outputCall")
+			env, _, _, _caller = NewMockEnvironment(WithConfig(config), WithMeterGas(meterGas))
+			caller             = _caller.(*mockCaller)
+			gas                = uint64(1e6)
+			callAddr           = common.Address{0x01}
+			callInput          = []byte("input")
+			useGas             = uint64(123)
+			callGas            = uint64(456)
+			callValue          = uint256.NewInt(1)
+			callOutput         = []byte("outputCall")
 		)
+
+		env.contract.Gas = gas
 
 		caller.SetCallFn(func(addr common.Address, input []byte, gas uint64, value *uint256.Int) ([]byte, uint64, error) {
 			r.Equal(callAddr, addr)
@@ -357,11 +364,16 @@ func TestCallMethods(t *testing.T) {
 	})
 
 	t.Run("CallInsufficientGas", func(t *testing.T) {
-		gas := uint64(3000)
+		var (
+			env, _, _, _caller = NewMockEnvironment(WithConfig(config), WithMeterGas(meterGas))
+			caller             = _caller.(*mockCaller)
+			gas                = uint64(3000)
+			availableGas       = gas - params.ColdAccountAccessCostEIP2929
+			expectedGas        = availableGas - availableGas/64
+			callGas            = uint64(1000)
+		)
+
 		env.contract.Gas = gas
-		availableGas := gas - params.ColdAccountAccessCostEIP2929
-		expectedGas := availableGas - availableGas/64
-		callGas := uint64(1000)
 
 		caller.SetCallFn(func(addr common.Address, input []byte, gas uint64, value *uint256.Int) ([]byte, uint64, error) {
 			r.Equal(expectedGas, gas)
@@ -372,16 +384,18 @@ func TestCallMethods(t *testing.T) {
 	})
 
 	t.Run("CallDelegate", func(t *testing.T) {
-		gas := uint64(1e6)
-		env.contract.Gas = gas
-
 		var (
-			callAddr   = common.Address{0x01}
-			callInput  = []byte("input")
-			useGas     = uint64(123)
-			callGas    = uint64(456)
-			callOutput = []byte("outputCallDelegate")
+			env, _, _, _caller = NewMockEnvironment(WithConfig(config), WithMeterGas(meterGas))
+			caller             = _caller.(*mockCaller)
+			gas                = uint64(1e6)
+			callAddr           = common.Address{0x01}
+			callInput          = []byte("input")
+			useGas             = uint64(123)
+			callGas            = uint64(456)
+			callOutput         = []byte("outputCallDelegate")
 		)
+
+		env.contract.Gas = gas
 
 		caller.SetCallDelegateFn(func(addr common.Address, input []byte, gas uint64) ([]byte, uint64, error) {
 			r.Equal(callAddr, addr)
@@ -398,11 +412,16 @@ func TestCallMethods(t *testing.T) {
 	})
 
 	t.Run("CallDelegateInsufficientGas", func(t *testing.T) {
-		gas := uint64(3000)
+		var (
+			env, _, _, _caller = NewMockEnvironment(WithConfig(config), WithMeterGas(meterGas))
+			caller             = _caller.(*mockCaller)
+			gas                = uint64(3000)
+			availableGas       = gas - params.ColdAccountAccessCostEIP2929
+			expectedGas        = availableGas - availableGas/64
+			callGas            = uint64(1000)
+		)
+
 		env.contract.Gas = gas
-		availableGas := gas - params.ColdAccountAccessCostEIP2929
-		expectedGas := availableGas - availableGas/64
-		callGas := uint64(1000)
 
 		caller.SetCallDelegateFn(func(addr common.Address, input []byte, gas uint64) ([]byte, uint64, error) {
 			r.Equal(expectedGas, gas)
@@ -413,17 +432,19 @@ func TestCallMethods(t *testing.T) {
 	})
 
 	t.Run("Create", func(t *testing.T) {
-		gas := uint64(1e6)
-		env.contract.Gas = gas
-		createInput := []byte("input")
-		availableGas := gas - params.CreateGas - (toWordSize(len(createInput)) * params.InitCodeWordGas)
-		usedGas := availableGas - availableGas/64
-
 		var (
-			createValue  = uint256.NewInt(1)
-			createOutput = []byte("createOutput")
-			createAddr   = common.Address{0x01}
+			env, _, _, _caller = NewMockEnvironment(WithConfig(config), WithMeterGas(meterGas))
+			caller             = _caller.(*mockCaller)
+			gas                = uint64(1e6)
+			createInput        = []byte("input")
+			availableGas       = gas - params.CreateGas - (toWordSize(len(createInput)) * params.InitCodeWordGas)
+			usedGas            = availableGas - availableGas/64
+			createValue        = uint256.NewInt(1)
+			createOutput       = []byte("createOutput")
+			createAddr         = common.Address{0x01}
 		)
+
+		env.contract.Gas = gas
 
 		caller.SetCreateFn(func(input []byte, gas uint64, value *uint256.Int) ([]byte, common.Address, uint64, error) {
 			r.Equal(createInput, input)
@@ -441,11 +462,16 @@ func TestCallMethods(t *testing.T) {
 	})
 
 	t.Run("CreateInsufficientGas", func(t *testing.T) {
-		gas := uint64(32005)
+		var (
+			env, _, _, _caller = NewMockEnvironment(WithConfig(config), WithMeterGas(meterGas))
+			caller             = _caller.(*mockCaller)
+			gas                = uint64(32005)
+			createInput        = []byte("input")
+			availableGas       = gas - params.CreateGas - (toWordSize(len(createInput)) * params.InitCodeWordGas)
+			expectedGas        = availableGas - availableGas/64
+		)
+
 		env.contract.Gas = gas
-		createInput := []byte("input")
-		availableGas := gas - params.CreateGas - (toWordSize(len(createInput)) * params.InitCodeWordGas)
-		expectedGas := availableGas - availableGas/64
 
 		caller.SetCreateFn(func(input []byte, gas uint64, value *uint256.Int) ([]byte, common.Address, uint64, error) {
 			r.Equal(expectedGas, gas)
@@ -456,18 +482,20 @@ func TestCallMethods(t *testing.T) {
 	})
 
 	t.Run("Create2", func(t *testing.T) {
-		gas := uint64(1e6)
-		env.contract.Gas = gas
-		createInput := []byte("input")
-		availableGas := gas - params.Create2Gas - (toWordSize(len(createInput)) * (params.InitCodeWordGas + params.Keccak256WordGas))
-		usedGas := availableGas - availableGas/64
-
 		var (
-			createValue  = uint256.NewInt(1)
-			createSalt   = new(uint256.Int).SetBytes([]byte("salt"))
-			createOutput = []byte("create2Output")
-			createAddr   = common.Address{0x01}
+			env, _, _, _caller = NewMockEnvironment(WithConfig(config), WithMeterGas(meterGas))
+			caller             = _caller.(*mockCaller)
+			gas                = uint64(1e6)
+			createInput        = []byte("input")
+			availableGas       = gas - params.Create2Gas - (toWordSize(len(createInput)) * (params.InitCodeWordGas + params.Keccak256WordGas))
+			usedGas            = availableGas - availableGas/64
+			createValue        = uint256.NewInt(1)
+			createSalt         = new(uint256.Int).SetBytes([]byte("salt"))
+			createOutput       = []byte("create2Output")
+			createAddr         = common.Address{0x01}
 		)
+
+		env.contract.Gas = gas
 
 		caller.SetCreate2Fn(func(input []byte, gas uint64, value *uint256.Int, salt *uint256.Int) ([]byte, common.Address, uint64, error) {
 			r.Equal(createInput, input)
@@ -486,11 +514,16 @@ func TestCallMethods(t *testing.T) {
 	})
 
 	t.Run("Create2InsufficientGas", func(t *testing.T) {
-		gas := uint64(32010)
+		var (
+			env, _, _, _caller = NewMockEnvironment(WithConfig(config), WithMeterGas(meterGas))
+			caller             = _caller.(*mockCaller)
+			gas                = uint64(32010)
+			createInput        = []byte("input")
+			availableGas       = gas - params.Create2Gas - (toWordSize(len(createInput)) * (params.InitCodeWordGas + params.Keccak256WordGas))
+			expectedGas        = availableGas - availableGas/64
+		)
+
 		env.contract.Gas = gas
-		createInput := []byte("input")
-		availableGas := gas - params.Create2Gas - (toWordSize(len(createInput)) * (params.InitCodeWordGas + params.Keccak256WordGas))
-		expectedGas := availableGas - availableGas/64
 
 		caller.SetCreate2Fn(func(input []byte, gas uint64, value *uint256.Int, salt *uint256.Int) ([]byte, common.Address, uint64, error) {
 			r.Equal(expectedGas, gas)
@@ -500,13 +533,12 @@ func TestCallMethods(t *testing.T) {
 		env.Create2(createInput, new(uint256.Int), new(uint256.Int))
 	})
 }
-
 func TestStateMethods(t *testing.T) {
 	r := require.New(t)
 	config := EnvConfig{IsStatic: false, IsTrusted: false}
 	meterGas := true
 
-	env, statedb, _, _ := NewMockEnvironment(config, meterGas)
+	env, statedb, _, _ := NewMockEnvironment(WithConfig(config), WithMeterGas(meterGas))
 	env.contract.Gas = uint64(1e6)
 
 	t.Run("Storage", func(t *testing.T) {
@@ -517,7 +549,7 @@ func TestStateMethods(t *testing.T) {
 		loadedValue := env.StorageLoad(key)
 		r.Equal(value, loadedValue)
 
-		// Check that the mock state db received the correct call
+		// Ensure mock state db received the correct call
 		storedValue := statedb.GetState(env.Contract().Address, key)
 		r.Equal(value, storedValue)
 	})
@@ -528,6 +560,13 @@ func TestStateMethods(t *testing.T) {
 
 		env.Log(topics, data)
 
+		log := &types.Log{
+			Address: env.Contract().Address,
+			Topics:  topics,
+			Data:    data,
+		}
+		// Checks that the log has been added to the StateDB
+		r.Contains(statedb.(*mockStateDB).logs, log)
 	})
 
 	t.Run("GetBalance", func(t *testing.T) {
@@ -544,7 +583,6 @@ func TestStateMethods(t *testing.T) {
 		address := common.HexToAddress("0x12345")
 		expectedCode := []byte{0x60, 0x60, 0x60, 0x60}
 
-		// Mocking GetCode to return expectedCode
 		statedb.(*mockStateDB).code[address] = expectedCode
 
 		code := env.GetCode(address)
@@ -555,7 +593,6 @@ func TestStateMethods(t *testing.T) {
 		address := common.HexToAddress("0x12345")
 		expectedCode := []byte{0x60, 0x60, 0x60, 0x60}
 
-		// Mocking GetCode to return expectedCode
 		statedb.(*mockStateDB).code[address] = expectedCode
 
 		codeSize := env.GetCodeSize()
@@ -566,7 +603,6 @@ func TestStateMethods(t *testing.T) {
 		address := common.HexToAddress("0x12345")
 		expectedBalance := uint256.NewInt(5000)
 
-		// Mocking GetExternalBalance to return expectedBalance
 		statedb.(*mockStateDB).externalBalances[address] = expectedBalance
 
 		balance := env.GetExternalBalance(address)
@@ -577,7 +613,6 @@ func TestStateMethods(t *testing.T) {
 		address := common.HexToAddress("0x12345")
 		expectedCode := []byte{0x61, 0x61, 0x61, 0x61}
 
-		// Mocking GetExternalCode to return expectedCode
 		statedb.(*mockStateDB).externalCodes[address] = expectedCode
 
 		code := env.GetExternalCode(address)
@@ -605,3 +640,4 @@ func TestStateMethods(t *testing.T) {
 		r.Equal(expectedCodeHash, codeHash)
 	})
 }
+
