@@ -214,7 +214,7 @@ func run(ctx context.Context, call *core.Message, opts *Options) (*core.Executio
 		evmContext = core.NewEVMBlockContext(opts.Header, opts.Chain, nil, opts.Config, opts.State)
 
 		dirtyState = opts.State.Copy()
-		evm        = vm.NewEVMWithConcrete(evmContext, msgContext, dirtyState, opts.Config, vm.Config{NoBaseFee: true}, opts.ConcretePrecompiles)
+		evm        = vm.NewEVM(evmContext, msgContext, dirtyState, opts.Config, vm.Config{NoBaseFee: true})
 	)
 	// Monitor the outer context and interrupt the EVM upon cancellation. To avoid
 	// a dangling goroutine until the outer estimation finishes, create an internal

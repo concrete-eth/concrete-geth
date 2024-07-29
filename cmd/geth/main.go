@@ -29,6 +29,7 @@ import (
 	"github.com/ethereum/go-ethereum/cmd/utils"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/concrete"
+	concrete_rpc "github.com/ethereum/go-ethereum/concrete/rpc"
 	"github.com/ethereum/go-ethereum/console/prompt"
 	"github.com/ethereum/go-ethereum/eth"
 	"github.com/ethereum/go-ethereum/eth/downloader"
@@ -39,6 +40,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/metrics"
 	"github.com/ethereum/go-ethereum/node"
+	"github.com/ethereum/go-ethereum/rpc"
 	"go.uber.org/automaxprocs/maxprocs"
 
 	// Force-load the tracer engines to trigger registration
@@ -354,7 +356,7 @@ func geth(ctx *cli.Context) error {
 	}
 
 	prepare(ctx)
-	stack, backend := makeFullNode(ctx)
+	stack, backend, _ := makeFullNode(ctx)
 	defer stack.Close()
 
 	startNode(ctx, stack, backend, false)
@@ -362,16 +364,26 @@ func geth(ctx *cli.Context) error {
 	return nil
 }
 
-func newConcreteGeth(concreteRegistry concrete.PrecompileRegistry) func(ctx *cli.Context) error {
+func newConcreteGeth(concreteRegistry concrete.PrecompileRegistry, concreteApis []concrete_rpc.APIConstructor) func(ctx *cli.Context) error {
 	return func(ctx *cli.Context) error {
 		if args := ctx.Args().Slice(); len(args) > 0 {
 			return fmt.Errorf("invalid command: %q", args[0])
 		}
 
 		prepare(ctx)
-		stack, backend := makeFullNode(ctx)
+		stack, backend, eth := makeFullNode(ctx)
 		defer stack.Close()
 
+		// Construct Concrete APIs
+		ccApis := make([]rpc.API, 0)
+		for _, constructor := range concreteApis {
+			ccApis = append(ccApis, constructor(eth))
+		}
+
+		// Register Concrete APIs
+		stack.RegisterAPIs(ccApis)
+
+		// Set Concrete precompiles
 		backend.SetConcrete(concreteRegistry)
 
 		startNode(ctx, stack, backend, false)
@@ -380,9 +392,9 @@ func newConcreteGeth(concreteRegistry concrete.PrecompileRegistry) func(ctx *cli
 	}
 }
 
-func newConcreteGethApp(concreteRegistry concrete.PrecompileRegistry) *cli.App {
+func newConcreteGethApp(registry concrete.PrecompileRegistry, apis []concrete_rpc.APIConstructor) *cli.App {
 	ccApp := flags.NewApp("the concrete-geth command line interface")
-	ccApp.Action = newConcreteGeth(concreteRegistry)
+	ccApp.Action = newConcreteGeth(registry, apis)
 	ccApp.Copyright = "Copyright 2013-2023 The go-ethereum Authors & 2023-2024 The concrete-geth Authors"
 	ccApp.Commands = app.Commands
 	ccApp.Flags = app.Flags
@@ -391,8 +403,8 @@ func newConcreteGethApp(concreteRegistry concrete.PrecompileRegistry) *cli.App {
 	return ccApp
 }
 
-func NewConcreteGethApp(concreteRegistry concrete.PrecompileRegistry) *cli.App {
-	return newConcreteGethApp(concreteRegistry)
+func NewConcreteGethApp(registry concrete.PrecompileRegistry, apis []concrete_rpc.APIConstructor) *cli.App {
+	return newConcreteGethApp(registry, apis)
 }
 
 // startNode boots up the system node and all registered protocols, after which

@@ -566,10 +566,9 @@ func (api *API) IntermediateRoots(ctx context.Context, hash common.Hash, config 
 			return nil, err
 		}
 		var (
-			msg, _      = core.TransactionToMessage(tx, signer, block.BaseFee())
-			txContext   = core.NewEVMTxContext(msg)
-			concretePcs = api.backend.Concrete().Precompiles(block.NumberU64())
-			vmenv       = vm.NewEVMWithConcrete(vmctx, txContext, statedb, chainConfig, vm.Config{}, concretePcs)
+			msg, _    = core.TransactionToMessage(tx, signer, block.BaseFee())
+			txContext = core.NewEVMTxContext(msg)
+			vmenv     = vm.NewEVM(vmctx, txContext, statedb, chainConfig, vm.Config{})
 		)
 		statedb.SetTxContext(tx.Hash(), i)
 		if _, err := core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(msg.GasLimit)); err != nil {
@@ -719,8 +718,7 @@ txloop:
 		// Generate the next state snapshot fast without tracing
 		msg, _ := core.TransactionToMessage(tx, signer, block.BaseFee())
 		statedb.SetTxContext(tx.Hash(), i)
-		concretePcs := api.backend.Concrete().Precompiles(block.NumberU64())
-		vmenv := vm.NewEVMWithConcrete(blockCtx, core.NewEVMTxContext(msg), statedb, api.backend.ChainConfig(), vm.Config{}, concretePcs)
+		vmenv := vm.NewEVM(blockCtx, core.NewEVMTxContext(msg), statedb, api.backend.ChainConfig(), vm.Config{})
 		if _, err := core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(msg.GasLimit)); err != nil {
 			failed = err
 			break txloop
@@ -829,8 +827,7 @@ func (api *API) standardTraceBlockToFile(ctx context.Context, block *types.Block
 			}
 		}
 		// Execute the transaction and flush any traces to disk
-		concretePcs := api.backend.Concrete().Precompiles(block.NumberU64())
-		vmenv := vm.NewEVMWithConcrete(vmctx, txContext, statedb, chainConfig, vmConf, concretePcs)
+		vmenv := vm.NewEVM(vmctx, txContext, statedb, chainConfig, vmConf)
 		statedb.SetTxContext(tx.Hash(), i)
 		_, err = core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(msg.GasLimit))
 		if writer != nil {
@@ -1014,8 +1011,7 @@ func (api *API) traceTx(ctx context.Context, message *core.Message, txctx *Conte
 			return nil, err
 		}
 	}
-	concretePcs := api.backend.Concrete().Precompiles(vmctx.BlockNumber.Uint64())
-	vmenv := vm.NewEVMWithConcrete(vmctx, txContext, statedb, api.backend.ChainConfig(), vm.Config{Tracer: tracer, NoBaseFee: true}, concretePcs)
+	vmenv := vm.NewEVM(vmctx, txContext, statedb, api.backend.ChainConfig(), vm.Config{Tracer: tracer, NoBaseFee: true})
 
 	// Define a meaningful timeout of a single transaction trace
 	if config.Timeout != nil {

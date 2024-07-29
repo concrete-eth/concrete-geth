@@ -33,6 +33,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/common/math"
+	"github.com/ethereum/go-ethereum/concrete"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/misc/eip1559"
 	"github.com/ethereum/go-ethereum/core"
@@ -1133,6 +1134,7 @@ func (diff *BlockOverrides) Apply(blockCtx *vm.BlockContext) {
 type ChainContextBackend interface {
 	Engine() consensus.Engine
 	HeaderByNumber(context.Context, rpc.BlockNumber) (*types.Header, error)
+	Concrete() concrete.PrecompileRegistry
 }
 
 // ChainContext is an implementation of core.ChainContext. It's main use-case
@@ -1159,6 +1161,10 @@ func (context *ChainContext) GetHeader(hash common.Hash, number uint64) *types.H
 		return nil
 	}
 	return header
+}
+
+func (context *ChainContext) Concrete() concrete.PrecompileRegistry {
+	return context.b.Concrete()
 }
 
 func doCall(ctx context.Context, b Backend, args TransactionArgs, state *state.StateDB, header *types.Header, overrides *StateOverride, blockOverrides *BlockOverrides, timeout time.Duration, globalGasCap uint64) (*core.ExecutionResult, error) {

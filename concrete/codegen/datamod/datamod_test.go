@@ -26,7 +26,6 @@ import (
 	"github.com/ethereum/go-ethereum/concrete/api"
 	"github.com/ethereum/go-ethereum/concrete/codegen/datamod/testdata"
 	"github.com/ethereum/go-ethereum/concrete/lib"
-	"github.com/ethereum/go-ethereum/concrete/mock"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
@@ -126,12 +125,12 @@ func testRow(t *testing.T, getRow func() testRowInterface) {
 
 func TestTables(t *testing.T) {
 	var (
-		addr     = common.HexToAddress("0x1234567890123456789012345678901234567890")
-		config   = api.EnvConfig{}
-		meterGas = false
-		contract = api.NewContract(common.Address{}, common.Address{}, addr, new(uint256.Int))
-		env      = mock.NewMockEnvironment(config, meterGas, contract)
-		ds       = lib.NewDatastore(env)
+		addr         = common.HexToAddress("0x1234567890123456789012345678901234567890")
+		config       = api.EnvConfig{}
+		meterGas     = false
+		contract     = api.NewContract(common.Address{}, common.Address{}, addr, new(uint256.Int))
+		env, _, _, _ = api.NewMockEnvironment(api.WithConfig(config), api.WithMeterGas(meterGas), api.WithContract(contract))
+		ds           = lib.NewDatastore(env)
 	)
 
 	t.Run("KeyedTable", func(t *testing.T) {
