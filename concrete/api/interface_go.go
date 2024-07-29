@@ -50,6 +50,10 @@ type StateDB interface {
 	GetState(addr common.Address, key common.Hash) common.Hash
 	SetTransientState(addr common.Address, key common.Hash, value common.Hash)
 	GetTransientState(addr common.Address, key common.Hash) common.Hash
+	GetExternalBalance(addr common.Address) *uint256.Int
+	GetExternalCode(addr common.Address) []byte
+	GetExternalCodeSize(addr common.Address) int
+	GetExternalCodeHash(addr common.Address) common.Hash
 	// Storage -- Concrete
 	// SetEphemeralState(addr common.Address, key common.Hash, value common.Hash)
 	// GetEphemeralState(addr common.Address, key common.Hash) common.Hash
