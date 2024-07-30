@@ -26,12 +26,17 @@ func {{$.TableStructName}}DefaultKey() []byte {
 }
 
 type {{$.RowStructName}} struct {
-	lib.DatastoreStruct
+	lib.DatastoreStructWithParent
 }
 
 func New{{$.RowStructName}}(dsSlot lib.DatastoreSlot) *{{$.RowStructName}} {
 	sizes := {{$.SizesStr}}
-	return &{{$.RowStructName}}{*lib.NewDatastoreStruct(dsSlot, sizes)}
+	return &{{$.RowStructName}}{*lib.NewDatastoreStructWithParent(dsSlot, sizes, nil, nil)}
+}
+
+func New{{$.RowStructName}}WithParent(dsSlot lib.DatastoreSlot, parent lib.Parent, rowKey lib.RowKey) *{{$.RowStructName}} {
+	sizes := {{$.SizesStr}}
+	return &{{$.RowStructName}}{*lib.NewDatastoreStructWithParent(dsSlot, sizes, parent, rowKey)}
 }
 
 func (v *{{$.RowStructName}}) Get() (
@@ -84,18 +89,30 @@ func (v *{{$.RowStructName}}) Get{{$value.Title}}() *{{$value.Type.GoType}} {
 {{- end}}
 type {{$.TableStructName}} struct {
 	dsSlot lib.DatastoreSlot
+	parent lib.Parent
+	tableId lib.TableId
 }
 
 func New{{$.TableStructName}}(ds lib.Datastore) *{{$.TableStructName}} {
 	dsSlot := ds.Get({{$.TableStructName}}DefaultKey())
-	return &{{$.TableStructName}}{dsSlot}
+	return &{{$.TableStructName}}{
+		dsSlot: dsSlot,
+		parent: nil,
+		tableId: nil,
+	}
+}
+
+func New{{$.TableStructName}}WithParent(ds lib.Datastore, parent lib.Parent, tableId lib.TableId) *{{$.TableStructName}} {
+	t := New{{$.TableStructName}}(ds)
+	t.parent = parent
+	t.tableId = tableId
+	return t
 }
 
 func New{{$.TableStructName}}FromSlot(dsSlot lib.DatastoreSlot) *{{$.TableStructName}} {
-	return &{{$.TableStructName}}{dsSlot}
+	return &{{$.TableStructName}}{dsSlot: dsSlot}
 }
-
-{{- if $.Schema.Keys }}
+{{ if $.Schema.Keys }}
 func (m *{{$.TableStructName}}) Get(
 {{- range $key := $.Schema.Keys }}
 	{{$key.Name}} {{$key.Type.GoType}},
@@ -106,10 +123,18 @@ func (m *{{$.TableStructName}}) Get(
 		codec.{{$key.Type.EncodeFunc}}({{$key.Type.Size}}, {{$key.Name}}),
 		{{- end }}
 	)
-	return New{{$.RowStructName}}(dsSlot)
+	return New{{$.RowStructName}}WithParent(dsSlot, m, lib.RowKey{
+		{{ range $key := $.Schema.Keys }}{{$key.Name}},{{ end }}
+	})
 }
 {{- else }}
 func (m *{{$.TableStructName}}) Get() *{{$.RowStructName}} {
-	return New{{$.RowStructName}}(m.dsSlot)
+	return New{{$.RowStructName}}WithParent(m.dsSlot, m, nil)
 }
 {{- end }}
+
+func (m *{{$.TableStructName}}) SetFieldCallback(tableId lib.TableId, rowKey lib.RowKey, columnIndex int, value []byte) {
+	if m.parent != nil {
+		m.parent.SetFieldCallback(m.tableId, rowKey, columnIndex, value)
+	}
+}
