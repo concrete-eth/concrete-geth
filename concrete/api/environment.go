@@ -67,7 +67,7 @@ type Environment interface {
 	// Block hash
 	GetBlockHash(block uint64) common.Hash
 	// Balance
-	GetBalance(address common.Address) *uint256.Int
+	GetBalance() *uint256.Int
 	// Transaction
 	GetTxGasPrice() *uint256.Int
 	GetTxOrigin() common.Address
@@ -80,7 +80,7 @@ type Environment interface {
 	StorageLoad(key common.Hash) common.Hash
 	TransientLoad(key common.Hash) common.Hash
 	// Code
-	GetCode(address common.Address) []byte
+	GetCode() []byte
 	GetCodeSize() int
 
 	// Local - WRITE
@@ -349,9 +349,8 @@ func (env *Env) GetBlockHash(number uint64) common.Hash {
 	return common.BytesToHash(output[0])
 }
 
-func (env *Env) GetBalance(address common.Address) *uint256.Int {
-	input := [][]byte{address.Bytes()}
-	output := env.execute(GetBalance_OpCode, input)
+func (env *Env) GetBalance() *uint256.Int {
+	output := env.execute(GetBalance_OpCode, nil)
 	return new(uint256.Int).SetBytes(output[0])
 }
 
@@ -385,21 +384,8 @@ func (env *Env) GetCallValue() *uint256.Int {
 	return new(uint256.Int).SetBytes(output[0])
 }
 
-func (env *Env) StorageLoad(key common.Hash) common.Hash {
-	input := [][]byte{key.Bytes()}
-	output := env.execute(StorageLoad_OpCode, input)
-	return common.BytesToHash(output[0])
-}
-
-func (env *Env) TransientLoad(key common.Hash) common.Hash {
-	input := [][]byte{key.Bytes()}
-	output := env.execute(TransientLoad_OpCode, input)
-	return common.BytesToHash(output[0])
-}
-
-func (env *Env) GetCode(address common.Address) []byte {
-	input := [][]byte{address.Bytes()}
-	output := env.execute(GetCode_OpCode, input)
+func (env *Env) GetCode() []byte {
+	output := env.execute(GetCode_OpCode, nil)
 	return output[0]
 }
 
@@ -408,9 +394,21 @@ func (env *Env) GetCodeSize() int {
 	return int(utils.BytesToUint64(output[0]))
 }
 
+func (env *Env) StorageLoad(key common.Hash) common.Hash {
+	input := [][]byte{key.Bytes()}
+	output := env.execute(StorageLoad_OpCode, input)
+	return common.BytesToHash(output[0])
+}
+
 func (env *Env) StorageStore(key common.Hash, value common.Hash) {
 	input := [][]byte{key.Bytes(), value.Bytes()}
 	env.execute(StorageStore_OpCode, input)
+}
+
+func (env *Env) TransientLoad(key common.Hash) common.Hash {
+	input := [][]byte{key.Bytes()}
+	output := env.execute(TransientLoad_OpCode, input)
+	return common.BytesToHash(output[0])
 }
 
 func (env *Env) TransientStore(key common.Hash, value common.Hash) {
@@ -432,8 +430,6 @@ func (env *Env) GetExternalBalance(address common.Address) *uint256.Int {
 	output := env.execute(GetExternalBalance_OpCode, input)
 	return new(uint256.Int).SetBytes(output[0])
 }
-
-// TODO: Should call errors be interpreted?
 
 func (env *Env) CallStatic(address common.Address, data []byte, gas uint64) ([]byte, error) {
 	input := [][]byte{address.Bytes(), data, utils.Uint64ToBytes(gas)}
