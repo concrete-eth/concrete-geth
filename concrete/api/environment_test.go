@@ -27,6 +27,9 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/state"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
@@ -530,5 +533,126 @@ func TestCallMethods(t *testing.T) {
 		})
 
 		env.Create2(createInput, new(uint256.Int), new(uint256.Int))
+	})
+}
+
+func TestStateMethods(t *testing.T) {
+	r := require.New(t)
+	config := EnvConfig{IsStatic: false, IsTrusted: false}
+	meterGas := true
+
+	env, statedb, _, _ := NewMockEnvironment(WithConfig(config), WithMeterGas(meterGas))
+	env.contract.Gas = uint64(1e6)
+
+	t.Run("Storage", func(t *testing.T) {
+		key := common.HexToHash("0x01")
+		value := common.HexToHash("0x02")
+		initialGas := env.contract.Gas
+
+		env.StorageStore(key, value)
+		r.True(initialGas > env.contract.Gas) // Ensure gas was consumed
+		usedGas := initialGas - env.contract.Gas
+
+		loadedValue := env.StorageLoad(key)
+		r.Equal(value, loadedValue)
+		storedValue := statedb.GetState(env.Contract().Address, key)
+		r.Equal(value, storedValue)
+		t.Logf("Gas used for Storage: %d", usedGas)
+	})
+
+	t.Run("Log", func(t *testing.T) {
+		topics := []common.Hash{common.HexToHash("0x01"), common.HexToHash("0x02")}
+		data := []byte("log data")
+		initialGas := env.contract.Gas
+
+		env.Log(topics, data)
+		r.True(initialGas > env.contract.Gas)
+		usedGas := initialGas - env.contract.Gas
+
+		log := &types.Log{
+			Address: env.Contract().Address,
+			Topics:  topics,
+			Data:    data,
+		}
+		logs := statedb.(*state.StateDB).Logs()
+		r.Len(logs, 1)
+		r.Equal(log, logs[0])
+		t.Logf("Gas used for Log: %d", usedGas)
+	})
+
+	t.Run("GetCode", func(t *testing.T) {
+		code := []byte{0x60, 0x60, 0x60}
+		statedb.(*state.StateDB).SetCode(env.Contract().Address, code)
+		initialGas := env.contract.Gas
+
+		loadedCode := env.GetCode()
+		r.True(initialGas > env.contract.Gas)
+		usedGas := initialGas - env.contract.Gas
+		r.Equal(code, loadedCode)
+		t.Logf("Gas used for GetCode: %d", usedGas)
+	})
+
+	t.Run("GetCodeSize", func(t *testing.T) {
+		code := []byte{0x60, 0x60, 0x60}
+		statedb.(*state.StateDB).SetCode(env.Contract().Address, code)
+		initialGas := env.contract.Gas
+
+		loadedCodeSize := env.GetCodeSize()
+		r.True(initialGas > env.contract.Gas)
+		usedGas := initialGas - env.contract.Gas
+		r.Equal(len(code), loadedCodeSize)
+		t.Logf("Gas used for GetCodeSize: %d", usedGas)
+	})
+
+	t.Run("GetExternalBalance", func(t *testing.T) {
+		address := common.HexToAddress("0x12345")
+		balance := uint256.NewInt(5000)
+		statedb.(*state.StateDB).SetBalance(address, balance)
+		initialGas := env.contract.Gas
+
+		loadedBalance := env.GetExternalBalance(address)
+		r.True(initialGas > env.contract.Gas)
+		usedGas := initialGas - env.contract.Gas
+		r.Equal(balance, loadedBalance)
+		t.Logf("Gas used for GetExternalBalance: %d", usedGas)
+	})
+
+	t.Run("GetExternalCode", func(t *testing.T) {
+		address := common.HexToAddress("0x12345")
+		code := []byte{0x61, 0x61, 0x61, 0x61}
+		statedb.(*state.StateDB).SetCode(address, code)
+		initialGas := env.contract.Gas
+
+		loadedCode := env.GetExternalCode(address)
+		r.True(initialGas > env.contract.Gas)
+		usedGas := initialGas - env.contract.Gas
+		r.Equal(code, loadedCode)
+		t.Logf("Gas used for GetExternalCode: %d", usedGas)
+	})
+
+	t.Run("GetExternalCodeSize", func(t *testing.T) {
+		address := common.HexToAddress("0x12345")
+		code := []byte{0x61, 0x61, 0x61, 0x61}
+		statedb.(*state.StateDB).SetCode(address, code)
+		initialGas := env.contract.Gas
+
+		loadedCodeSize := env.GetExternalCodeSize(address)
+		r.True(initialGas > env.contract.Gas)
+		usedGas := initialGas - env.contract.Gas
+		r.Equal(len(code), loadedCodeSize)
+		t.Logf("Gas used for GetExternalCodeSize: %d", usedGas)
+	})
+
+	t.Run("GetExternalCodeHash", func(t *testing.T) {
+		address := common.HexToAddress("0x12345")
+		code := []byte{0x61, 0x61, 0x61, 0x61}
+		statedb.(*state.StateDB).SetCode(address, code)
+		initialGas := env.contract.Gas
+
+		loadedCodeHash := env.GetExternalCodeHash(address)
+		r.True(initialGas > env.contract.Gas)
+		usedGas := initialGas - env.contract.Gas
+		r.Equal(crypto.Keccak256Hash(code), loadedCodeHash)
+		t.Logf("Gas used for GetExternalCodeHash: %d", usedGas)
 	})
 }
