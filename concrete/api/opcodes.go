@@ -64,8 +64,8 @@ const (
 	TransientStore_OpCode OpCode = 0x55
 	Log_OpCode            OpCode = 0x52
 	// External reads
-	GetExternalBalance_OpCode  OpCode = 0x60
-	CallStatic_OpCode          OpCode = 0x61
+	CallStatic_OpCode          OpCode = 0x60
+	GetExternalBalance_OpCode  OpCode = 0x61
 	GetExternalCode_OpCode     OpCode = 0x62
 	GetExternalCodeSize_OpCode OpCode = 0x63
 	GetExternalCodeHash_OpCode OpCode = 0x64
