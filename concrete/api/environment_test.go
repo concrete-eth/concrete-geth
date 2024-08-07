@@ -550,9 +550,8 @@ func TestStateMethods(t *testing.T) {
 		initialGas := env.contract.Gas
 
 		env.StorageStore(key, value)
-		r.True(initialGas > env.contract.Gas) // Ensure gas was consumed
+		r.True(initialGas > env.contract.Gas)
 		usedGas := initialGas - env.contract.Gas
-
 		loadedValue := env.StorageLoad(key)
 		r.Equal(value, loadedValue)
 		storedValue := statedb.GetState(env.Contract().Address, key)
@@ -589,6 +588,7 @@ func TestStateMethods(t *testing.T) {
 		r.True(initialGas > env.contract.Gas)
 		usedGas := initialGas - env.contract.Gas
 		r.Equal(code, loadedCode)
+
 		t.Logf("Gas used for GetCode: %d", usedGas)
 	})
 
@@ -598,11 +598,11 @@ func TestStateMethods(t *testing.T) {
 		initialGas := env.contract.Gas
 
 		loadedCodeSize := env.GetCodeSize()
-		r.True(initialGas > env.contract.Gas)
-		usedGas := initialGas - env.contract.Gas
+		codeSizeGasUsed := initialGas - env.contract.Gas
+		expectedCodeSizeGas := GasQuickStep
+		r.Equal(expectedCodeSizeGas, codeSizeGasUsed)
 		r.Equal(len(code), loadedCodeSize)
-		t.Logf("Gas used for GetCodeSize: %d", usedGas)
-	})
+	}) //worked
 
 	t.Run("GetExternalBalance", func(t *testing.T) {
 		address := common.HexToAddress("0x12345")
@@ -615,7 +615,7 @@ func TestStateMethods(t *testing.T) {
 		usedGas := initialGas - env.contract.Gas
 		r.Equal(balance, loadedBalance)
 		t.Logf("Gas used for GetExternalBalance: %d", usedGas)
-	})
+	}) //didnt work
 
 	t.Run("GetExternalCode", func(t *testing.T) {
 		address := common.HexToAddress("0x12345")
@@ -626,6 +626,7 @@ func TestStateMethods(t *testing.T) {
 		loadedCode := env.GetExternalCode(address)
 		r.True(initialGas > env.contract.Gas)
 		usedGas := initialGas - env.contract.Gas
+
 		r.Equal(code, loadedCode)
 		t.Logf("Gas used for GetExternalCode: %d", usedGas)
 	})
