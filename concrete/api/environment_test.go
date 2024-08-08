@@ -556,11 +556,21 @@ func TestStateMethods(t *testing.T) {
 		env.StorageStore(key, value)
 		r.True(initialGas > env.contract.Gas)
 		usedGas := initialGas - env.contract.Gas
+
 		loadedValue := env.StorageLoad(key)
 		r.Equal(value, loadedValue)
 		storedValue := statedb.GetState(env.Contract().Address, key)
 		r.Equal(value, storedValue)
-		t.Logf("Gas used for Storage: %d", usedGas)
+
+		var expectedGas uint64
+		if statedb.GetCommittedState(env.Contract().Address, key) == (common.Hash{}) {
+			expectedGas = params.SstoreSetGasEIP2200 + params.ColdSloadCostEIP2929
+		} else {
+			expectedGas = params.SstoreResetGasEIP2200
+		}
+
+		r.Equal(expectedGas, usedGas)
+
 	})
 
 	t.Run("Log", func(t *testing.T) {
