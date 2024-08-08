@@ -27,6 +27,8 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/state"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
@@ -530,5 +532,187 @@ func TestCallMethods(t *testing.T) {
 		})
 
 		env.Create2(createInput, new(uint256.Int), new(uint256.Int))
+	})
+}
+
+func TestStateMethods(t *testing.T) {
+	r := require.New(t)
+	config := EnvConfig{IsStatic: false, IsTrusted: false}
+	meterGas := true
+
+	setupEnvironment := func() (*Env, *state.StateDB, uint64) {
+		env, statedb, _, _ := NewMockEnvironment(WithConfig(config), WithMeterGas(meterGas))
+		initialGas := uint64(1e6)
+		env.contract.Gas = initialGas
+		return env, statedb.(*state.StateDB), initialGas
+	}
+
+	t.Run("Storage", func(t *testing.T) {
+		env, statedb, initialGas := setupEnvironment()
+		key := common.HexToHash("0x01")
+		value := common.HexToHash("0x02")
+
+		env.StorageStore(key, value)
+		r.True(initialGas > env.contract.Gas)
+		usedGas := initialGas - env.contract.Gas
+
+		loadedValue := env.StorageLoad(key)
+		r.Equal(value, loadedValue)
+		storedValue := statedb.GetState(env.Contract().Address, key)
+		r.Equal(value, storedValue)
+
+		var expectedGas uint64
+		if statedb.GetCommittedState(env.Contract().Address, key) == (common.Hash{}) {
+			expectedGas = params.SstoreSetGasEIP2200 + params.ColdSloadCostEIP2929
+		} else {
+			expectedGas = params.SstoreResetGasEIP2200
+		}
+
+		r.Equal(expectedGas, usedGas)
+
+	})
+
+	t.Run("Log", func(t *testing.T) {
+		env, _, initialGas := setupEnvironment()
+		topics := []common.Hash{common.HexToHash("0x01"), common.HexToHash("0x02")}
+		data := []byte("log data")
+
+		env.Log(topics, data)
+		r.True(initialGas > env.contract.Gas)
+		usedGas := initialGas - env.contract.Gas
+
+		// expected gas usage
+		topicGas := uint64(len(topics)) * params.LogTopicGas
+		dataGas := uint64(len(data)) * params.LogDataGas
+		expectedGas := params.LogGas + topicGas + dataGas
+
+		r.Equal(expectedGas, usedGas)
+	})
+
+	t.Run("GetCode", func(t *testing.T) {
+		env, statedb, initialGas := setupEnvironment()
+		code := []byte{0x60, 0x60, 0x60}
+		statedb.SetCode(env.Contract().Address, code)
+
+		loadedCode := env.GetCode()
+		r.True(initialGas > env.contract.Gas)
+		codeSizeGasUsed := initialGas - env.contract.Gas
+		expectedCodeSizeGas := GasQuickStep
+		r.Equal(expectedCodeSizeGas, codeSizeGasUsed)
+		r.Equal(code, loadedCode)
+	})
+
+	t.Run("GetCodeSize", func(t *testing.T) {
+		env, statedb, initialGas := setupEnvironment()
+		code := []byte{0x60, 0x60, 0x60}
+		statedb.SetCode(env.Contract().Address, code)
+
+		loadedCodeSize := env.GetCodeSize()
+		codeSizeGasUsed := initialGas - env.contract.Gas
+		expectedCodeSizeGas := GasQuickStep
+		r.Equal(expectedCodeSizeGas, codeSizeGasUsed)
+		r.Equal(len(code), loadedCodeSize)
+	})
+
+	t.Run("GetExternalBalance", func(t *testing.T) {
+		env, statedb, initialGas := setupEnvironment()
+		address := common.HexToAddress("0x12345")
+		balance := uint256.NewInt(5000)
+		statedb.SetBalance(address, balance)
+		statedb.AddAddressToAccessList(address)
+
+		// Warm access
+		loadedBalance := env.GetExternalBalance(address)
+		r.True(initialGas > env.contract.Gas)
+		usedGas := initialGas - env.contract.Gas
+		r.Equal(params.WarmStorageReadCostEIP2929, usedGas)
+		r.Equal(balance, loadedBalance)
+
+		// Cold access
+		env, statedb, initialGas = setupEnvironment()
+		coldAddress := common.HexToAddress("0x67890")
+		statedb.SetBalance(coldAddress, balance)
+		loadedBalance = env.GetExternalBalance(coldAddress)
+		r.True(initialGas > env.contract.Gas)
+		usedGas = initialGas - env.contract.Gas
+		r.Equal(params.ColdAccountAccessCostEIP2929, usedGas)
+		r.Equal(balance, loadedBalance)
+	})
+
+	t.Run("GetExternalCode", func(t *testing.T) {
+		env, statedb, initialGas := setupEnvironment()
+		address := common.HexToAddress("0x12345")
+		code := []byte{0x61, 0x61, 0x61, 0x61}
+		statedb.SetCode(address, code)
+		statedb.AddAddressToAccessList(address)
+
+		// Warm access
+		loadedCode := env.GetExternalCode(address)
+		r.True(initialGas > env.contract.Gas)
+		usedGas := initialGas - env.contract.Gas
+		r.Equal(params.WarmStorageReadCostEIP2929, usedGas)
+		r.Equal(code, loadedCode)
+		t.Logf("Gas used for GetExternalCode (warm): %d", usedGas)
+
+		// Cold access
+		env, statedb, initialGas = setupEnvironment()
+		coldAddress := common.HexToAddress("0x67890")
+		statedb.SetCode(coldAddress, code)
+		loadedCode = env.GetExternalCode(coldAddress)
+		r.True(initialGas > env.contract.Gas)
+		usedGas = initialGas - env.contract.Gas
+		r.Equal(params.ColdAccountAccessCostEIP2929, usedGas)
+		r.Equal(code, loadedCode)
+	})
+
+	t.Run("GetExternalCodeSize", func(t *testing.T) {
+		env, statedb, initialGas := setupEnvironment()
+		address := common.HexToAddress("0x12345")
+		code := []byte{0x61, 0x61, 0x61, 0x61}
+		statedb.SetCode(address, code)
+		statedb.AddAddressToAccessList(address)
+
+		// Warm access
+		loadedCodeSize := env.GetExternalCodeSize(address)
+		r.True(initialGas > env.contract.Gas)
+		usedGas := initialGas - env.contract.Gas
+		r.Equal(params.WarmStorageReadCostEIP2929, usedGas)
+		r.Equal(len(code), loadedCodeSize)
+		t.Logf("Gas used for GetExternalCodeSize (warm): %d", usedGas)
+
+		// Cold access
+		env, statedb, initialGas = setupEnvironment()
+		coldAddress := common.HexToAddress("0x67890")
+		statedb.SetCode(coldAddress, code)
+		loadedCodeSize = env.GetExternalCodeSize(coldAddress)
+		r.True(initialGas > env.contract.Gas)
+		usedGas = initialGas - env.contract.Gas
+		r.Equal(params.ColdAccountAccessCostEIP2929, usedGas)
+		r.Equal(len(code), loadedCodeSize)
+	})
+
+	t.Run("GetExternalCodeHash", func(t *testing.T) {
+		env, statedb, initialGas := setupEnvironment()
+		address := common.HexToAddress("0x12345")
+		code := []byte{0x61, 0x61, 0x61, 0x61}
+		statedb.SetCode(address, code)
+		statedb.AddAddressToAccessList(address)
+
+		// Warm access
+		loadedCodeHash := env.GetExternalCodeHash(address)
+		r.True(initialGas > env.contract.Gas)
+		usedGas := initialGas - env.contract.Gas
+		r.Equal(params.WarmStorageReadCostEIP2929, usedGas)
+		r.Equal(crypto.Keccak256Hash(code), loadedCodeHash)
+
+		// Cold access
+		env, statedb, initialGas = setupEnvironment()
+		coldAddress := common.HexToAddress("0x67890")
+		statedb.SetCode(coldAddress, code)
+		loadedCodeHash = env.GetExternalCodeHash(coldAddress)
+		r.True(initialGas > env.contract.Gas)
+		usedGas = initialGas - env.contract.Gas
+		r.Equal(params.ColdAccountAccessCostEIP2929, usedGas)
+		r.Equal(crypto.Keccak256Hash(code), loadedCodeHash)
 	})
 }
