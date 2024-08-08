@@ -23,11 +23,13 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"text/template"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/iancoleman/orderedmap"
 )
 
 //go:embed solgen.tpl
@@ -69,6 +71,24 @@ func getTypeString(internalType string, arg abi.Argument) string {
 	} else {
 		return arg.Type.String()
 	}
+}
+
+func orderMapKeys(unorderedMap map[string]abi.Method) *orderedmap.OrderedMap {
+	orderedMap := orderedmap.New()
+	keys := make([]string, len(unorderedMap))
+	cont := 0
+	for key := range unorderedMap {
+		keys[cont] = key
+		cont++
+	}
+
+	sort.Strings(keys)
+
+	for _, orderedKey := range keys {
+		orderedMap.Set(orderedKey, unorderedMap[orderedKey])
+	}
+
+	return orderedMap
 }
 
 func withLocation(typeStr string, arg abi.Argument) string {
@@ -115,7 +135,11 @@ func generateSolidityLibrary(ABI abi.ABI, cABI customABI, config Config) (string
 		"ImportPaths": importPaths,
 	}
 
-	for mIdx, method := range ABI.Methods {
+	orderedAbiMethods := orderMapKeys(ABI.Methods)
+
+	for _, mIdx := range orderedAbiMethods.Keys() {
+		methodInterface, _ := orderedAbiMethods.Get(mIdx)
+		method := methodInterface.(abi.Method)
 		inputSig := []string{}
 		inputTypes := []string{}
 		inputNames := []string{}
