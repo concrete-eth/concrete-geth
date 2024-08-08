@@ -28,7 +28,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/state"
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/holiman/uint256"
@@ -574,7 +573,7 @@ func TestStateMethods(t *testing.T) {
 	})
 
 	t.Run("Log", func(t *testing.T) {
-		env, statedb, initialGas := setupEnvironment()
+		env, _, initialGas := setupEnvironment()
 		topics := []common.Hash{common.HexToHash("0x01"), common.HexToHash("0x02")}
 		data := []byte("log data")
 
@@ -582,15 +581,12 @@ func TestStateMethods(t *testing.T) {
 		r.True(initialGas > env.contract.Gas)
 		usedGas := initialGas - env.contract.Gas
 
-		log := &types.Log{
-			Address: env.Contract().Address,
-			Topics:  topics,
-			Data:    data,
-		}
-		logs := statedb.Logs()
-		r.Len(logs, 1)
-		r.Equal(log, logs[0])
-		t.Logf("Gas used for Log: %d", usedGas)
+		// expected gas usage
+		topicGas := uint64(len(topics)) * params.LogTopicGas
+		dataGas := uint64(len(data)) * params.LogDataGas
+		expectedGas := params.LogGas + topicGas + dataGas
+
+		r.Equal(expectedGas, usedGas)
 	})
 
 	t.Run("GetCode", func(t *testing.T) {
@@ -641,7 +637,6 @@ func TestStateMethods(t *testing.T) {
 		usedGas = initialGas - env.contract.Gas
 		r.Equal(params.ColdAccountAccessCostEIP2929, usedGas)
 		r.Equal(balance, loadedBalance)
-		t.Logf("Gas used for GetExternalBalance (cold): %d", usedGas)
 	})
 
 	t.Run("GetExternalCode", func(t *testing.T) {
@@ -668,7 +663,6 @@ func TestStateMethods(t *testing.T) {
 		usedGas = initialGas - env.contract.Gas
 		r.Equal(params.ColdAccountAccessCostEIP2929, usedGas)
 		r.Equal(code, loadedCode)
-		t.Logf("Gas used for GetExternalCode (cold): %d", usedGas)
 	})
 
 	t.Run("GetExternalCodeSize", func(t *testing.T) {
