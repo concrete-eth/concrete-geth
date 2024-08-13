@@ -23,6 +23,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"text/template"
 
@@ -115,12 +116,19 @@ func generateSolidityLibrary(ABI abi.ABI, cABI customABI, config Config) (string
 		"ImportPaths": importPaths,
 	}
 
-	for mIdx, method := range ABI.Methods {
+	methodNames := make([]string, 0, len(ABI.Methods))
+	for name := range ABI.Methods {
+		methodNames = append(methodNames, name)
+	}
+	slices.Sort(methodNames)
+
+	for _, name := range methodNames {
+		method := ABI.Methods[name]
 		inputSig := []string{}
 		inputTypes := []string{}
 		inputNames := []string{}
 		for inIdx, input := range method.Inputs {
-			internalType := cABI.MethodsByName[mIdx].Inputs[inIdx].InternalType
+			internalType := cABI.MethodsByName[name].Inputs[inIdx].InternalType
 			typeStr := getTypeString(internalType, input)
 			inputSig = append(inputSig, withLocation(typeStr, input))
 			inputTypes = append(inputTypes, typeStr)
@@ -130,7 +138,7 @@ func generateSolidityLibrary(ABI abi.ABI, cABI customABI, config Config) (string
 		outputSig := []string{}
 		outputTypes := []string{}
 		for outIdx, output := range method.Outputs {
-			internalType := cABI.MethodsByName[mIdx].Outputs[outIdx].InternalType
+			internalType := cABI.MethodsByName[name].Outputs[outIdx].InternalType
 			typeStr := getTypeString(internalType, output)
 			outputSig = append(outputSig, withLocation(typeStr, output))
 			outputTypes = append(outputTypes, typeStr)
